@@ -842,9 +842,15 @@ class MainWindow(QMainWindow):
         self.task_list.clear()
         for t in tasks:
             self._add_task_item(t)
-        self.state_label.setText(
-            f"已规划 {len(tasks)} 条任务，正在检索…"
-        )
+
+        risky = [t for t in tasks if getattr(t, "risk", "normal") == "high"]
+        if risky:
+            self.state_label.setText(
+                f"已规划 {len(tasks)} 条任务，其中 {len(risky)} 条涉及删除/清理，请留意"
+            )
+            self.append_log(">>> 注意：本轮包含高风险操作，删除需在设置面板确认")
+        else:
+            self.state_label.setText(f"已规划 {len(tasks)} 条任务，正在检索…")
 
     def _load_chat(self, session_id: str) -> None:
         self.chat_view.clear()

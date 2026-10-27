@@ -14,12 +14,30 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 from pathlib import Path
 
 logger = logging.getLogger("imgsearch_agent.path_extractor")
 
 
 class PathExtractor:
+    #: 目录存在性缓存，30 秒内不重复查磁盘
+    _exists_cache: dict[str, tuple[float, bool]] = {}
+    _cache_ttl: float = 30.0
+
+    def _exists_dir(self, path: Path) -> bool:
+        key = str(path).lower()
+        now = time.time()
+        hit = self._exists_cache.get(key)
+        if hit is not None and now - hit[0] < self._cache_ttl:
+            return hit[1]
+        try:
+            value = path.exists() and path.is_dir()
+        except OSError:
+            value = False
+        self._exists_cache[key] = (now, value)
+        return value
+
     # 盘符路径：C:\xxx、D:/xxx
     WINDOWS = re.compile(r"[A-Za-z]:[\\/][^\s\"'<>|?*，。；：、]+")
     # UNC 路径：\\server\share
@@ -85,7 +103,7 @@ class PathExtractor:
         for item in candidates:
             try:
                 path = Path(item).expanduser()
-                if path.exists() and path.is_dir():
+                if self._exists_dir(path):
                     return str(path.resolve())
             except OSError:
                 continue

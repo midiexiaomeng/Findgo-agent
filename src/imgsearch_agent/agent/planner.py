@@ -17,6 +17,15 @@ from .path_extractor import PathExtractor
 logger = logging.getLogger("imgsearch_agent.planner")
 
 
+RISK_KEYWORDS = ("删除", "删掉", "清理", "移除", "清空", "purge", "trash")
+
+
+def assess_risk(query: str) -> str:
+    """在规划阶段就标出高风险意图，供 UI 提前确认。"""
+    text = (query or "").lower()
+    return "high" if any(word in text for word in RISK_KEYWORDS) else "normal"
+
+
 class Planner:
     def __init__(self, client, prompts: dict[str, str], max_iterations: int = 5):
         self.client = client
@@ -151,8 +160,12 @@ class Planner:
                     all_results=all_results,
                 )
             )
+        risk = assess_risk(query)
+        for task in result:
+            task.risk = risk
+
         if not result:
-            return [TaskSpec(id=1, description=query, query=query)]
+            return [TaskSpec(id=1, description=query, query=query, risk=risk)]
 
         # 只有一个任务且带显式路径时，拆成「打开目录」「检索图片」两步；
         # 多个任务时每个任务保持一步，路径扫描在检索工具内部完成。
@@ -165,6 +178,7 @@ class Planner:
                     description=f"打开 {target.path}",
                     query="",
                     path=target.path,
+                    risk=target.risk,
                 ),
                 TaskSpec(
                     id=2,
@@ -173,6 +187,8 @@ class Planner:
                     query=target.query,
                     top_k=target.top_k,
                     path=target.path,
+                    all_results=target.all_results,
+                    risk=target.risk,
                 ),
             ]
 

@@ -179,6 +179,7 @@ class ImageSearchAgent:
         write_memory: bool = True,
         should_stop=None,
         max_steps: int = 10,
+        continue_on_failure: bool = True,
     ) -> list[AgentResult]:
         """按任务列表逐条执行，跳过 skipped。
 
@@ -217,6 +218,13 @@ class ImageSearchAgent:
             result, retries = self._execute_with_retry(
                 tool, args, should_stop=should_stop
             )
+
+            if result.get("error") and not continue_on_failure:
+                logger.warning(
+                    "任务失败且 continue_on_failure=False，终止后续任务：%s",
+                    result.get("summary", ""),
+                )
+                break
 
             if task.action == "scan":
                 reply = str(result.get("summary") or "")
@@ -286,7 +294,7 @@ class ImageSearchAgent:
             )
             self.memory.add_trace(
                 f"{self.memory.session_id}-{attempt}",
-                "tool_call" if attempt == 0 else "retry",
+                "tool_call" if attempt == 0 else "critic_rewrite",
                 tool.name,
                 args,
                 {"images": len(result.get("images", [])), "confidence": critique.confidence},
@@ -297,6 +305,14 @@ class ImageSearchAgent:
 
             attempt += 1
             new_query = self.critic.rewrite(query, critique.reason)
+            self.trace.info(
+                "critic",
+                "rewrite",
+                old_query=query[:60],
+                new_query=new_query[:60],
+                confidence=round(critique.confidence, 3),
+                reason=critique.reason[:120],
+            )
             if new_query == query:
                 return result, attempt
             query = new_query
