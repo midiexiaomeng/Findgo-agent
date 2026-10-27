@@ -1,11 +1,12 @@
-# 工具注册配置。新增工具在这里登记，Agent 主流程无需改动。
+# 工具注册配置（第一层：Agent 能力契约）。
+# 新增工具只需在这里登记，Agent 主流程无需改动。
 
 tools:
   - name: image_retrieval
     module: imgsearch_agent.tools.image_retrieval
     class: ImageRetrievalTool
     enabled: true
-    description: 用自然语言描述搜索本地图片库，返回图片、路径与相似度
+    description: 用自然语言描述搜索本地图片库，返回图片路径、描述与相似度
     parameters:
       query:
         type: string
@@ -15,3 +16,59 @@ tools:
         type: integer
         description: 返回数量
         default: 8
+      folder_path:
+        type: string
+        description: 限定检索的文件夹路径，留空表示全库
+        required: false
+
+  - name: image_retrieval_by_image
+    module: imgsearch_agent.tools.image_retrieval_by_image
+    class: ImageRetrievalByImageTool
+    enabled: true
+    description: 以图搜图，给出本地图片路径，返回视觉相似的图片
+    parameters:
+      image_path:
+        type: string
+        description: 查询图片路径
+        required: true
+      top_k:
+        type: integer
+        description: 返回数量
+        default: 8
+      folder_path:
+        type: string
+        description: 限定检索的文件夹路径
+        required: false
+
+  - name: index_folder
+    module: imgsearch_agent.tools.index_folder
+    class: IndexFolderTool
+    enabled: true
+    description: 对指定文件夹构建图像索引，默认增量更新
+    parameters:
+      folder_path:
+        type: string
+        description: 要建索引的文件夹
+        required: true
+      rebuild:
+        type: boolean
+        description: True 全量重建，False 增量
+        default: false
+
+  - name: get_index_stats
+    module: imgsearch_agent.tools.get_index_stats
+    class: GetIndexStatsTool
+    enabled: true
+    description: 查询索引统计，包括图片数量、向量库类型与当前设备
+    parameters: {}
+
+  - name: switch_vector_backend
+    module: imgsearch_agent.tools.switch_vector_backend
+    class: SwitchVectorBackendTool
+    enabled: true
+    description: 切换向量库后端（chroma / qdrant），切换后需重新索引
+    parameters:
+      backend_name:
+        type: string
+        description: chroma 或 qdrant
+        required: true

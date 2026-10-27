@@ -7,8 +7,6 @@ Agent 只看到 name / description / args_schema / run，
 from __future__ import annotations
 
 import logging
-
-from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -23,7 +21,8 @@ logger = logging.getLogger("imgsearch_agent.image_retrieval")
 class ImageRetrievalArgs(BaseModel):
     query: str = Field(..., description="图片内容描述")
     top_k: int = Field(8, description="返回数量")
-    path: str = Field("", description="限定检索的文件夹路径，空表示全库")
+    folder_path: str = Field("", description="限定检索的文件夹路径，空表示全库")
+    path: str = Field("", description="（兼容）同 folder_path")
 
 
 class ImageRetrievalTool(BaseTool):
@@ -45,29 +44,30 @@ class ImageRetrievalTool(BaseTool):
             self._pipeline = build_pipeline()
         return self._pipeline
 
-    def _ensure_indexed(self, folder: Path) -> None:
+    def _ensure_indexed(self, folder) -> None:
         """用户指定新目录时自动建索引；已索引过的目录直接跳过。"""
         key = str(folder.resolve()).lower()
         if key in self._indexed:
             return
         try:
-            from ..retriever.indexer import Indexer
-
-            pipeline = self.pipeline
-            Indexer(
-                pipeline.cfg, pipeline.encoder, pipeline.store, pipeline.captioner
-            ).index_folder(folder, recursive=True, skip_existing=True)
+            self.pipeline.index_folder(folder, recursive=True, skip_existing=True)
         except Exception as e:
             logger.warning("自动索引 %s 失败: %s", folder, e)
         self._indexed.add(key)
 
-    def run(self, query: str, top_k: int = 8, path: str = "") -> dict[str, Any]:
+    def run(
+        self,
+        query: str,
+        top_k: int = 8,
+        folder_path: str = "",
+        path: str = "",
+    ) -> dict[str, Any]:
+        target = folder_path or path
         scope = ""
-        if path:
+        if target:
             try:
-                folder = self.guard.check(path)
+                folder = self.guard.check(target)
             except PathSecurityError as e:
-                # 越界路径直接拒绝，不做任何索引动作
                 logger.warning("路径校验拒绝: %s", e)
                 return RetrievalResult(
                     query=query,

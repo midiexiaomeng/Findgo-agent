@@ -16,7 +16,14 @@ from typing import Any
 
 from ..config import AgentConfig
 from ..llm import ChatClient
-from ..tools import FolderScanTool, ImageRetrievalTool
+from ..tools import (
+    FolderScanTool,
+    GetIndexStatsTool,
+    ImageRetrievalByImageTool,
+    ImageRetrievalTool,
+    IndexFolderTool,
+    SwitchVectorBackendTool,
+)
 from ..tools.base_tool import BaseTool
 from ..utils.logger import TraceLogger
 from ..utils.schemas import AgentAction, TaskSpec
@@ -67,6 +74,12 @@ class ImageSearchAgent:
             guard = PathGuard(self.config.allowed_roots or None)
             self.tools = {
                 "image_retrieval": ImageRetrievalTool(pipeline, guard=guard),
+                "image_retrieval_by_image": ImageRetrievalByImageTool(
+                    pipeline, guard=guard
+                ),
+                "index_folder": IndexFolderTool(pipeline, guard=guard),
+                "get_index_stats": GetIndexStatsTool(pipeline),
+                "switch_vector_backend": SwitchVectorBackendTool(pipeline),
                 "folder_scan": FolderScanTool(guard=guard),
             }
 
@@ -162,7 +175,7 @@ class ImageSearchAgent:
                 args = {
                     "query": task.query,
                     "top_k": task.top_k if task.top_k > 0 else self.config.top_k,
-                    "path": task.path or "",
+                    "folder_path": task.path or "",
                 }
 
             result, retries = self._execute_with_retry(tool, args)

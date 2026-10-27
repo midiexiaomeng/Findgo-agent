@@ -19,16 +19,46 @@
 
 ## 架构
 
+四层结构，Agent 工具与 CLI 共用同一套内核：
+
+```
+Agent 工具（LLM 调用）   CLI（人手动调用）
+      │                        │
+      └────────┬───────────────┘
+               ▼
+        Core Service（Pipeline / Searcher / Indexer / Encoder）
+               ▼
+        检索模型与向量库（Chinese-CLIP / BLIP / Qdrant / Chroma / LLM 重排）
+```
+
+| 工具 | 作用 |
+| --- | --- |
+| `image_retrieval` | 文本检索图片，支持 `folder_path` 限定目录 |
+| `image_retrieval_by_image` | 以图搜图 |
+| `index_folder` | 对指定文件夹增量建索引 |
+| `get_index_stats` | 查询图片数量、向量库类型、设备 |
+| `switch_vector_backend` | 切换 Chroma / Qdrant |
+| `folder_scan` | 扫描文件夹并统计图片数量 |
+
 ```mermaid
 graph TD
-    U[用户] --> APP[PyQt5 桌面应用]
-    APP --> O[Orchestrator]
+    U[用户] --> UI[PyQt5 / CLI]
+    UI --> O[Orchestrator]
     O --> P[Planner]
-    P -->|tool_call| T[工具注册表]
-    T --> IR[ImageRetrievalTool]
-    IR --> E[Chinese-CLIP]
-    IR --> V[(Qdrant / ChromaDB)]
-    IR --> RR[LLM 重排]
+    P -->|TaskSpec| T[工具注册表]
+    T --> IF[index_folder]
+    T --> IR[image_retrieval]
+    T --> II[image_retrieval_by_image]
+    T --> IS[get_index_stats]
+    T --> SB[switch_vector_backend]
+    IF --> PL[Pipeline]
+    IR --> PL
+    II --> PL
+    IS --> PL
+    SB --> PL
+    PL --> E[Chinese-CLIP]
+    PL --> V[(Qdrant / ChromaDB)]
+    PL --> RR[LLM 重排]
     RR --> API[DeepSeek API]
     O --> C[Critic]
     C -->|低置信，改写重试| P
@@ -38,7 +68,8 @@ graph TD
     M --> DB[(SQLite)]
 ```
 
-更详细的分层与数据流见 [docs/architecture.md](docs/architecture.md)。
+更详细的分层、调用链路与安全收口见 [docs/architecture.md](docs/architecture.md)。
+
 
 ## 快速开始
 
@@ -112,12 +143,16 @@ llm:
 - [x] ReAct 编排：Planner / Memory / Critic / Responder
 - [x] PyQt5 桌面应用
 - [x] DeepSeek V4 Flash / Ollama / 本地 Transformers 三种 LLM 后端
-- [x] 63 个单元测试 + CI 配置
-- [ ] 以图搜图工具接入 Agent
+- [x] Agent 工具契约：文本检索、以图搜图、建索引、索引统计、后端切换
+- [x] 路径识别：正则优先 + LLM 辅助，限定目录检索
+- [x] 路径安全校验：防止 `..` 穿越与系统目录访问
+- [x] 任务链分步：单任务带路径拆「打开目录 / 检索图片」
+- [x] 81 个单元测试 + CI 配置
 - [ ] 混合检索：BM25 + 向量，RRF 融合
 - [ ] 中文图像描述（Qwen2.5-VL 替代 BLIP）
 - [ ] Recall@K 实测与对比实验
 - [ ] PyInstaller 打包 exe
+
 
 ## 贡献指南
 
