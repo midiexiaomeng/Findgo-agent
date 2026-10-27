@@ -452,31 +452,35 @@ class MainWindow(QMainWindow):
         for b in (self.add_btn, self.del_btn, self.up_btn, self.down_btn):
             btn_row.addWidget(b)
 
-        self.run_btn = QPushButton("重跑")
+        self.run_btn = QPushButton("↻")
+        self.run_btn.setFixedWidth(30)
         self.run_btn.setStyleSheet(
             "QPushButton{background:#6F9C86;color:white;border:none;"
-            "border-radius:5px;padding:4px 10px;font-size:12px;}"
+            "border-radius:6px;padding:4px 0;font-size:13px;}"
             "QPushButton:disabled{background:#A8C9B8;}"
         )
-        self.run_btn.setToolTip("按当前编辑后的任务链重新执行")
+        self.run_btn.setToolTip("重跑：按当前编辑后的任务链重新执行")
         self.run_btn.clicked.connect(self.on_run_tasks)
 
-        self.stop_btn = QPushButton("停止")
+        self.stop_btn = QPushButton("■")
+        self.stop_btn.setFixedWidth(30)
         self.stop_btn.setStyleSheet(
             "QPushButton{background:#C97B6E;color:white;border:none;"
-            "border-radius:5px;padding:4px 10px;font-size:12px;}"
+            "border-radius:6px;padding:4px 0;font-size:13px;}"
             "QPushButton:disabled{background:#E2BCB3;}"
         )
-        self.stop_btn.setToolTip("中断后续任务，当前这一条检索会先跑完")
+        self.stop_btn.setToolTip("停止：中断后续任务，当前这一条检索会先跑完")
         self.stop_btn.setEnabled(False)
         self.stop_btn.clicked.connect(self.on_stop)
 
-        self.resume_btn = QPushButton("继续")
+        # 右栏可能被拖得很窄，按钮用图标 + tooltip，避免文字被裁掉
+        self.resume_btn = QPushButton("▶")
+        self.resume_btn.setFixedWidth(30)
         self.resume_btn.setStyleSheet(
             "QPushButton{background:#6F9C86;color:white;border:none;"
-            "border-radius:6px;padding:4px 12px;font-size:12px;}"
+            "border-radius:6px;padding:4px 0;font-size:13px;}"
         )
-        self.resume_btn.setToolTip("执行上次未完成的任务")
+        self.resume_btn.setToolTip("继续执行上次未完成的任务")
         self.resume_btn.setVisible(False)
         self.resume_btn.clicked.connect(self.on_run_tasks)
 
