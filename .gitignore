@@ -18,6 +18,7 @@ env/
 config.local.yaml
 config.api.yaml
 configs/agent.yaml
+configs/models.json
 
 # IDE
 .vscode/

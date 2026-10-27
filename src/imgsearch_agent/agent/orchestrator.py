@@ -156,6 +156,15 @@ class ImageSearchAgent:
             )
         return results
 
+    # ── 运行时切换模型 ────────────────────────────────────────────────────
+
+    def set_llm(self, llm_cfg: dict) -> None:
+        """热切换 LLM（主界面模型选择器调用）。"""
+        self.client = ChatClient(llm_cfg)
+        self.planner.client = self.client
+        self.critic.client = self.client
+        self.responder.client = self.client
+
     # ── 内部 ──────────────────────────────────────────────────────────────
 
     def _execute_with_retry(
