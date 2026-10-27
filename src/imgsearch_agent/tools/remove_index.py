@@ -43,7 +43,7 @@ class RemoveIndexTool(BaseTool):
 
     def run(self, folder_path: str, dry_run: bool = True) -> dict[str, Any]:
         try:
-            folder = self.guard.check(folder_path)
+            folder = self.guard.check(folder_path, "read")
         except PathSecurityError as e:
             return {"count": 0, "deleted": False, "summary": f"路径不安全，已拒绝：{e}"}
 

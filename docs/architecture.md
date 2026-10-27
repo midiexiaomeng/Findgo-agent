@@ -128,18 +128,37 @@ python cli.py doctor                        # 环境自检
 
 ---
 
-## 安全收口
+## 安全收口：权限分域沙箱
 
-所有接收路径的入口（Agent 工具、CLI、WebUI）统一走 `PathGuard`：
+路径按用途分成三类，不做一刀切只读：
 
-1. `resolve()` 展开 `..` 和符号链接
-2. 命中系统目录（Windows / Program Files / ProgramData）直接拒绝
-3. 必须落在允许的根目录内，默认「项目目录 + 用户主目录」
-4. 越界路径不触发任何索引或检索动作
+| 区域 | 典型目录 | 读 | 写 / 删 |
+| --- | --- | --- | --- |
+| 用户素材 `image_roots` | `datasets/`、`~/Pictures` | 允许 | 禁止 |
+| 工作区 `workspace_roots` | `data/`（向量库、导出、缩略图） | 允许 | 允许 |
+| 系统目录 | `C:\Windows`、`Program Files`、`/etc` | 禁止 | 禁止 |
 
-允许的根目录在 `configs/agent.yaml` 的 `security.allowed_roots` 配置。
+规则一句话：**读用户原图只能在只读区；所有写入、删除、向量库操作只能落在 workspace。**
 
----
+每次校验必须声明这次要做什么：
+
+```python
+sandbox.check(image_path, "read")      # 读图
+sandbox.check(export_path, "write")    # 写文件
+sandbox.check(cache_path, "delete")    # 删文件
+```
+
+工具里不允许出现无模式的 `check()` 调用。越界时返回可读错误，不触发任何文件操作。
+
+配置在 `configs/agent.yaml`：
+
+```yaml
+sandbox:
+  image_roots:
+    - ./datasets
+  workspace_roots:
+    - ./data
+```
 
 ## Agent 层内部
 

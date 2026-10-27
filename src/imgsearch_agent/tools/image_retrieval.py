@@ -86,7 +86,7 @@ class ImageRetrievalTool(BaseTool):
         scope = ""
         if target:
             try:
-                folder = self.guard.check(target)
+                folder = self.guard.check(target, "read")
             except PathSecurityError as e:
                 logger.warning("路径校验拒绝: %s", e)
                 return RetrievalResult(

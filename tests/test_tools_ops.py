@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from imgsearch_agent.tools import ExportResultsTool, RemoveIndexTool
-from imgsearch_agent.utils.path_guard import PathGuard
+from imgsearch_agent.utils.sandbox import Sandbox
 
 
 class _Item:
@@ -39,7 +39,10 @@ def test_export_csv(tmp_path, monkeypatch):
         "imgsearch_agent.retriever.runtime.PROJECT_ROOT", str(tmp_path)
     )
 
-    tool = ExportResultsTool(_ExportPipeline(), PathGuard(allowed_roots=[str(tmp_path)]))
+    tool = ExportResultsTool(
+        _ExportPipeline(),
+        Sandbox(image_roots=[str(tmp_path)], workspace_roots=[str(tmp_path)]),
+    )
     result = tool.run("猫", top_k=5)
 
     saved = Path(result["path"])
@@ -85,7 +88,7 @@ def _guard(tmp_path):
     # 用临时目录模拟 D:\photos\x
     folder = tmp_path / "photos" / "x"
     folder.mkdir(parents=True)
-    return PathGuard(allowed_roots=[str(tmp_path)]), folder
+    return Sandbox(image_roots=[str(tmp_path)], workspace_roots=[str(tmp_path)]), folder
 
 
 def test_remove_index_dry_run(tmp_path):

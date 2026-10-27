@@ -74,7 +74,7 @@ class ImageSearchAgent:
         if tools is not None:
             self.tools = tools
         else:
-            from ..utils.path_guard import PathGuard
+            from ..utils.sandbox import Sandbox
 
             # 所有工具共享同一个 Pipeline，避免各自连接导致 Qdrant 文件锁冲突
             if pipeline is None:
@@ -82,7 +82,10 @@ class ImageSearchAgent:
 
                 pipeline = build_pipeline()
 
-            guard = PathGuard(self.config.allowed_roots or None)
+            guard = Sandbox(
+                self.config.image_roots or None,
+                self.config.workspace_roots or None,
+            )
             self.tools = {
                 "image_retrieval": ImageRetrievalTool(pipeline, guard=guard),
                 "image_search_by_image": ImageSearchByImageTool(

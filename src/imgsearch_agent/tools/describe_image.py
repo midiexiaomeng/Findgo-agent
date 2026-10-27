@@ -38,7 +38,7 @@ class DescribeImageTool(BaseTool):
 
     def run(self, image_path: str) -> dict[str, Any]:
         try:
-            image = self.guard.check(image_path)
+            image = self.guard.check(image_path, "read")
         except PathSecurityError as e:
             return {
                 "path": image_path,

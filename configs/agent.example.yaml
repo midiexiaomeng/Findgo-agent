@@ -26,6 +26,14 @@ llm:
   # 其他需要透传给 API 的参数
   extra_body: {}
 
+sandbox:
+  # 只读素材目录：Agent 只能读，不能改、不能删
+  image_roots:
+    - ./datasets
+  # 可写目录：缓存、向量库、导出、缩略图都在这里
+  workspace_roots:
+    - ./data
+
 security:
   # 允许 Agent 访问的根目录；留空则默认「项目目录 + 用户主目录」
   # 系统目录（Windows、Program Files、ProgramData）始终禁止

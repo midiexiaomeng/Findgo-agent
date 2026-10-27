@@ -303,8 +303,9 @@ class SettingsDialog(QDialog):
         layout.setSpacing(10)
 
         tip = QLabel(
-            "Agent 只能访问这里列出的目录；系统目录（Windows、Program Files）始终禁止。"
-            "留空表示使用默认范围：项目目录 + 用户主目录。"
+            "这里列出的是只读素材目录：Agent 能读图，但不能修改或删除。"
+            "写操作（缓存、向量库、导出）只会发生在项目的 data 目录。"
+            "系统目录（Windows、Program Files）始终禁止。留空表示使用默认范围。"
         )
         tip.setWordWrap(True)
         tip.setStyleSheet("color:#6b7280; font-size:12px;")
@@ -557,7 +558,7 @@ class SettingsDialog(QDialog):
             from .config import AgentConfig
 
             cfg = AgentConfig()
-            for root in cfg.allowed_roots:
+            for root in cfg.image_roots:
                 self.roots_list.addItem(str(root))
         except Exception:
             pass
@@ -585,8 +586,8 @@ class SettingsDialog(QDialog):
         try:
             path = PROJECT_ROOT / "configs" / "agent.yaml"
             data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-            data.setdefault("security", {})
-            data["security"]["allowed_roots"] = roots
+            data.setdefault("sandbox", {})
+            data["sandbox"]["image_roots"] = roots
             path.write_text(
                 yaml.safe_dump(data, allow_unicode=True, sort_keys=False),
                 encoding="utf-8",

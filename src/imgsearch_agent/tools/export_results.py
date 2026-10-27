@@ -52,7 +52,7 @@ class ExportResultsTool(BaseTool):
         scope = ""
         if folder_path:
             try:
-                scope = str(self.guard.check(folder_path))
+                scope = str(self.guard.check(folder_path, "read"))
             except PathSecurityError as e:
                 return {"path": "", "count": 0, "summary": f"路径不安全，已拒绝：{e}"}
 
@@ -81,6 +81,11 @@ class ExportResultsTool(BaseTool):
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         suffix = "csv" if output_format.lower() == "csv" else "txt"
         target = out_dir / f"export_{stamp}.{suffix}"
+
+        try:
+            self.guard.check(target, "write")
+        except PathSecurityError as e:
+            return {"path": "", "count": 0, "summary": f"导出目录不在 workspace 内：{e}"}
 
         try:
             if suffix == "csv":

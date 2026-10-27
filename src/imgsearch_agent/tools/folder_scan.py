@@ -34,7 +34,7 @@ class FolderScanTool(BaseTool):
 
     def run(self, path: str, recursive: bool = True) -> dict[str, Any]:
         try:
-            folder = self.guard.check(path)
+            folder = self.guard.check(path, "read")
         except PathSecurityError as e:
             logger.warning("路径校验拒绝: %s", e)
             return {

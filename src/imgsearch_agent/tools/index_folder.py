@@ -72,7 +72,7 @@ class IndexFolderTool(BaseTool):
 
     def run(self, folder_path: str, rebuild: bool = False) -> dict[str, Any]:
         try:
-            folder = self.guard.check(folder_path)
+            folder = self.guard.check(folder_path, "read")
         except PathSecurityError as e:
             return {
                 "count": 0,

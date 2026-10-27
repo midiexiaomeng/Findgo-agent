@@ -43,7 +43,7 @@ class ImageSearchByImageTool(BaseTool):
         self, image_path: str, top_k: int = 8, folder_path: str = ""
     ) -> dict[str, Any]:
         try:
-            image = self.guard.check(image_path)
+            image = self.guard.check(image_path, "read")
         except PathSecurityError as e:
             return RetrievalResult(
                 query=image_path,
@@ -63,7 +63,7 @@ class ImageSearchByImageTool(BaseTool):
         scope = ""
         if folder_path:
             try:
-                scope = str(self.guard.check(folder_path))
+                scope = str(self.guard.check(folder_path, "read"))
             except PathSecurityError as e:
                 return RetrievalResult(
                     query=image_path,
