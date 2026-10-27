@@ -21,6 +21,7 @@ from PyQt5.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QListWidget,
     QListWidgetItem,
     QPushButton,
@@ -389,6 +390,24 @@ class SettingsDialog(QDialog):
 
         layout.addLayout(form)
 
+        self.trash_info = QLabel("")
+        self.trash_info.setStyleSheet("color:#4A4A4A; font-size:12px;")
+        layout.addWidget(self.trash_info)
+
+        action_row = QHBoxLayout()
+        refresh_btn = QPushButton("刷新")
+        refresh_btn.clicked.connect(self._refresh_trash_info)
+        self.purge_btn = QPushButton("永久删除暂存")
+        self.purge_btn.setStyleSheet(
+            "QPushButton{background:#C97B6E;color:white;border:none;"
+            "border-radius:6px;padding:7px 16px;}"
+        )
+        self.purge_btn.clicked.connect(self.on_purge_trash)
+        action_row.addWidget(refresh_btn)
+        action_row.addStretch(1)
+        action_row.addWidget(self.purge_btn)
+        layout.addLayout(action_row)
+
         save_btn = QPushButton("保存暂存区设置")
         save_btn.setStyleSheet(
             "QPushButton{background:#6F9C86;color:white;border:none;"
@@ -403,6 +422,54 @@ class SettingsDialog(QDialog):
         layout.addStretch(1)
         return page
 
+    def _refresh_trash_info(self) -> None:
+        try:
+            from .trash import TrashStaging
+            from .config import PROJECT_ROOT
+
+            staging = TrashStaging(PROJECT_ROOT / "data" / "trash_staging")
+            stats = staging.stats()
+            mb = stats["total_bytes"] / 1024**2
+            self.trash_info.setText(
+                f"暂存区现有 {stats['count']} 张，占用 {mb:.1f} MB"
+            )
+        except Exception as e:
+            self.trash_info.setText(f"读取暂存区失败：{e}")
+
+    def on_purge_trash(self) -> None:
+        """永久删除必须人工确认，Agent 无法直接触发。"""
+        if self.agent is None:
+            self.trash_status.setText("Agent 未初始化，无法操作暂存区")
+            return
+
+        tool = self.agent.tools.get("trash_manage")
+        if tool is None:
+            self.trash_status.setText("暂存区工具未注册")
+            return
+
+        items = tool.staging.list_staged()
+        if not items:
+            self.trash_status.setText("暂存区是空的")
+            return
+
+        reply = QMessageBox.question(
+            self,
+            "确认永久删除",
+            f"将永久删除暂存区里的 {len(items)} 张图片，原图会一起删除且无法恢复。确定吗？",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if reply != QMessageBox.Yes:
+            return
+
+        total = 0
+        for task_id in {item["task_id"] for item in items}:
+            result = tool.run("purge", task_id=task_id, allow_danger=True)
+            total += int(result.get("purged", 0))
+
+        self.trash_status.setText(f"已永久删除 {total} 张")
+        self._refresh_trash_info()
+
     def _load_trash(self) -> None:
         try:
             from .config import AgentConfig
@@ -415,6 +482,8 @@ class SettingsDialog(QDialog):
             self.trash_days.setValue(14)
             self.trash_gb.setValue(10.0)
             self.trash_auto.setChecked(True)
+
+        self._refresh_trash_info()
 
     def on_save_trash(self) -> None:
         import yaml

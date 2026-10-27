@@ -20,6 +20,7 @@ class SwitchBackendArgs(BaseModel):
 
 class SwitchVectorBackendTool(BaseTool):
     name = "switch_vector_backend"
+    permission = "index_write"
     description = "切换向量库后端（chroma / qdrant）；两个后端数据不共享，切换后需重新索引"
     args_schema = SwitchBackendArgs
 

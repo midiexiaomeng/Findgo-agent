@@ -44,7 +44,7 @@ class _EchoTool(BaseTool):
 
 def test_timeout_returns_error():
     executor = ToolExecutor(default_timeout=0.2)
-    result, _ = executor.execute(_SlowTool(), {"query": "x"})
+    result, _ = executor.execute(_SlowTool(), {"query": "x"}, timeout=0.2)
     assert result["error"] == "timeout"
     assert "超时" in result["summary"]
 

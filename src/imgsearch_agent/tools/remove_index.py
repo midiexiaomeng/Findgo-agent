@@ -29,6 +29,7 @@ class RemoveIndexArgs(BaseModel):
 
 class RemoveIndexTool(BaseTool):
     name = "remove_index"
+    permission = "index_write"
     description = "移除某个文件夹在向量库里的索引记录（不删除原图），默认只试运行"
     args_schema = RemoveIndexArgs
 

@@ -35,6 +35,7 @@ class TrashManageArgs(BaseModel):
 
 class TrashManageTool(BaseTool):
     name = "trash_manage"
+    permission = "file_write"
     description = (
         "管理暂存区：stage 把图片移入暂存区（不删原图）/ list 查看 / "
         "restore 恢复 / purge 永久删除 / cleanup 按超时与容量清理"
@@ -55,6 +56,10 @@ class TrashManageTool(BaseTool):
         except Exception:
             self.max_days = 14
             self.max_total_gb = 10.0
+
+    def permission_for(self, args: dict) -> str:
+        # 永久删除单独提升为高危，其余暂存/恢复属于文件写
+        return "danger_delete" if str(args.get("action")) == "purge" else "file_write"
 
     @property
     def pipeline(self):
@@ -83,8 +88,17 @@ class TrashManageTool(BaseTool):
         ids: list[str] | None = None,
         max_days: int = 0,
         max_total_gb: float = 0.0,
+        allow_danger: bool = False,
     ) -> dict[str, Any]:
         action = (action or "").lower()
+
+        if action == "purge" and not allow_danger:
+            # Agent 不能自主永久删除，必须由界面确认后调用
+            return {
+                "error": "need_confirm",
+                "need_user_confirm": True,
+                "summary": "永久删除需要人工确认，请在设置面板的暂存区操作",
+            }
 
         if action == "stage":
             return self._stage(paths or [], task_id)

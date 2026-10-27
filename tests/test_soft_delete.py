@@ -66,7 +66,7 @@ def test_restore_unmarks_vectors(tmp_path):
 def test_purge_deletes_vectors(tmp_path):
     tool, pipeline, paths = build(tmp_path)
     tool.run("stage", paths=paths, task_id="t1")
-    tool.run("purge", task_id="t1")
+    tool.run("purge", task_id="t1", allow_danger=True)
     assert len(pipeline.store.deleted) == 2
 
 

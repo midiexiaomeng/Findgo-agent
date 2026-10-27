@@ -24,6 +24,8 @@ class IndexFolderArgs(BaseModel):
 
 class IndexFolderTool(BaseTool):
     name = "index_folder"
+    permission = "index_write"
+    timeout = 3600.0
     description = "对指定文件夹构建图像索引；默认增量，已索引过的图片自动跳过"
     args_schema = IndexFolderArgs
 

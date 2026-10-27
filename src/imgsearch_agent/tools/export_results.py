@@ -27,6 +27,7 @@ class ExportResultsArgs(BaseModel):
 
 class ExportResultsTool(BaseTool):
     name = "export_results"
+    permission = "file_write"
     description = "把一次检索的结果导出成 CSV 或 TXT 清单，方便交给别的程序处理"
     args_schema = ExportResultsArgs
 

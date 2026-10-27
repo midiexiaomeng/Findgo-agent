@@ -43,8 +43,23 @@ class ToolExecutor:
         args: dict[str, Any],
         timeout: float | None = None,
         should_stop=None,
+        allow_danger: bool = False,
     ) -> tuple[dict[str, Any], int]:
         started = time.time()
+
+        # 高危操作默认拒绝，必须由界面显式放行
+        try:
+            permission = tool.permission_for(args)
+        except Exception:
+            permission = getattr(tool, "permission", "read")
+
+        if permission == "danger_delete" and not allow_danger:
+            logger.warning("拒绝高危操作 %s（需要人工确认）", tool.name)
+            return {
+                "error": "need_confirm",
+                "need_user_confirm": True,
+                "summary": f"{tool.name} 属于高危删除，需要人工确认后执行",
+            }, 0
 
         try:
             payload = tool.validate(args)
@@ -59,7 +74,7 @@ class ToolExecutor:
             except (TypeError, ValueError):
                 pass
 
-        limit = float(timeout or self.default_timeout)
+        limit = float(timeout or getattr(tool, "timeout", self.default_timeout))
         future = self._pool.submit(tool.run, **payload)
 
         try:

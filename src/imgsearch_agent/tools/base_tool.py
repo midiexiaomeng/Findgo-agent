@@ -17,6 +17,15 @@ class BaseTool(ABC):
     description: str = ""
     args_schema: Type[BaseModel] | None = None
 
+    #: 权限分组：read / index_write / file_write / danger_delete
+    permission: str = "read"
+    #: 单次执行超时（秒），由 ToolExecutor 使用
+    timeout: float = 180.0
+
+    def permission_for(self, args: dict[str, Any]) -> str:
+        """按参数决定本次调用的权限等级，默认与类属性一致。"""
+        return self.permission
+
     @abstractmethod
     def run(self, **kwargs: Any) -> Any:
         """执行工具，返回结构化结果。"""
