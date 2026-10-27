@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from .base_tool import BaseTool
 
@@ -13,7 +13,9 @@ logger = logging.getLogger("imgsearch_agent.switch_backend")
 
 
 class SwitchBackendArgs(BaseModel):
-    backend_name: str = Field(..., description="目标向量库：chroma 或 qdrant")
+    model_config = ConfigDict(extra="forbid")
+
+    backend_name: str = Field(..., min_length=1, description="目标向量库：chroma 或 qdrant")
 
 
 class SwitchVectorBackendTool(BaseTool):

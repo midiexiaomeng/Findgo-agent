@@ -5,23 +5,25 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from ..utils.path_guard import PathGuard, PathSecurityError
 from ..utils.schemas import RetrievalResult, RetrievedImage
 from .base_tool import BaseTool
 
-logger = logging.getLogger("imgsearch_agent.image_retrieval_by_image")
+logger = logging.getLogger("imgsearch_agent.image_search_by_image")
 
 
 class ImageSearchByImageArgs(BaseModel):
-    image_path: str = Field(..., description="查询图片的本地路径")
-    top_k: int = Field(8, description="返回数量")
+    model_config = ConfigDict(extra="forbid")
+
+    image_path: str = Field(..., min_length=1, description="查询图片的本地路径")
+    top_k: int = Field(8, ge=1, le=50, description="返回数量")
     folder_path: str = Field("", description="限定检索的文件夹路径，空表示全库")
 
 
-class ImageRetrievalByImageTool(BaseTool):
-    name = "image_retrieval_by_image"
+class ImageSearchByImageTool(BaseTool):
+    name = "image_search_by_image"
     description = "以图搜图：给定一张图片，找出本地图库中视觉相似的图片"
     args_schema = ImageSearchByImageArgs
 

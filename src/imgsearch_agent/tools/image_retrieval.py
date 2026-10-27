@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from ..utils.path_guard import PathGuard, PathSecurityError
 from ..utils.schemas import RetrievalResult, RetrievedImage
@@ -19,8 +19,10 @@ logger = logging.getLogger("imgsearch_agent.image_retrieval")
 
 
 class ImageRetrievalArgs(BaseModel):
-    query: str = Field(..., description="图片内容描述")
-    top_k: int = Field(8, description="返回数量")
+    model_config = ConfigDict(extra="forbid")
+
+    query: str = Field(..., min_length=1, description="图片内容描述")
+    top_k: int = Field(8, ge=1, le=50, description="返回数量")
     folder_path: str = Field("", description="限定检索的文件夹路径，空表示全库")
     path: str = Field("", description="（兼容）同 folder_path")
 

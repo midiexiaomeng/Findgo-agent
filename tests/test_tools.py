@@ -7,7 +7,7 @@ from PIL import Image
 
 from imgsearch_agent.tools import (
     GetIndexStatsTool,
-    ImageRetrievalByImageTool,
+    ImageSearchByImageTool,
     IndexFolderTool,
     SwitchVectorBackendTool,
 )
@@ -109,14 +109,14 @@ def test_switch_backend_invalid():
 
 
 def test_image_retrieval_by_image_missing_file(tmp_path):
-    tool = ImageRetrievalByImageTool(FakePipeline(), make_guard(tmp_path))
+    tool = ImageSearchByImageTool(FakePipeline(), make_guard(tmp_path))
     result = tool.run(str(tmp_path / "none.jpg"))
     assert result["images"] == []
     assert "不是文件" in result["summary"]
 
 
 def test_image_retrieval_by_image_unsafe_path(tmp_path):
-    tool = ImageRetrievalByImageTool(FakePipeline(), make_guard(tmp_path))
+    tool = ImageSearchByImageTool(FakePipeline(), make_guard(tmp_path))
     result = tool.run("C:/Windows/System32/calc.exe")
     assert result["images"] == []
     assert "不安全" in result["summary"]

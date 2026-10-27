@@ -20,7 +20,7 @@ from ..tools import (
     DescribeImageTool,
     FolderScanTool,
     GetIndexStatsTool,
-    ImageRetrievalByImageTool,
+    ImageSearchByImageTool,
     ImageRetrievalTool,
     IndexFolderTool,
     ListIndexedFoldersTool,
@@ -28,6 +28,7 @@ from ..tools import (
 )
 from ..tools.base_tool import BaseTool
 from ..utils.logger import TraceLogger
+from ..utils.exceptions import ValidationError
 from ..utils.schemas import AgentAction, TaskSpec
 from .critic import Critic
 from .memory import Memory
@@ -76,7 +77,7 @@ class ImageSearchAgent:
             guard = PathGuard(self.config.allowed_roots or None)
             self.tools = {
                 "image_retrieval": ImageRetrievalTool(pipeline, guard=guard),
-                "image_retrieval_by_image": ImageRetrievalByImageTool(
+                "image_search_by_image": ImageSearchByImageTool(
                     pipeline, guard=guard
                 ),
                 "index_folder": IndexFolderTool(pipeline, guard=guard),
@@ -227,7 +228,16 @@ class ImageSearchAgent:
 
         while True:
             try:
-                result = tool.run(**args)
+                payload = tool.validate(args)
+                result = tool.run(**payload)
+            except ValidationError as e:
+                # 参数不合法不重试，直接把原因返回给上层
+                self.trace.error("tool", "invalid_args", tool=tool.name, error=str(e))
+                return {
+                    "images": [],
+                    "summary": str(e),
+                    "error": "invalid_args",
+                }, 0
             except Exception as e:
                 self.trace.error("tool", "run_failed", tool=tool.name, error=str(e))
                 logger.warning("工具执行失败: %s", e)

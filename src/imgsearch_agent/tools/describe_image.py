@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from ..utils.path_guard import PathGuard, PathSecurityError
 from .base_tool import BaseTool
@@ -14,7 +14,9 @@ logger = logging.getLogger("imgsearch_agent.describe_image")
 
 
 class DescribeImageArgs(BaseModel):
-    image_path: str = Field(..., description="本地图片路径")
+    model_config = ConfigDict(extra="forbid")
+
+    image_path: str = Field(..., min_length=1, description="本地图片路径")
 
 
 class DescribeImageTool(BaseTool):

@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import logging
+from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from ..utils.path_guard import PathGuard, PathSecurityError
 from .base_tool import BaseTool
@@ -14,7 +16,9 @@ logger = logging.getLogger("imgsearch_agent.index_folder")
 
 
 class IndexFolderArgs(BaseModel):
-    folder_path: str = Field(..., description="要建立索引的文件夹路径")
+    model_config = ConfigDict(extra="forbid")
+
+    folder_path: str = Field(..., min_length=1, description="要建立索引的文件夹路径")
     rebuild: bool = Field(False, description="True 全量重建，False 增量更新")
 
 
@@ -26,6 +30,37 @@ class IndexFolderTool(BaseTool):
     def __init__(self, pipeline=None, guard: PathGuard | None = None):
         self._pipeline = pipeline
         self.guard = guard or PathGuard()
+        self._mtime: dict[str, float] = {}
+        self._load_cache()
+
+    # ── 目录修改时间缓存 ──────────────────────────────────────────────────
+
+    @staticmethod
+    def _cache_file() -> Path:
+        from ..retriever.runtime import PROJECT_ROOT
+
+        return Path(PROJECT_ROOT) / "data" / "index_mtime.json"
+
+    def _load_cache(self) -> None:
+        try:
+            path = self._cache_file()
+            if path.exists():
+                data = json.loads(path.read_text(encoding="utf-8"))
+                if isinstance(data, dict):
+                    self._mtime = {str(k): float(v) for k, v in data.items()}
+        except Exception:
+            self._mtime = {}
+
+    def _save_cache(self) -> None:
+        try:
+            path = self._cache_file()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                json.dumps(self._mtime, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+        except Exception:
+            pass
 
     @property
     def pipeline(self):
@@ -55,15 +90,36 @@ class IndexFolderTool(BaseTool):
                 "summary": f"{folder} 不是文件夹",
             }
 
+        key = str(folder).lower()
+        try:
+            mtime = folder.stat().st_mtime
+        except OSError:
+            mtime = 0.0
+
+        # 目录本身没变化就直接跳过（新增/删除文件会改变 mtime）
+        if not rebuild and self._mtime.get(key) == mtime:
+            return {
+                "count": 0,
+                "total": 0,
+                "failed": 0,
+                "cached": True,
+                "summary": f"{folder} 自上次索引后没有变化，跳过",
+            }
+
         stats = self.pipeline.index_folder(
             folder,
             recursive=True,
             reset=rebuild,
             skip_existing=not rebuild,
         )
+
+        self._mtime[key] = mtime
+        self._save_cache()
+
         return {
             "count": stats.indexed,
             "total": stats.total,
             "failed": stats.failed,
+            "cached": False,
             "summary": stats.summary(),
         }

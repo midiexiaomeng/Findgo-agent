@@ -14,7 +14,7 @@
 │         Pipeline · Searcher · Indexer · Encoder               │
 ├──────────────────────────────────────────────────────────────┤
 │ 第一层  Agent 工具（给 LLM 调用）                              │
-│         image_retrieval · image_retrieval_by_image            │
+│         image_retrieval · image_search_by_image            │
 │         index_folder · get_index_stats · switch_vector_backend│
 ├──────────────────────────────────────────────────────────────┤
 │ 交互层  PyQt5 桌面应用 / Gradio（可选）                        │
@@ -36,7 +36,7 @@
 | 工具名 | 作用 | 参数 |
 | --- | --- | --- |
 | `image_retrieval` | 文本检索图片，完整链路：CLIP 编码 → 向量召回 → LLM 重排 | `query`、`top_k`、`folder_path`（可选） |
-| `image_retrieval_by_image` | 以图搜图 | `image_path`、`top_k`、`folder_path`（可选） |
+| `image_search_by_image` | 以图搜图 | `image_path`、`top_k`、`folder_path`（可选） |
 | `index_folder` | 对指定文件夹增量构建索引 | `folder_path`、`rebuild=False` |
 | `get_index_stats` | 查询索引统计：图片数量、向量库类型、设备 | 无 |
 | `switch_vector_backend` | 切换向量后端（Chroma / Qdrant） | `backend_name` |
@@ -165,7 +165,7 @@ graph TD
     P -->|TaskSpec 列表| T[工具注册表]
     T --> IF[index_folder]
     T --> IR[image_retrieval]
-    T --> II[image_retrieval_by_image]
+    T --> II[image_search_by_image]
     T --> IS[get_index_stats]
     T --> SB[switch_vector_backend]
     IF --> PL[Pipeline]

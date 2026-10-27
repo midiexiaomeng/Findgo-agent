@@ -15,20 +15,24 @@ from pydantic import BaseModel
 class BaseTool(ABC):
     name: str = ""
     description: str = ""
-    args_schema: Type[BaseModel] = BaseModel
+    args_schema: Type[BaseModel] | None = None
 
     @abstractmethod
     def run(self, **kwargs: Any) -> Any:
         """执行工具，返回结构化结果。"""
 
-    def validate(self, args: dict[str, Any]) -> BaseModel:
-        """用 args_schema 校验入参，非法参数抛 ValidationError。"""
+    def validate(self, args: dict[str, Any]) -> dict[str, Any]:
+        """用 args_schema 校验入参；非法参数抛 ValidationError，不进入 run()。"""
         from ..utils.exceptions import ValidationError
 
+        if self.args_schema is None:
+            return dict(args)
+
         try:
-            return self.args_schema(**args)
+            model = self.args_schema(**args)
         except Exception as e:
-            raise ValidationError(f"工具 {self.name} 参数校验失败: {e}") from e
+            raise ValidationError(f"工具 {self.name} 参数不合法: {e}") from e
+        return model.model_dump()
 
     def signature(self) -> str:
         return f"{self.name} — {self.description}"

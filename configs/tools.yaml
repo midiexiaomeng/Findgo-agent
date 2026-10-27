@@ -21,9 +21,9 @@ tools:
         description: 限定检索的文件夹路径，留空表示全库
         required: false
 
-  - name: image_retrieval_by_image
-    module: imgsearch_agent.tools.image_retrieval_by_image
-    class: ImageRetrievalByImageTool
+  - name: image_search_by_image
+    module: imgsearch_agent.tools.image_search_by_image
+    class: ImageSearchByImageTool
     enabled: true
     description: 以图搜图，给出本地图片路径，返回视觉相似的图片
     parameters:

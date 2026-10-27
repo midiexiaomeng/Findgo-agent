@@ -10,7 +10,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from .base_tool import BaseTool
 
@@ -18,7 +18,9 @@ logger = logging.getLogger("imgsearch_agent.list_indexed_folders")
 
 
 class ListIndexedFoldersArgs(BaseModel):
-    limit: int = Field(20000, description="最多扫描多少条记录")
+    model_config = ConfigDict(extra="forbid")
+
+    limit: int = Field(20000, ge=1, le=200000, description="最多扫描多少条记录")
 
 
 class ListIndexedFoldersTool(BaseTool):

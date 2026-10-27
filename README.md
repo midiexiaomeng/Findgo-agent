@@ -34,7 +34,7 @@ Agent 工具（LLM 调用）   CLI（人手动调用）
 | 工具 | 作用 |
 | --- | --- |
 | `image_retrieval` | 文本检索图片，支持 `folder_path` 限定目录 |
-| `image_retrieval_by_image` | 以图搜图 |
+| `image_search_by_image` | 以图搜图 |
 | `index_folder` | 对指定文件夹增量建索引 |
 | `get_index_stats` | 查询图片数量、向量库类型、设备 |
 | `switch_vector_backend` | 切换 Chroma / Qdrant |
@@ -48,7 +48,7 @@ graph TD
     P -->|TaskSpec| T[工具注册表]
     T --> IF[index_folder]
     T --> IR[image_retrieval]
-    T --> II[image_retrieval_by_image]
+    T --> II[image_search_by_image]
     T --> IS[get_index_stats]
     T --> SB[switch_vector_backend]
     IF --> PL[Pipeline]
