@@ -31,10 +31,11 @@ ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "src"))
 
 from PyQt5.QtCore import QObject, QPoint, QRect, Qt, QThread, pyqtSignal
-from PyQt5.QtGui import QFont, QKeySequence, QPixmap
+from PyQt5.QtGui import QFont, QImage, QKeySequence, QPixmap
 from PyQt5.QtWidgets import (
     QApplication,
     QDialog,
+    QFileDialog,
     QGridLayout,
     QHBoxLayout,
     QInputDialog,
@@ -89,6 +90,35 @@ class QtLogHandler(logging.Handler):
 from imgsearch_agent.theme import GLOBAL_QSS
 
 
+
+
+class ChatInput(QPlainTextEdit):
+    """支持粘贴图片的输入框。"""
+
+    image_pasted = pyqtSignal(str)
+
+    def insertFromMimeData(self, source) -> None:
+        if source is not None and source.hasImage():
+            image = source.imageData()
+            if isinstance(image, QImage) and not image.isNull():
+                path = self._save_image(image)
+                if path:
+                    self.image_pasted.emit(path)
+                    return
+        super().insertFromMimeData(source)
+
+    @staticmethod
+    def _save_image(image) -> str:
+        from datetime import datetime
+
+        from PyQt5.QtGui import QImage
+
+        out_dir = Path(__file__).resolve().parent / "data" / "attachments"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        target = out_dir / f"paste_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.png"
+        if image.save(str(target), "PNG"):
+            return str(target)
+        return ""
 
 
 class Worker(QThread):
@@ -193,6 +223,7 @@ class MainWindow(QMainWindow):
         self.agent = None
         self.conversation: list[tuple[str, str]] = []
         self.last_results: list[dict] = []
+        self._attachment: str = ""
         self._galleries: dict[str, list] = {}
         self.tree_root: Path = ROOT
         self.results_mode = False
@@ -259,12 +290,44 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(10, 2, 10, 8)
         layout.setSpacing(4)
 
+        # 附件预览（默认隐藏）
+        self.attach_bar = QWidget()
+        attach_layout = QHBoxLayout(self.attach_bar)
+        attach_layout.setContentsMargins(2, 2, 2, 2)
+        attach_layout.setSpacing(8)
+
+        self.attach_thumb = QLabel()
+        self.attach_thumb.setFixedSize(40, 40)
+        self.attach_thumb.setStyleSheet(
+            "border:1px solid #EDEBE6;border-radius:6px;background:#FFFFFF;"
+        )
+        self.attach_thumb.setAlignment(Qt.AlignCenter)
+
+        self.attach_name = QLabel("")
+        self.attach_name.setStyleSheet("color:#4A4A4A; font-size:12px;")
+
+        remove_btn = QToolButton()
+        remove_btn.setText("×")
+        remove_btn.setToolTip("移除附件")
+        remove_btn.setStyleSheet(
+            "QToolButton{border:none;color:#8A8A8A;font-size:14px;padding:2px 6px;}"
+            "QToolButton:hover{color:#C97B6E;}"
+        )
+        remove_btn.clicked.connect(self._clear_attachment)
+
+        attach_layout.addWidget(self.attach_thumb)
+        attach_layout.addWidget(self.attach_name, 1)
+        attach_layout.addWidget(remove_btn)
+        self.attach_bar.setVisible(False)
+        layout.addWidget(self.attach_bar)
+
         container = QWidget()
         grid = QGridLayout(container)
         grid.setContentsMargins(0, 0, 0, 0)
         grid.setSpacing(0)
 
-        self.input = QPlainTextEdit()
+        self.input = ChatInput()
+        self.input.image_pasted.connect(self._set_attachment)
         self.input.setPlaceholderText(
             "描述你想找的图片，支持多行。Ctrl+Enter 发送，例如：\n找两张猫的图片，再找几张海边的日落"
         )
@@ -301,6 +364,27 @@ class MainWindow(QMainWindow):
         btn_row.addWidget(self.model_btn)
         btn_row.addWidget(self.send_btn)
         grid.addWidget(overlay, 0, 0, Qt.AlignBottom | Qt.AlignRight)
+
+        # 左下角加号：添加附件做以图搜图
+        left_overlay = QWidget()
+        left_overlay.setStyleSheet("background: transparent;")
+        left_row = QHBoxLayout(left_overlay)
+        left_row.setContentsMargins(8, 0, 0, 8)
+        left_row.setSpacing(6)
+
+        self.attach_btn = QToolButton()
+        self.attach_btn.setText("+")
+        self.attach_btn.setToolTip("添加图片，按图搜索（也支持 Ctrl+V 粘贴）")
+        self.attach_btn.setFixedSize(28, 28)
+        self.attach_btn.setStyleSheet(
+            "QToolButton{border:1px solid #EDEBE6;border-radius:8px;"
+            "background:#FFFFFF;font-size:16px;color:#4A4A4A;}"
+            "QToolButton:hover{background:#F2F0EA;}"
+        )
+        self.attach_btn.clicked.connect(self.on_attach)
+        left_row.addWidget(self.attach_btn)
+        left_row.addStretch(1)
+        grid.addWidget(left_overlay, 0, 0, Qt.AlignBottom | Qt.AlignLeft)
 
         layout.addWidget(container)
 
@@ -1141,9 +1225,68 @@ class MainWindow(QMainWindow):
             self.stop_btn.setEnabled(busy)
         self.input.setEnabled(not busy)
 
+    # ── 附件与以图搜图 ────────────────────────────────────────────────────
+
+    def on_attach(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "选择图片",
+            str(Path(__file__).resolve().parent / "datasets"),
+            "图片 (*.jpg *.jpeg *.png *.webp *.bmp *.gif)",
+        )
+        if path:
+            self._set_attachment(path)
+
+    def _set_attachment(self, path: str) -> None:
+        if not Path(path).exists():
+            return
+        self._attachment = path
+        thumb = self._thumb_path(path, 40)
+        if thumb:
+            self.attach_thumb.setPixmap(QPixmap(thumb))
+        else:
+            self.attach_thumb.setText("图")
+        self.attach_name.setText(Path(path).name)
+        self.attach_bar.setVisible(True)
+        self.input.setPlaceholderText("可以补充描述，或直接发送按图搜索")
+        self.append_log(">>> 已附加图片：" + Path(path).name)
+
+    def _clear_attachment(self) -> None:
+        self._attachment = ""
+        self.attach_bar.setVisible(False)
+        self.attach_thumb.clear()
+        self.attach_name.setText("")
+        self.input.setPlaceholderText(
+            "描述你想找的图片，支持多行。Ctrl+Enter 发送，例如：\n"
+            "找两张猫的图片，再找几张海边的日落"
+        )
+
+    def _run_image_turn(self, image_path: str, text: str):
+        agent = self._get_agent()
+        agent.memory.add("user", text or "找相似的图片")
+
+        tool = agent.tools.get("image_search_by_image")
+        if tool is None:
+            return [], [], "没有注册以图搜图工具", []
+
+        result, _ = agent.executor.execute(
+            tool, {"image_path": image_path, "top_k": 12}
+        )
+        reply = agent.responder.compose(text or "找相似的图片", result)
+        images = result.get("images", [])
+
+        image_paths = [
+            (img.get("path", "") if isinstance(img, dict) else getattr(img, "path", ""))
+            for img in images
+        ]
+        image_paths = [p for p in image_paths if p]
+        agent.memory.add("assistant", reply, images=image_paths)
+        return [], [], reply, images
+
     def on_send(self) -> None:
         text = self.input.toPlainText().strip()
-        if not text or self.worker is not None:
+        has_attachment = bool(self._attachment)
+        if (not text and not has_attachment) or self.worker is not None:
             return
 
         self._cancel = False
@@ -1157,7 +1300,15 @@ class MainWindow(QMainWindow):
         self.state_label.setText("Agent 正在理解需求并检索…")
         self.append_log(">>> 用户：" + text.replace("\n", " ")[:60])
 
-        self.worker = Worker(self._run_turn, text)
+        if has_attachment:
+            worker_fn = self._run_image_turn
+            worker_args = (self._attachment, text)
+            self._clear_attachment()
+        else:
+            worker_fn = self._run_turn
+            worker_args = (text,)
+
+        self.worker = Worker(worker_fn, *worker_args)
         self.worker.progress.connect(self.on_tasks_ready)
         self.worker.done.connect(self.on_turn_done)
         self.worker.failed.connect(self.on_worker_failed)
