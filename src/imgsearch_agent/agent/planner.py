@@ -109,6 +109,18 @@ class Planner:
             f"路径信息：{path_hint}\n\n"
             "请先理解用户的语言，提取其中的明确约束（数量、场景、颜色、时间等），"
             "再拆解为 1 到 3 个可在本地图片库执行的检索任务。\n"
+            "现有工具只覆盖：文本搜图、以图搜图、建/删索引、索引统计、导出清单、"
+            "找重复图、暂存区管理、单图描述、目录扫描。\n"
+            "如果用户需求明显超出这些能力（例如统计图片宽高、按拍摄时间筛选、"
+            "按颜色聚类），并且能用简单的只读 Python 实现，"
+            "可以在任务里附加 dynamic_tool 字段，格式：\n"
+            '{"name":"...","description":"...","tags":["read-only"],'
+            '"timeout":60,"args_schema_code":"class Args(BaseModel):\\n    ...",'
+            '"run_func_code":"def run(self, args):\\n    ...",'
+            '"safety_note":"..."}\n'
+            "动态工具禁止硬编码具体文件名或固定路径，路径一律从参数传入，"
+            "并用 sandbox_check_path(路径, \"read\") 校验。\n"
+            "能用现有工具完成时不要生成 dynamic_tool。\n"
             "每个任务包含：\n"
             "- description：一句话说明这次找什么\n"
             "- query：用户想找的图片的完整描述，保留数量词和修饰语"
@@ -150,6 +162,18 @@ class Planner:
                 top_k = 0
             task_path = str(item.get("path") or "").strip()
             all_results = bool(item.get("all_results", False))
+
+            dynamic_spec = None
+            is_dynamic = False
+            raw_dynamic = item.get("dynamic_tool")
+            if isinstance(raw_dynamic, dict) and raw_dynamic.get("name"):
+                try:
+                    from .dynamic import DynamicToolSpec
+
+                    dynamic_spec = DynamicToolSpec(**raw_dynamic).model_dump()
+                    is_dynamic = True
+                except Exception as e:
+                    logger.warning("动态工具定义不合法，已忽略: %s", e)
             result.append(
                 TaskSpec(
                     id=int(item.get("id", i)),
@@ -158,11 +182,13 @@ class Planner:
                     top_k=max(0, min(top_k, 1000)),
                     path=task_path or known_path,
                     all_results=all_results,
+                    is_dynamic=is_dynamic,
+                    dynamic_spec=dynamic_spec,
                 )
             )
         risk = assess_risk(query)
         for task in result:
-            task.risk = risk
+            task.risk = "high" if task.is_dynamic else risk
 
         if not result:
             return [TaskSpec(id=1, description=query, query=query, risk=risk)]

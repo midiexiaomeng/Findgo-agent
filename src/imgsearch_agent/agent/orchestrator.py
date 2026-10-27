@@ -93,6 +93,7 @@ class ImageSearchAgent:
                 self.config.image_roots or None,
                 self.config.workspace_roots or None,
             )
+            self.sandbox = guard
             self.tools = {
                 "image_retrieval": ImageRetrievalTool(pipeline, guard=guard),
                 "image_search_by_image": ImageSearchByImageTool(
@@ -203,7 +204,21 @@ class ImageSearchAgent:
                 logger.info("收到停止信号，剩余任务跳过")
                 break
 
-            if task.action == "scan":
+            if task.is_dynamic:
+                name = str((task.dynamic_spec or {}).get("name", ""))
+                tool = self.tools.get(name)
+                if tool is None:
+                    results.append(
+                        AgentResult(
+                            reply=f"动态工具「{name}」尚未批准，已跳过",
+                            results=[],
+                            tool="",
+                            confidence=0.0,
+                            trace_id=uuid.uuid4().hex[:8],
+                        )
+                    )
+                    continue
+            elif task.action == "scan":
                 tool = self.tools.get("folder_scan")
                 if tool is None or not task.path:
                     continue
@@ -214,12 +229,15 @@ class ImageSearchAgent:
                 tool = self.tools.get("image_retrieval")
                 if tool is None:
                     break
-                args = {
-                    "query": task.query,
-                    "top_k": task.top_k if task.top_k > 0 else self.config.top_k,
-                    "folder_path": task.path or "",
-                    "all_results": bool(task.all_results),
-                }
+                if task.is_dynamic:
+                    args = task.dynamic_args or {}
+                else:
+                    args = {
+                        "query": task.query,
+                        "top_k": task.top_k if task.top_k > 0 else self.config.top_k,
+                        "folder_path": task.path or "",
+                        "all_results": bool(task.all_results),
+                    }
 
             result, retries = self._execute_with_retry(
                 tool, args, should_stop=should_stop
@@ -232,7 +250,21 @@ class ImageSearchAgent:
                 )
                 break
 
-            if task.action == "scan":
+            if task.is_dynamic:
+                name = str((task.dynamic_spec or {}).get("name", ""))
+                tool = self.tools.get(name)
+                if tool is None:
+                    results.append(
+                        AgentResult(
+                            reply=f"动态工具「{name}」尚未批准，已跳过",
+                            results=[],
+                            tool="",
+                            confidence=0.0,
+                            trace_id=uuid.uuid4().hex[:8],
+                        )
+                    )
+                    continue
+            elif task.action == "scan":
                 reply = str(result.get("summary") or "")
                 images = []
             else:
@@ -255,6 +287,18 @@ class ImageSearchAgent:
                 )
             )
         return results
+
+    # ── 动态工具 ──────────────────────────────────────────────────────────
+
+    def register_dynamic_tool(self, spec: dict):
+        """编译并注册一个经用户批准的动态工具。"""
+        from .dynamic import DynamicToolSpec, build_dynamic_tool
+
+        parsed = DynamicToolSpec(**spec)
+        tool = build_dynamic_tool(parsed, getattr(self, "sandbox", None))
+        self.tools[parsed.name] = tool
+        logger.info("动态工具已注册: %s", parsed.name)
+        return tool
 
     # ── 运行时切换模型 ────────────────────────────────────────────────────
 

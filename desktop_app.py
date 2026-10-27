@@ -206,6 +206,68 @@ class ImageGalleryDialog(QDialog):
         dialog.exec_()
 
 
+class DynamicToolDialog(QDialog):
+    """动态工具审核：先看源码和安全提示，再决定是否允许。"""
+
+    def __init__(self, spec: dict, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("动态工具审核")
+        self.resize(720, 520)
+        self.approved = False
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 14, 16, 14)
+        layout.setSpacing(8)
+
+        title = QLabel(spec.get("name", "未命名工具"))
+        title.setStyleSheet("font-weight:600; font-size:14px;")
+        layout.addWidget(title)
+
+        desc = QLabel(spec.get("description", ""))
+        desc.setWordWrap(True)
+        desc.setStyleSheet("color:#4A4A4A; font-size:12px;")
+        layout.addWidget(desc)
+
+        note = QLabel(spec.get("safety_note") or "未提供安全说明")
+        note.setWordWrap(True)
+        note.setStyleSheet(
+            "color:#C97B6E; background:#FDF4F2; border-radius:6px;"
+            "padding:8px; font-size:12px;"
+        )
+        layout.addWidget(note)
+
+        code = QPlainTextEdit()
+        code.setReadOnly(True)
+        code.setStyleSheet(
+            "QPlainTextEdit{background:#F8F7F3;border:1px solid #EDEBE6;"
+            "border-radius:8px;padding:8px;font-family:Consolas;font-size:12px;}"
+        )
+        code.setPlainText(
+            spec.get("args_schema_code", "")
+            + "\n\n"
+            + spec.get("run_func_code", "")
+        )
+        layout.addWidget(code, 1)
+
+        row = QHBoxLayout()
+        deny = QPushButton("拒绝")
+        deny.clicked.connect(self.reject)
+        allow = QPushButton("允许执行")
+        allow.setStyleSheet(
+            "QPushButton{background:#6F9C86;color:white;border:none;"
+            "border-radius:6px;padding:7px 18px;}"
+        )
+        allow.clicked.connect(self._on_allow)
+        row.addStretch(1)
+        row.addWidget(deny)
+        row.addWidget(allow)
+        layout.addLayout(row)
+
+    def _on_allow(self) -> None:
+        self.approved = True
+        self.accept()
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -1146,7 +1208,10 @@ class MainWindow(QMainWindow):
     # ── 任务操作 ──────────────────────────────────────────────────────────
 
     def _add_task_item(self, task: TaskSpec) -> None:
-        if task.action == "scan":
+        if task.is_dynamic:
+            name = str((task.dynamic_spec or {}).get("name", "动态工具"))
+            label = f"🔧 {name}｜自定义临时工具｜需要审核"
+        elif task.action == "scan":
             label = "📁 打开 " + (task.path or task.description)
         else:
             label = task.query or task.description
@@ -1339,6 +1404,16 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
         agent.memory.save_tasks(list(tasks))
+
+        pending_dynamic = [t for t in tasks if t.is_dynamic]
+        if pending_dynamic:
+            return (
+                tasks,
+                [],
+                "检测到自定义临时工具，请审核后点「重跑」执行。",
+                [],
+            )
+
         results = agent.run_tasks(
             tasks, write_memory=False, should_stop=lambda: self._cancel
         )
@@ -1369,10 +1444,40 @@ class MainWindow(QMainWindow):
         )
         self._refresh_sessions()
 
+    def _review_dynamic_tasks(self, tasks) -> bool:
+        """逐个审核动态工具，全部允许才继续。"""
+        agent = self._get_agent()
+        for task in tasks:
+            if not task.is_dynamic:
+                continue
+            spec = task.dynamic_spec or {}
+            name = str(spec.get("name", ""))
+            if not name:
+                task.status = "skipped"
+                continue
+            if name in agent.tools:
+                continue
+
+            dialog = DynamicToolDialog(spec, self)
+            dialog.exec_()
+            if not dialog.approved:
+                task.status = "skipped"
+                self.append_log(f">>> 已拒绝动态工具 {name}")
+                continue
+
+            try:
+                agent.register_dynamic_tool(spec)
+                self.append_log(f">>> 已允许动态工具 {name}")
+            except Exception as e:
+                task.status = "skipped"
+                self.append_log(f"!!! 动态工具加载失败：{e}")
+        return True
+
     def on_run_tasks(self) -> None:
         if hasattr(self, "resume_btn"):
             self.resume_btn.setVisible(False)
         tasks = self._collect_tasks()
+        self._review_dynamic_tasks(tasks)
         if not tasks or self.worker is not None:
             return
         if not any(t.status == "pending" for t in tasks):
