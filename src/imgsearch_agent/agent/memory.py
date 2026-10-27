@@ -130,6 +130,79 @@ class Memory:
         except Exception as e:
             logger.warning("写入 trace 失败: %s", e)
 
+    # ── 会话管理 ──────────────────────────────────────────────────────────
+
+    def new_session(self) -> str:
+        """开始一个新会话，旧会话仍保留在数据库中。"""
+        self.session_id = uuid.uuid4().hex[:12]
+        self._messages = []
+        return self.session_id
+
+    def switch_session(self, session_id: str) -> None:
+        self.session_id = session_id
+        self._messages = []
+
+    def list_sessions(self, limit: int = 50) -> list[dict[str, Any]]:
+        """列出会话：id、标题、消息数、最后更新时间，按最近活跃排序。"""
+        if self._db is None:
+            return []
+        try:
+            rows = self._db.execute(
+                "SELECT session_id, COUNT(*), MAX(created_at), MAX(id) "
+                "FROM messages GROUP BY session_id ORDER BY MAX(id) DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        except Exception:
+            return []
+
+        sessions: list[dict[str, Any]] = []
+        for session_id, count, updated_at, _ in rows:
+            first = self._db.execute(
+                "SELECT content FROM messages WHERE session_id = ? AND role = 'user' "
+                "ORDER BY id LIMIT 1",
+                (session_id,),
+            ).fetchone()
+            title = (first[0] if first else "").strip().replace("\n", " ")
+            sessions.append(
+                {
+                    "session_id": session_id,
+                    "title": title[:30] or "(空会话)",
+                    "count": int(count),
+                    "updated_at": updated_at,
+                }
+            )
+        return sessions
+
+    def load_messages(self, session_id: str, limit: int = 300) -> list[dict[str, str]]:
+        if self._db is None:
+            return []
+        try:
+            rows = self._db.execute(
+                "SELECT role, content FROM messages WHERE session_id = ? "
+                "ORDER BY id LIMIT ?",
+                (session_id, limit),
+            ).fetchall()
+            return [{"role": r[0], "content": r[1]} for r in rows]
+        except Exception:
+            return []
+
+    def prune_sessions(self, keep: int) -> int:
+        """只保留最近 keep 个会话，返回删除数量。"""
+        if self._db is None or keep < 0:
+            return 0
+        sessions = self.list_sessions(limit=1000)
+        stale = [s["session_id"] for s in sessions[keep:]]
+        if not stale:
+            return 0
+        try:
+            for sid in stale:
+                self._db.execute("DELETE FROM messages WHERE session_id = ?", (sid,))
+                self._db.execute("DELETE FROM traces WHERE session_id = ?", (sid,))
+            self._db.commit()
+        except Exception:
+            return 0
+        return len(stale)
+
     # ── 读 ────────────────────────────────────────────────────────────────
 
     def recent(self, n: int = 6) -> list[dict[str, str]]:

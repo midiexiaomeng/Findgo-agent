@@ -305,13 +305,27 @@ class MainWindow(QMainWindow):
     def _build_left_column(self) -> QSplitter:
         split = QSplitter(Qt.Vertical)
 
+        # 上：运行日志 + 新对话按钮
         log_panel = QWidget()
         log_layout = QVBoxLayout(log_panel)
         log_layout.setContentsMargins(6, 6, 6, 6)
         log_layout.setSpacing(4)
+
+        log_header = QHBoxLayout()
         log_title = QLabel("运行日志")
         log_title.setStyleSheet("font-weight:600; color:#374151; font-size:12px;")
-        log_layout.addWidget(log_title)
+        self.new_chat_btn = QPushButton("新对话")
+        self.new_chat_btn.setFixedHeight(22)
+        self.new_chat_btn.setStyleSheet(
+            "QPushButton{border:1px solid #d1d5db;border-radius:5px;"
+            "padding:2px 8px;background:#fff;font-size:11px;}"
+            "QPushButton:hover{background:#f3f4f6;}"
+        )
+        self.new_chat_btn.clicked.connect(self.on_new_chat)
+        log_header.addWidget(log_title)
+        log_header.addStretch(1)
+        log_header.addWidget(self.new_chat_btn)
+        log_layout.addLayout(log_header)
 
         self.log_view = QPlainTextEdit()
         self.log_view.setReadOnly(True)
@@ -326,26 +340,42 @@ class MainWindow(QMainWindow):
         log_layout.addWidget(self.log_view, 1)
         split.addWidget(log_panel)
 
+        # 下：会话列表 + 当前会话消息
         mem_panel = QWidget()
         mem_layout = QVBoxLayout(mem_panel)
         mem_layout.setContentsMargins(6, 6, 6, 6)
         mem_layout.setSpacing(4)
+
         mem_title = QLabel("任务记忆")
         mem_title.setStyleSheet("font-weight:600; color:#374151; font-size:12px;")
         mem_layout.addWidget(mem_title)
+
+        mem_split = QSplitter(Qt.Vertical)
+
+        self.session_list = QListWidget()
+        self.session_list.setMaximumHeight(110)
+        self.session_list.setStyleSheet(
+            "QListWidget{border:1px solid #e5e7eb;border-radius:6px;"
+            "background:#fff;padding:2px;font-size:11px;}"
+            "QListWidget::item{padding:3px 4px;}"
+            "QListWidget::item:selected{background:#e0e7ff;color:#1e40af;}"
+        )
+        self.session_list.itemClicked.connect(self.on_session_clicked)
 
         self.memory_view = QTextBrowser()
         self.memory_view.setStyleSheet(
             "QTextBrowser{border:1px solid #e5e7eb; border-radius:6px; "
             "background:#ffffff; padding:6px; font-size:11.5px;}"
         )
-        mem_layout.addWidget(self.memory_view, 1)
+
+        mem_split.addWidget(self.session_list)
+        mem_split.addWidget(self.memory_view)
+        mem_split.setSizes([90, 230])
+        mem_layout.addWidget(mem_split, 1)
         split.addWidget(mem_panel)
 
-        split.setSizes([400, 380])
+        split.setSizes([360, 420])
         return split
-
-    # ── 右侧 ──────────────────────────────────────────────────────────────
 
     def _build_task_panel(self) -> QWidget:
         panel = QWidget()
@@ -518,36 +548,88 @@ class MainWindow(QMainWindow):
         bar = self.log_view.verticalScrollBar()
         bar.setValue(bar.maximum())
 
-    def _restore_history(self) -> None:
-        """启动时从 SQLite 恢复上次会话的对话记录。"""
+    def _refresh_sessions(self) -> None:
+        self.session_list.clear()
+        if self.agent is None:
+            return
+        keep = max(1, int(self.agent.config.memory_max_sessions))
+        for s in self.agent.memory.list_sessions(limit=keep):
+            mark = "● " if s["session_id"] == self.agent.memory.session_id else "○ "
+            item = QListWidgetItem(mark + s["title"][:16] + "  (" + str(s["count"]) + ")")
+            item.setData(Qt.UserRole, s["session_id"])
+            item.setToolTip(s["updated_at"] + "\n" + s["session_id"])
+            self.session_list.addItem(item)
+
+    def on_new_chat(self) -> None:
         try:
             agent = self._get_agent()
-            if self.conversation:
-                return
-            for item in agent.memory.history()[-60:]:
-                role = "你" if item.get("role") == "user" else "Agent"
-                self.conversation.append((role, item.get("content", "")))
+            agent.memory.new_session()
+            agent.memory.prune_sessions(keep=max(1, int(agent.config.memory_max_sessions)))
+            self.conversation = []
+            self.last_results = []
+            self.result_grid.clear()
+            self.reply_view.setHtml("")
+            self.task_list.clear()
             self._render_memory()
-            if self.conversation:
-                self.append_log(f">>> 已恢复 {len(self.conversation)} 条历史记录")
+            self._refresh_sessions()
+            self.append_log(">>> 已开始新对话 " + agent.memory.session_id)
+        except Exception as e:
+            self.append_log("新建对话失败: " + str(e))
+
+    def on_session_clicked(self, item: QListWidgetItem) -> None:
+        sid = item.data(Qt.UserRole)
+        if not sid:
+            return
+        try:
+            agent = self._get_agent()
+            agent.memory.switch_session(sid)
+            self.conversation = []
+            for m in agent.memory.load_messages(sid):
+                role = "你" if m.get("role") == "user" else "Agent"
+                self.conversation.append((role, m.get("content", "")))
+            self._render_memory()
+            self._refresh_sessions()
+            self.append_log(">>> 已切换历史会话 " + sid)
+        except Exception as e:
+            self.append_log("切换会话失败: " + str(e))
+
+    def _restore_history(self) -> None:
+        """启动时恢复最近会话，并列出历史会话。"""
+        try:
+            agent = self._get_agent()
+            self._refresh_sessions()
+            if not self.conversation:
+                for item in agent.memory.history()[-60:]:
+                    role = "你" if item.get("role") == "user" else "Agent"
+                    self.conversation.append((role, item.get("content", "")))
+                self._render_memory()
+            self.append_log(f">>> 已恢复会话 {agent.memory.session_id}")
         except Exception as e:
             self.append_log(f"加载历史失败: {e}")
 
     def _render_memory(self) -> None:
         rows = []
-        for who, text in self.conversation[-30:]:
-            color = "#2563eb" if who == "你" else "#111827"
-            safe = html.escape(text).replace("\n", "<br/>")
-            rows.append(
-                f'<p style="margin:5px 0;color:{color};"><b>{who}：</b>{safe}</p>'
-            )
+        for who, text in self.conversation[-80:]:
+            safe = html.escape(str(text)).replace("\n", "<br/>")
+            if who == "你":
+                rows.append(
+                    '<div style="text-align:right;margin:6px 0;">'
+                    '<span style="display:inline-block;background:#2563eb;color:#fff;'
+                    'padding:6px 10px;border-radius:10px;max-width:85%;'
+                    'text-align:left;">' + safe + "</span></div>"
+                )
+            else:
+                rows.append(
+                    '<div style="text-align:left;margin:6px 0;">'
+                    '<span style="display:inline-block;background:#f3f4f6;color:#111827;'
+                    'padding:6px 10px;border-radius:10px;max-width:85%;">'
+                    + safe + "</span></div>"
+                )
         self.memory_view.setHtml(
-            "".join(rows) or "<p style='color:#9ca3af'>暂无交互记录</p>"
+            "".join(rows) or "<p style='color:#9ca3af'>暂无对话</p>"
         )
         bar = self.memory_view.verticalScrollBar()
         bar.setValue(bar.maximum())
-
-    # ── 模型选择 ──────────────────────────────────────────────────────────
 
     def _refresh_model_button(self) -> None:
         store = ModelStore()
@@ -683,6 +765,7 @@ class MainWindow(QMainWindow):
             self.up_btn,
             self.down_btn,
             self.settings_btn,
+            self.new_chat_btn,
         ):
             b.setEnabled(not busy)
         self.input.setEnabled(not busy)
@@ -711,6 +794,7 @@ class MainWindow(QMainWindow):
             f"已生成 {len(tasks)} 条任务，可编辑、勾选或调整顺序后执行。"
         )
         self.append_log(f">>> 已生成 {len(tasks)} 条任务")
+        self._refresh_sessions()
 
     def on_run_tasks(self) -> None:
         tasks = self._collect_tasks()
@@ -752,6 +836,7 @@ class MainWindow(QMainWindow):
         )
         self._render_memory()
         self._refresh_results()
+        self._refresh_sessions()
 
     def on_worker_failed(self, error: str) -> None:
         self.append_log(f"!!! 执行失败：{error}")

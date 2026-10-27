@@ -43,6 +43,7 @@ class AgentConfig:
         memory = raw.get("memory", {}) or {}
         self.memory_persist = bool(memory.get("persist", False))
         self.memory_db_path = memory.get("db_path", "./data/agent_sessions.sqlite")
+        self.memory_max_sessions = int(memory.get("max_sessions", 20))
 
     def resolve_db_path(self) -> Path:
         p = Path(self.memory_db_path)

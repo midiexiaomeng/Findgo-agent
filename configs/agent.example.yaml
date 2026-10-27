@@ -31,6 +31,8 @@ memory:
   # true : SQLite 持久化，保存对话与动作轨迹，便于回溯
   persist: true
   db_path: ./data/agent_sessions.sqlite
+  # 最多保留多少个历史会话，超出后自动删除最旧的
+  max_sessions: 20
 
 prompts:
   system: |
