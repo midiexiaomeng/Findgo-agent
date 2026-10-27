@@ -321,7 +321,15 @@ class MainWindow(QMainWindow):
         content = rect.height() + 46 + 16
         window_h = self.height() or 880
         max_h = max(110, int(window_h * 0.25))
-        self.input.setFixedHeight(int(min(max(content, 56), max_h)))
+        target = int(min(max(content, 56), max_h))
+
+        if target != self.input.height():
+            self.input.setFixedHeight(target)
+
+        # 还没到最大高度时，保持从第一行开始显示；
+        # 超过上限后才交给滚动条跟随光标
+        if target < max_h:
+            self.input.verticalScrollBar().setValue(0)
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
@@ -550,31 +558,37 @@ class MainWindow(QMainWindow):
     # ── 组装：1 : 4 : 1 ───────────────────────────────────────────────────
 
     def _build_ui(self) -> None:
-        central = QWidget()
-        row = QHBoxLayout(central)
-        row.setContentsMargins(6, 6, 6, 6)
-        row.setSpacing(6)
-
         left = self._build_left_column()
 
         center = QSplitter(Qt.Vertical)
         center.addWidget(self._build_chat_panel())
         center.addWidget(self._build_input_panel())
         center.setSizes([560, 190])
+        center.setChildrenCollapsible(False)
 
         right = QSplitter(Qt.Vertical)
         right.addWidget(self._build_task_panel())
         right.addWidget(self._build_file_panel())
         right.setSizes([400, 380])
+        right.setChildrenCollapsible(False)
 
-        row.addWidget(left, 1)
-        row.addWidget(center, 4)
-        row.addWidget(right, 1)
+        # 三列之间用水平分割器，左右宽度可以自由拖动
+        main = QSplitter(Qt.Horizontal)
+        main.addWidget(left)
+        main.addWidget(center)
+        main.addWidget(right)
+        main.setSizes([240, 900, 300])
+        main.setStretchFactor(0, 0)
+        main.setStretchFactor(1, 1)
+        main.setStretchFactor(2, 0)
+        main.setChildrenCollapsible(False)
 
-        for w in (left, center, right):
-            w.setMinimumWidth(0)
+        left.setMinimumWidth(160)
+        center.setMinimumWidth(320)
+        right.setMinimumWidth(200)
 
-        self.setCentralWidget(central)
+        self.main_split = main
+        self.setCentralWidget(main)
         self.setStyleSheet("QMainWindow{background:#F2F0EA;}")
 
     # ── 日志 / 记忆 ───────────────────────────────────────────────────────
