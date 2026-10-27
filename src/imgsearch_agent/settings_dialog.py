@@ -31,6 +31,7 @@ from PyQt5.QtWidgets import (
 )
 
 from .llm.client import ChatClient
+from .theme import DIALOG_QSS
 from .model_store import PROVIDERS, ModelStore
 
 
@@ -78,6 +79,7 @@ class SettingsDialog(QDialog):
 
         self.setWindowTitle("设置")
         self.resize(640, 470)
+        self.setStyleSheet(DIALOG_QSS)
         self._build_ui()
         self.nav.setCurrentRow(page)
         self._on_provider_changed()
@@ -97,9 +99,9 @@ class SettingsDialog(QDialog):
         self.nav = QListWidget()
         self.nav.setFixedWidth(132)
         self.nav.setStyleSheet(
-            "QListWidget{border:none;background:#f8fafc;padding:8px 4px;font-size:13px;}"
+            "QListWidget{border:none;background:#F8F7F3;padding:8px 4px;font-size:13px;}"
             "QListWidget::item{padding:9px 12px;border-radius:6px;margin:2px 6px;}"
-            "QListWidget::item:selected{background:#e0e7ff;color:#1e40af;}"
+            "QListWidget::item:selected{background:#E3EFE7;color:#2E2E2E;}"
         )
         self.nav.addItems(
             ["添加模型", "检索参数", "向量库", "目录与安全", "暂存区", "环境自检", "关于"]
@@ -137,7 +139,7 @@ class SettingsDialog(QDialog):
             "填写 API Key 并「测试连接」，成功后才会计入已添加模型。"
         )
         tip.setWordWrap(True)
-        tip.setStyleSheet("color:#6b7280; font-size:12px;")
+        tip.setStyleSheet("color:#8A8A8A; font-size:12px;")
         layout.addWidget(tip)
 
         form = QFormLayout()
@@ -166,7 +168,7 @@ class SettingsDialog(QDialog):
         test_row = QHBoxLayout()
         self.test_btn = QPushButton("测试连接")
         self.test_btn.setStyleSheet(
-            "QPushButton{background:#2563eb;color:white;border:none;"
+            "QPushButton{background:#6F9C86;color:white;border:none;"
             "border-radius:6px;padding:7px 16px;}"
             "QPushButton:disabled{background:#93c5fd;}"
         )
@@ -205,7 +207,7 @@ class SettingsDialog(QDialog):
         layout.setSpacing(10)
 
         tip = QLabel("返回数量由模型根据你的描述自动判断（例如“两张”就是 2 张），这里只调整置信阈值与重试次数。")
-        tip.setStyleSheet("color:#6b7280; font-size:12px;")
+        tip.setStyleSheet("color:#8A8A8A; font-size:12px;")
         layout.addWidget(tip)
 
         form = QFormLayout()
@@ -246,14 +248,14 @@ class SettingsDialog(QDialog):
 
         save_btn = QPushButton("保存参数")
         save_btn.setStyleSheet(
-            "QPushButton{background:#16a34a;color:white;border:none;"
+            "QPushButton{background:#6F9C86;color:white;border:none;"
             "border-radius:6px;padding:7px 18px;}"
         )
         save_btn.clicked.connect(self.on_save_params)
         layout.addWidget(save_btn, 0, Qt.AlignLeft)
 
         self.params_status = QLabel("")
-        self.params_status.setStyleSheet("color:#6b7280; font-size:12px;")
+        self.params_status.setStyleSheet("color:#8A8A8A; font-size:12px;")
         layout.addWidget(self.params_status)
         layout.addStretch(1)
         return page
@@ -270,7 +272,7 @@ class SettingsDialog(QDialog):
             "切换向量库只更换连接，两个后端的数据不共享，切换后需要重新建索引。"
         )
         tip.setWordWrap(True)
-        tip.setStyleSheet("color:#6b7280; font-size:12px;")
+        tip.setStyleSheet("color:#8A8A8A; font-size:12px;")
         layout.addWidget(tip)
 
         form = QFormLayout()
@@ -284,7 +286,7 @@ class SettingsDialog(QDialog):
         form.addRow("集合名", self.collection_edit)
 
         self.vector_info = QLabel("")
-        self.vector_info.setStyleSheet("color:#374151; font-size:12px;")
+        self.vector_info.setStyleSheet("color:#4A4A4A; font-size:12px;")
         self.vector_info.setWordWrap(True)
         form.addRow("当前状态", self.vector_info)
 
@@ -292,14 +294,14 @@ class SettingsDialog(QDialog):
 
         apply_btn = QPushButton("应用后端")
         apply_btn.setStyleSheet(
-            "QPushButton{background:#2563eb;color:white;border:none;"
+            "QPushButton{background:#6F9C86;color:white;border:none;"
             "border-radius:6px;padding:7px 18px;}"
         )
         apply_btn.clicked.connect(self.on_apply_vector)
         layout.addWidget(apply_btn, 0, Qt.AlignLeft)
 
         self.vector_status = QLabel("")
-        self.vector_status.setStyleSheet("color:#6b7280; font-size:12px;")
+        self.vector_status.setStyleSheet("color:#8A8A8A; font-size:12px;")
         self.vector_status.setWordWrap(True)
         layout.addWidget(self.vector_status)
         layout.addStretch(1)
@@ -319,7 +321,7 @@ class SettingsDialog(QDialog):
             "系统目录（Windows、Program Files）始终禁止。留空表示使用默认范围。"
         )
         tip.setWordWrap(True)
-        tip.setStyleSheet("color:#6b7280; font-size:12px;")
+        tip.setStyleSheet("color:#8A8A8A; font-size:12px;")
         layout.addWidget(tip)
 
         self.roots_list = QListWidget()
@@ -336,7 +338,7 @@ class SettingsDialog(QDialog):
         del_btn.clicked.connect(self.on_del_root)
         save_btn = QPushButton("保存")
         save_btn.setStyleSheet(
-            "QPushButton{background:#16a34a;color:white;border:none;"
+            "QPushButton{background:#6F9C86;color:white;border:none;"
             "border-radius:6px;padding:7px 18px;}"
         )
         save_btn.clicked.connect(self.on_save_paths)
@@ -347,7 +349,7 @@ class SettingsDialog(QDialog):
         layout.addLayout(buttons)
 
         self.paths_status = QLabel("")
-        self.paths_status.setStyleSheet("color:#6b7280; font-size:12px;")
+        self.paths_status.setStyleSheet("color:#8A8A8A; font-size:12px;")
         layout.addWidget(self.paths_status)
         return page
 
@@ -364,7 +366,7 @@ class SettingsDialog(QDialog):
             "超过留存天数或容量上限后，才会被永久删除。"
         )
         tip.setWordWrap(True)
-        tip.setStyleSheet("color:#6b7280; font-size:12px;")
+        tip.setStyleSheet("color:#8A8A8A; font-size:12px;")
         layout.addWidget(tip)
 
         form = QFormLayout()
@@ -389,14 +391,14 @@ class SettingsDialog(QDialog):
 
         save_btn = QPushButton("保存暂存区设置")
         save_btn.setStyleSheet(
-            "QPushButton{background:#16a34a;color:white;border:none;"
+            "QPushButton{background:#6F9C86;color:white;border:none;"
             "border-radius:6px;padding:7px 18px;}"
         )
         save_btn.clicked.connect(self.on_save_trash)
         layout.addWidget(save_btn, 0, Qt.AlignLeft)
 
         self.trash_status = QLabel("")
-        self.trash_status.setStyleSheet("color:#6b7280; font-size:12px;")
+        self.trash_status.setStyleSheet("color:#8A8A8A; font-size:12px;")
         layout.addWidget(self.trash_status)
         layout.addStretch(1)
         return page
@@ -449,7 +451,7 @@ class SettingsDialog(QDialog):
             "只读探测：不加载模型、不连接向量库，检查依赖、显卡、模型文件与配置。"
         )
         tip.setWordWrap(True)
-        tip.setStyleSheet("color:#6b7280; font-size:12px;")
+        tip.setStyleSheet("color:#8A8A8A; font-size:12px;")
         layout.addWidget(tip)
 
         self.diag_list = QListWidget()
@@ -463,7 +465,7 @@ class SettingsDialog(QDialog):
         self.diag_btn = QPushButton("重新检测")
         self.diag_btn.clicked.connect(self.run_diagnostics)
         self.diag_status = QLabel("")
-        self.diag_status.setStyleSheet("color:#6b7280; font-size:12px;")
+        self.diag_status.setStyleSheet("color:#8A8A8A; font-size:12px;")
         row.addWidget(self.diag_btn)
         row.addWidget(self.diag_status, 1)
         layout.addLayout(row)
@@ -517,7 +519,7 @@ class SettingsDialog(QDialog):
             k.setStyleSheet("color:#6b7280;")
             v = QLabel(value)
             v.setWordWrap(True)
-            v.setStyleSheet("color:#111827; font-size:12px;")
+            v.setStyleSheet("color:#2E2E2E; font-size:12px;")
             row.addWidget(k)
             row.addWidget(v, 1)
             layout.addLayout(row)

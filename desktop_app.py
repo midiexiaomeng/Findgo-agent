@@ -86,6 +86,11 @@ class QtLogHandler(logging.Handler):
 # ── 后台线程 ──────────────────────────────────────────────────────────────────
 
 
+from imgsearch_agent.theme import GLOBAL_QSS
+
+
+
+
 class Worker(QThread):
     done = pyqtSignal(object)
     failed = pyqtSignal(str)
@@ -114,6 +119,7 @@ class ImageGalleryDialog(QDialog):
         self.paths = [str(p) for p in paths if p]
         self.setWindowTitle(f"全部图片（{len(self.paths)} 张）")
         self.resize(720, 480)
+        self.setStyleSheet(GLOBAL_QSS)
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(10, 10, 10, 10)
@@ -157,6 +163,7 @@ class ImageGalleryDialog(QDialog):
         dialog = QDialog(self)
         dialog.setWindowTitle(Path(path).name)
         dialog.resize(960, 720)
+        dialog.setStyleSheet(GLOBAL_QSS)
         layout = QVBoxLayout(dialog)
         label = QLabel()
         label.setAlignment(Qt.AlignCenter)
@@ -456,7 +463,17 @@ class MainWindow(QMainWindow):
         self.stop_btn.setEnabled(False)
         self.stop_btn.clicked.connect(self.on_stop)
 
+        self.resume_btn = QPushButton("继续")
+        self.resume_btn.setStyleSheet(
+            "QPushButton{background:#6F9C86;color:white;border:none;"
+            "border-radius:6px;padding:4px 12px;font-size:12px;}"
+        )
+        self.resume_btn.setToolTip("执行上次未完成的任务")
+        self.resume_btn.setVisible(False)
+        self.resume_btn.clicked.connect(self.on_run_tasks)
+
         btn_row.addStretch(1)
+        btn_row.addWidget(self.resume_btn)
         btn_row.addWidget(self.stop_btn)
         btn_row.addWidget(self.run_btn)
         layout.addLayout(btn_row)
@@ -756,6 +773,7 @@ class MainWindow(QMainWindow):
         dialog = QDialog(self)
         dialog.setWindowTitle(Path(path).name)
         dialog.resize(960, 720)
+        dialog.setStyleSheet(GLOBAL_QSS)
         layout = QVBoxLayout(dialog)
         label = QLabel()
         label.setAlignment(Qt.AlignCenter)
@@ -881,6 +899,21 @@ class MainWindow(QMainWindow):
             agent = self._get_agent()
             self._refresh_sessions()
             self._load_chat(agent.memory.session_id)
+
+            # 恢复任务链，但不自动执行；有未完成的任务时给一个「继续」入口
+            tasks = agent.memory.load_tasks(agent.memory.session_id)
+            self.task_list.clear()
+            for task in tasks:
+                self._add_task_item(task)
+
+            pending = [t for t in tasks if t.status == "pending" and t.query]
+            if pending and hasattr(self, "resume_btn"):
+                self.resume_btn.setVisible(True)
+                self.state_label.setText(
+                    f"有 {len(pending)} 个未完成任务，点「继续」开始执行"
+                )
+                self.append_log(f">>> 发现 {len(pending)} 个未完成任务，等待确认")
+
             self.append_log(">>> 已恢复会话 " + agent.memory.session_id)
         except Exception as e:
             self.append_log("加载历史失败: " + str(e))
@@ -1077,6 +1110,8 @@ class MainWindow(QMainWindow):
             return
 
         self._cancel = False
+        if hasattr(self, "resume_btn"):
+            self.resume_btn.setVisible(False)
         self.conversation.append(("你", text))
         self._append_chat("你", text)
         self._render_memory()
@@ -1147,6 +1182,8 @@ class MainWindow(QMainWindow):
         self._refresh_sessions()
 
     def on_run_tasks(self) -> None:
+        if hasattr(self, "resume_btn"):
+            self.resume_btn.setVisible(False)
         tasks = self._collect_tasks()
         if not tasks or self.worker is not None:
             return
@@ -1322,6 +1359,7 @@ def main() -> int:
     QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
     app = QApplication(sys.argv)
     app.setApplicationName("imgsearch Agent")
+    app.setStyleSheet(GLOBAL_QSS)
 
     from PyQt5.QtCore import QDir, QLockFile
     from PyQt5.QtWidgets import QMessageBox
