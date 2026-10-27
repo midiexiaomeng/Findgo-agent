@@ -86,6 +86,7 @@ class CaptionConfig:
     max_new_tokens: int = 40
     beam_size: int = 3
     cache_db: str = "./data/captions.sqlite"
+    max_cache_rows: int = 50000  # 描述缓存的条数上限，超出按最早写入淘汰
     use_fp16: bool = False
     # 索引完成后立刻释放 BLIP 显存
     unload_after_index: bool = True

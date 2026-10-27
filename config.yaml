@@ -51,6 +51,7 @@ caption:
   max_new_tokens: 40
   beam_size: 3
   cache_db: ./data/captions.sqlite
+  max_cache_rows: 50000     # 描述缓存条数上限，超出按写入顺序淘汰
   use_fp16: false           # BLIP 在 fp16 下偶尔生成不稳定，默认 fp32
   unload_after_index: true  # 索引完释放显存，给 7B 模型让路
 

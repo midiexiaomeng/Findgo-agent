@@ -109,6 +109,37 @@ class Captioner:
                 db.commit()
         except Exception as e:
             logger.debug("写入描述缓存失败: %s", e)
+            return
+
+        self._evict_cache()
+
+    def _evict_cache(self) -> int:
+        """超过条数上限时，从最早写入的记录开始淘汰。"""
+        db = self._ensure_db()
+        if db is None:
+            return 0
+
+        limit = int(getattr(self.cfg.caption, "max_cache_rows", 50000))
+        if limit <= 0:
+            return 0
+
+        try:
+            with self._db_lock:
+                total = db.execute("SELECT COUNT(*) FROM captions").fetchone()[0]
+                if total <= limit:
+                    return 0
+                excess = total - limit
+                db.execute(
+                    "DELETE FROM captions WHERE rowid IN "
+                    "(SELECT rowid FROM captions ORDER BY rowid ASC LIMIT ?)",
+                    (excess,),
+                )
+                db.commit()
+            logger.info("描述缓存超出上限，淘汰 %d 条", excess)
+            return excess
+        except Exception as e:
+            logger.debug("清理描述缓存失败: %s", e)
+            return 0
 
     def cache_size(self) -> int:
         db = self._ensure_db()
