@@ -102,7 +102,8 @@ class Planner:
             "再拆解为 1 到 3 个可在本地图片库执行的检索任务。\n"
             "每个任务包含：\n"
             "- description：一句话说明这次找什么\n"
-            "- query：用于检索的简短中文描述\n"
+            "- query：用户想找的图片的完整描述，保留数量词和修饰语"
+            "（如「两张猫的图片」），不要只留关键词\n"
             "- top_k：用户明确要求的图片数量。用户说“两张”就填 2，"
             "说“几张”或没提数量就填 0（表示用系统默认值）\n"
             "- path：用户提到的文件夹路径，原样保留（如 D:\\Photos）。"
@@ -146,7 +147,32 @@ class Planner:
                     path=task_path or known_path,
                 )
             )
-        return result or [TaskSpec(id=1, description=query, query=query)]
+        if not result:
+            return [TaskSpec(id=1, description=query, query=query)]
+
+        # 只有一个任务且带显式路径时，拆成「打开目录」「检索图片」两步；
+        # 多个任务时每个任务保持一步，路径扫描在检索工具内部完成。
+        if len(result) == 1 and result[0].path:
+            target = result[0]
+            return [
+                TaskSpec(
+                    id=1,
+                    action="scan",
+                    description=f"打开 {target.path}",
+                    query="",
+                    path=target.path,
+                ),
+                TaskSpec(
+                    id=2,
+                    action="retrieve",
+                    description=target.description,
+                    query=target.query,
+                    top_k=target.top_k,
+                    path=target.path,
+                ),
+            ]
+
+        return result
 
     # ── 解析 ──────────────────────────────────────────────────────────────
 

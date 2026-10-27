@@ -65,4 +65,7 @@ class TaskSpec(BaseModel):
     query: str = ""
     top_k: int = Field(0, description="用户明确要求的数量，0 表示用默认值")
     path: str = Field("", description="限定检索的文件夹路径，空表示全库")
+    action: str = Field(
+        "retrieve", description="步骤类型：scan 扫描目录 / retrieve 检索图片"
+    )
     status: str = Field("pending", description="pending | done | skipped")

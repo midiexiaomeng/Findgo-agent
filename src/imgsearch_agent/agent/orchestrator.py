@@ -145,26 +145,44 @@ class ImageSearchAgent:
         """
         results: list[AgentResult] = []
         for task in tasks:
-            if task.status == "skipped" or not task.query.strip():
+            if task.status == "skipped":
                 continue
-            tool = self.tools.get("image_retrieval")
-            if tool is None:
-                break
-            args = {
-                "query": task.query,
-                "top_k": task.top_k if task.top_k > 0 else self.config.top_k,
-                "path": task.path or "",
-            }
+
+            if task.action == "scan":
+                tool = self.tools.get("folder_scan")
+                if tool is None or not task.path:
+                    continue
+                args = {"path": task.path}
+            else:
+                if not task.query.strip():
+                    continue
+                tool = self.tools.get("image_retrieval")
+                if tool is None:
+                    break
+                args = {
+                    "query": task.query,
+                    "top_k": task.top_k if task.top_k > 0 else self.config.top_k,
+                    "path": task.path or "",
+                }
+
             result, retries = self._execute_with_retry(tool, args)
-            reply = self.responder.compose(task.query, result)
+
+            if task.action == "scan":
+                reply = str(result.get("summary") or "")
+                images = []
+            else:
+                reply = self.responder.compose(task.query, result)
+                images = result.get("images", [])
+
             if write_memory:
-                self.memory.add("user", task.query)
+                self.memory.add("user", task.query or task.description)
                 self.memory.add("assistant", reply)
+
             results.append(
                 AgentResult(
                     reply=reply,
-                    results=result.get("images", []),
-                    tool="image_retrieval",
+                    results=images,
+                    tool=tool.name,
                     confidence=float(result.get("confidence", 0.0)),
                     trace_id=uuid.uuid4().hex[:8],
                     retries=retries,

@@ -793,13 +793,17 @@ class MainWindow(QMainWindow):
     # ── 任务操作 ──────────────────────────────────────────────────────────
 
     def _add_task_item(self, task: TaskSpec) -> None:
-        item = QListWidgetItem(task.query or task.description)
+        if task.action == "scan":
+            label = "📁 打开 " + (task.path or task.description)
+        else:
+            label = task.query or task.description
+        item = QListWidgetItem(label)
         item.setFlags(
             item.flags() | Qt.ItemIsEditable | Qt.ItemIsUserCheckable | Qt.ItemIsDragEnabled
         )
         item.setCheckState(Qt.Checked if task.status != "skipped" else Qt.Unchecked)
-        item.setData(Qt.UserRole, {"id": task.id, "description": task.description})
-        item.setToolTip(task.description or task.query)
+        item.setData(Qt.UserRole, task.model_dump())
+        item.setToolTip(task.description or task.query or task.path)
         self.task_list.addItem(item)
 
     def on_add_task(self) -> None:
@@ -824,17 +828,18 @@ class MainWindow(QMainWindow):
         for i in range(self.task_list.count()):
             item = self.task_list.item(i)
             meta = item.data(Qt.UserRole) or {}
-            query = item.text().strip()
-            if not query:
-                continue
-            tasks.append(
-                TaskSpec(
-                    id=i + 1,
-                    description=str(meta.get("description") or query),
-                    query=query,
-                    status="pending" if item.checkState() == Qt.Checked else "skipped",
-                )
-            )
+            try:
+                task = TaskSpec(**meta)
+            except Exception:
+                task = TaskSpec(id=i + 1, description=item.text(), query=item.text())
+
+            text = item.text().strip()
+            if task.action != "scan" and text and text != task.query:
+                task.query = text
+
+            task.id = i + 1
+            task.status = "pending" if item.checkState() == Qt.Checked else "skipped"
+            tasks.append(task)
         return tasks
 
     # ── Agent 调用 ────────────────────────────────────────────────────────
@@ -900,7 +905,7 @@ class MainWindow(QMainWindow):
         tasks = agent.plan_tasks(text)
         if default_scope:
             for t in tasks:
-                if not t.path:
+                if t.action == "retrieve" and not t.path:
                     t.path = default_scope
         try:
             worker = self.worker
