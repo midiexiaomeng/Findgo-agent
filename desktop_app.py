@@ -162,7 +162,7 @@ class MainWindow(QMainWindow):
         self.conversation: list[tuple[str, str]] = []
         self.last_results: list[dict] = []
         self.tree_root: Path = ROOT
-        self.results_node: QTreeWidgetItem | None = None
+        self.results_mode = False
 
         self._build_ui()
         self._setup_logging()
@@ -412,19 +412,29 @@ class MainWindow(QMainWindow):
         self.path_label = QLabel(str(ROOT))
         self.path_label.setStyleSheet("font-size:10.5px;color:#6b7280;")
         self.path_label.setToolTip(str(ROOT))
+        self.results_btn = QPushButton("结果")
+        self.results_btn.setFixedWidth(40)
+        self.results_btn.setToolTip("查看最近检索结果")
+        self.results_btn.setStyleSheet(
+            "QPushButton{border:1px solid #d1d5db;border-radius:5px;"
+            "padding:3px 0;background:#fff;font-size:11px;}"
+        )
+        self.results_btn.clicked.connect(self._show_results)
         nav_row.addWidget(self.up_btn)
         nav_row.addWidget(self.path_label, 1)
+        nav_row.addWidget(self.results_btn)
         layout.addLayout(nav_row)
 
         split = QSplitter(Qt.Vertical)
         self.tree = QTreeWidget()
         self.tree.setHeaderHidden(True)
+        self.tree.setRootIsDecorated(False)
         self.tree.setStyleSheet(
             "QTreeWidget{border:1px solid #e5e7eb; border-radius:6px; "
             "background:#ffffff; font-size:11.5px;}"
         )
         self.tree.itemClicked.connect(self.on_file_clicked)
-        self.tree.itemExpanded.connect(self._on_tree_expand)
+        self.tree.itemDoubleClicked.connect(self._on_tree_double_click)
 
         self.preview = QLabel("点击图片预览")
         self.preview.setAlignment(Qt.AlignCenter)
@@ -710,7 +720,7 @@ class MainWindow(QMainWindow):
             f"完成 {len(results)} 条任务，共 {len(self.last_results)} 张图片。"
         )
         self._render_memory()
-        self._refresh_results_node()
+        self._refresh_results()
 
     def on_worker_failed(self, error: str) -> None:
         self.append_log(f"!!! 执行失败：{error}")
@@ -726,6 +736,10 @@ class MainWindow(QMainWindow):
     # ── 文件树 ────────────────────────────────────────────────────────────
 
     def _go_up(self) -> None:
+        if self.results_mode:
+            self.results_mode = False
+            self._load_file_tree()
+            return
         current = self.tree_root.resolve()
         parent = current.parent
         if parent == current:
@@ -734,57 +748,64 @@ class MainWindow(QMainWindow):
         self._load_file_tree()
 
     def _load_file_tree(self) -> None:
+        self.results_mode = False
         root = self.tree_root
         self.path_label.setText(str(root))
         self.path_label.setToolTip(str(root))
         self.tree.clear()
-        self.results_node = None
 
-        root_item = QTreeWidgetItem([root.name or str(root)])
-        root_item.setData(0, Qt.UserRole, str(root))
-        root_item.setData(0, LOADED_ROLE, True)
-        self.tree.addTopLevelItem(root_item)
-
-        if root.resolve() == ROOT.resolve():
-            self.results_node = QTreeWidgetItem(["最近检索结果"])
-            root_item.addChild(self.results_node)
-
-        self._fill_dir(root_item, root, limit=200)
-        root_item.setExpanded(True)
-
-    def _fill_dir(self, parent: QTreeWidgetItem, path: Path, limit: int) -> None:
         try:
-            entries = sorted(path.iterdir(), key=lambda p: (p.is_file(), p.name.lower()))[:limit]
+            entries = sorted(
+                root.iterdir(), key=lambda p: (p.is_file(), p.name.lower())
+            )
         except OSError:
-            return
+            entries = []
+
         for p in entries:
             if p.name in ("__pycache__", ".git", ".pytest_cache"):
                 continue
-            item = QTreeWidgetItem([p.name])
+            label = ("▸ " if p.is_dir() else "   ") + p.name
+            item = QTreeWidgetItem([label])
             item.setData(0, Qt.UserRole, str(p))
-            item.setData(0, LOADED_ROLE, False)
-            parent.addChild(item)
-            if p.is_dir():
-                # 占位子项：让 Qt 显示展开箭头，真正展开时再替换
-                QTreeWidgetItem(item, ["…"])
+            item.setToolTip(0, str(p))
+            self.tree.addTopLevelItem(item)
 
-    def _on_tree_expand(self, item: QTreeWidgetItem) -> None:
-        if item.data(0, LOADED_ROLE):
-            return
+    def _on_tree_double_click(self, item: QTreeWidgetItem, column: int) -> None:
         path = item.data(0, Qt.UserRole)
         if not path:
             return
         p = Path(path)
-        if not p.is_dir():
-            return
-        item.takeChildren()
-        self._fill_dir(item, p, limit=200)
-        item.setData(0, LOADED_ROLE, True)
+        if p.is_dir():
+            self.tree_root = p
+            self._load_file_tree()
+        elif p.suffix.lower() in IMAGE_EXTS:
+            self._show_preview(p)
+        else:
+            try:
+                from PyQt5.QtCore import QUrl
+                from PyQt5.QtGui import QDesktopServices
 
-    def _refresh_results_node(self) -> None:
-        if self.results_node is None:
+                QDesktopServices.openUrl(QUrl.fromLocalFile(str(p)))
+            except Exception:
+                pass
+
+    def _show_preview(self, p: Path) -> None:
+        pixmap = QPixmap(str(p))
+        if pixmap.isNull():
             return
-        self.results_node.takeChildren()
+        self.preview.setPixmap(
+            pixmap.scaled(200, 130, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        )
+        self.preview.setToolTip(str(p))
+
+    def _show_results(self) -> None:
+        self.results_mode = True
+        self.tree.clear()
+        self.path_label.setText("最近检索结果")
+        if not self.last_results:
+            item = QTreeWidgetItem(["（暂无结果）"])
+            self.tree.addTopLevelItem(item)
+            return
         for img in self.last_results:
             path = img.get("path", "") if isinstance(img, dict) else getattr(img, "path", "")
             if not path or not Path(path).exists():
@@ -792,8 +813,11 @@ class MainWindow(QMainWindow):
             item = QTreeWidgetItem([Path(path).name])
             item.setData(0, Qt.UserRole, path)
             item.setToolTip(0, path)
-            self.results_node.addChild(item)
-        self.results_node.setExpanded(True)
+            self.tree.addTopLevelItem(item)
+
+    def _refresh_results(self) -> None:
+        if self.results_mode:
+            self._show_results()
 
     def on_file_clicked(self, item: QTreeWidgetItem, column: int) -> None:
         path = item.data(0, Qt.UserRole)
@@ -801,13 +825,8 @@ class MainWindow(QMainWindow):
             return
         p = Path(path)
         if p.suffix.lower() in IMAGE_EXTS and p.exists():
-            pixmap = QPixmap(str(p))
-            if not pixmap.isNull():
-                self.preview.setPixmap(
-                    pixmap.scaled(200, 130, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                )
-                self.preview.setToolTip(str(p))
-                return
+            self._show_preview(p)
+            return
         self.preview.setText(p.name)
         self.preview.setPixmap(QPixmap())
 
