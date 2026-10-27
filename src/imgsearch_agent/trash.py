@@ -124,24 +124,35 @@ class TrashStaging:
                     failed.append(f"{source} 移动失败: {e}")
                     continue
 
-            with self._connect() as conn:
-                conn.execute(
-                    "INSERT OR REPLACE INTO staged "
-                    "(id, task_id, original_abs_path, staged_path, file_md5, size, "
-                    " staged_at, status, is_hardlink) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (
-                        row_id,
-                        task_id,
-                        str(source),
-                        str(target),
-                        md5,
-                        size,
-                        time.time(),
-                        self.STATUS_STAGED,
-                        is_hardlink,
-                    ),
-                )
+            # 链接建好之后再写库；写库失败要回滚链接，避免出现无记录的文件
+            try:
+                with self._connect() as conn:
+                    conn.execute(
+                        "INSERT OR REPLACE INTO staged "
+                        "(id, task_id, original_abs_path, staged_path, file_md5, size, "
+                        " staged_at, status, is_hardlink) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        (
+                            row_id,
+                            task_id,
+                            str(source),
+                            str(target),
+                            md5,
+                            size,
+                            time.time(),
+                            self.STATUS_STAGED,
+                            is_hardlink,
+                        ),
+                    )
+            except Exception as e:
+                # 回滚：删掉刚建的链接，恢复原状
+                try:
+                    if target.exists():
+                        target.unlink()
+                except OSError:
+                    pass
+                failed.append(f"{source} 写入清单失败: {e}")
+                continue
 
             staged += 1
             details.append(
@@ -251,7 +262,8 @@ class TrashStaging:
     # ── 清理 ────────────────────────────────────────────────────────────────
 
     def cleanup(self, max_days: int = 14, max_total_gb: float = 10.0) -> dict:
-        """先按 TTL 清，再按容量从旧到新清。"""
+        """先按 TTL 清，再按容量从旧到新清，最后清理孤儿记录。"""
+        orphans = self.prune_orphans()
         now = time.time()
         cutoff = now - max_days * 86400
 
@@ -284,12 +296,40 @@ class TrashStaging:
         return {
             "expired_purged": ttl_result.get("purged", 0),
             "size_purged": over_result.get("purged", 0),
+            "orphans_cleaned": orphans,
             "freed_bytes": ttl_result.get("freed_bytes", 0)
             + over_result.get("freed_bytes", 0),
             "total_purged": ttl_result.get("purged", 0) + over_result.get("purged", 0),
         }
 
     # ── 查询 ────────────────────────────────────────────────────────────────
+
+    def prune_orphans(self) -> int:
+        """清理 manifest 里对不上文件的记录。
+
+        典型场景：stage 过程中进程崩溃，链接建了但库没写；或者用户手动删了原图。
+        """
+        rows = self._select(self.STATUS_STAGED, None, None)
+        removed = 0
+
+        for row in rows:
+            staged = Path(row["staged_path"])
+            original = Path(row["original_abs_path"])
+
+            # 两边都不存在，记录彻底失效
+            if staged.exists():
+                continue
+
+            with self._connect() as conn:
+                conn.execute(
+                    "UPDATE staged SET status = ? WHERE id = ?",
+                    (self.STATUS_PURGED, row["id"]),
+                )
+            removed += 1
+            if not original.exists():
+                logger.info("清理失效记录 %s（原图已不存在）", row["id"])
+
+        return removed
 
     def list_staged(self, task_id: str | None = None) -> list[dict]:
         rows = self._select(self.STATUS_STAGED, task_id, None)

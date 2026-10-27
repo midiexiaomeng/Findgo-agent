@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import time
+from pathlib import Path
 
 from imgsearch_agent.trash import TrashStaging
 
@@ -90,3 +91,49 @@ def test_stats(tmp_path):
     stats = staging.stats()
     assert stats["count"] == 1
     assert stats["total_bytes"] == 256
+
+def test_stage_rolls_back_when_manifest_write_fails(tmp_path, monkeypatch):
+    src = make_image(tmp_path)
+    staging = TrashStaging(tmp_path / "trash")
+
+    real_connect = staging._connect
+    calls = {"n": 0}
+
+    def flaky_connect():
+        calls["n"] += 1
+        if calls["n"] > 1:
+            raise RuntimeError("db down")
+        return real_connect()
+
+    monkeypatch.setattr(staging, "_connect", flaky_connect)
+
+    result = staging.stage([str(src)], "t1")
+    assert result["staged"] == 0
+    assert result["failed"]
+
+    bucket = tmp_path / "trash" / "t1"
+    leftovers = list(bucket.rglob("*.jpg")) if bucket.exists() else []
+    assert leftovers == [], "写库失败后应回滚暂存链接"
+
+
+def test_prune_orphans_removes_stale_rows(tmp_path):
+    src = make_image(tmp_path)
+    staging = TrashStaging(tmp_path / "trash")
+    staging.stage([str(src)], "t1")
+
+    items = staging.list_staged()
+    Path(items[0]["staged"]).unlink()
+
+    removed = staging.prune_orphans()
+    assert removed == 1
+    assert staging.list_staged() == []
+
+
+def test_cleanup_reports_orphans(tmp_path):
+    src = make_image(tmp_path)
+    staging = TrashStaging(tmp_path / "trash")
+    staging.stage([str(src)], "t1")
+    Path(staging.list_staged()[0]["staged"]).unlink()
+
+    result = staging.cleanup(max_days=14, max_total_gb=100)
+    assert result["orphans_cleaned"] == 1
