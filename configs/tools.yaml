@@ -182,3 +182,18 @@ tools:
         type: number
         description: cleanup 容量上限 GB
         default: 10
+
+  - name: folder_scan
+    module: imgsearch_agent.tools.folder_scan
+    class: FolderScanTool
+    enabled: true
+    description: 扫描本地文件夹，统计图片数量并列出示例路径
+    parameters:
+      path:
+        type: string
+        description: 要扫描的文件夹
+        required: true
+      recursive:
+        type: boolean
+        description: 是否包含子目录
+        default: true
