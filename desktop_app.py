@@ -1,12 +1,13 @@
-"""imgsearch Agent 桌面应用（PyQt5）—— 三列布局。
+"""imgsearch Agent 桌面应用（PyQt5）。
 
-┌──────┬────────────────────────────┬──────┐
-│ 日志 │ 推理输入（多行 / 模型 / 发送）│ 任务 │
-│      ├────────────────────────────┤      │
-│ 记忆 │ 最终结果（回复 + 图片墙）    │ 文件 │
-└──────┴────────────────────────────┴──────┘
+布局：
+┌──────┬──────────────────────────┬──────┐
+│ 日志 │ 对话记录（持续追加）      │ 任务 │
+│      ├──────────────────────────┤      │
+│ 记忆 │ 输入框（多行 / 模型 / 发送）│ 文件 │
+└──────┴──────────────────────────┴──────┘
 
-左右宽度比为 1 : 4 : 1，左右合计正好是中间的一半。
+中间列宽度为 4，左右各 1，左右合计正好是中间的一半。
 """
 
 from __future__ import annotations
@@ -29,6 +30,7 @@ from PyQt5.QtWidgets import (
     QApplication,
     QGridLayout,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QListWidget,
@@ -37,7 +39,6 @@ from PyQt5.QtWidgets import (
     QMenu,
     QPlainTextEdit,
     QPushButton,
-    QScrollArea,
     QShortcut,
     QSizePolicy,
     QSplitter,
@@ -54,9 +55,6 @@ from imgsearch_agent.settings_dialog import SettingsDialog
 from imgsearch_agent.utils.schemas import TaskSpec
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"}
-THUMB_W, THUMB_H = 180, 135
-GRID_COLUMNS = 4
-LOADED_ROLE = Qt.UserRole + 1
 
 
 # ── 日志桥接 ──────────────────────────────────────────────────────────────────
@@ -97,63 +95,6 @@ class Worker(QThread):
             self.failed.emit(str(e))
 
 
-# ── 图片网格 ──────────────────────────────────────────────────────────────────
-
-
-class ImageGrid(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.grid = QGridLayout(self)
-        self.grid.setSpacing(8)
-        self.grid.setContentsMargins(8, 8, 8, 8)
-        self.grid.setAlignment(Qt.AlignTop)
-
-    def clear(self) -> None:
-        while self.grid.count():
-            item = self.grid.takeAt(0)
-            widget = item.widget()
-            if widget is not None:
-                widget.deleteLater()
-
-    def set_results(self, results: list) -> None:
-        self.clear()
-        index = 0
-        for item in results:
-            if isinstance(item, dict):
-                path = item.get("path", "")
-                score = float(item.get("score", 0) or 0)
-            else:
-                path = getattr(item, "path", "")
-                score = float(getattr(item, "score", 0) or 0)
-
-            if not path or not Path(path).exists():
-                continue
-            pixmap = QPixmap(path)
-            if pixmap.isNull():
-                continue
-
-            label = QLabel()
-            label.setPixmap(
-                pixmap.scaled(
-                    THUMB_W, THUMB_H, Qt.KeepAspectRatio, Qt.SmoothTransformation
-                )
-            )
-            label.setAlignment(Qt.AlignCenter)
-            label.setFixedSize(THUMB_W + 6, THUMB_H + 6)
-            label.setStyleSheet(
-                "border:1px solid #e5e7eb; border-radius:6px; background:#fff;"
-            )
-            label.setToolTip(f"{path}\n相似度 {score:.3f}")
-            self.grid.addWidget(label, index // GRID_COLUMNS, index % GRID_COLUMNS)
-            index += 1
-
-        if index == 0:
-            empty = QLabel("执行任务后，结果会显示在这里")
-            empty.setAlignment(Qt.AlignCenter)
-            empty.setStyleSheet("color:#9ca3af; padding:30px;")
-            self.grid.addWidget(empty, 0, 0, 1, GRID_COLUMNS)
-
-
 # ── 主窗口 ────────────────────────────────────────────────────────────────────
 
 
@@ -177,29 +118,57 @@ class MainWindow(QMainWindow):
         self._adjust_input_height()
         self._restore_history()
 
-    # ── 中间上：推理输入 ──────────────────────────────────────────────────
+    # ── 中间上：对话记录 ──────────────────────────────────────────────────
+
+    def _build_chat_panel(self) -> QWidget:
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(10, 8, 10, 4)
+        layout.setSpacing(6)
+
+        header = QHBoxLayout()
+        title = QLabel("对话")
+        title.setStyleSheet("font-weight:600; color:#374151; font-size:13px;")
+        header.addWidget(title)
+        header.addStretch(1)
+
+        self.clear_chat_btn = QPushButton("清屏")
+        self.clear_chat_btn.setFixedHeight(22)
+        self.clear_chat_btn.setStyleSheet(
+            "QPushButton{border:1px solid #d1d5db;border-radius:5px;"
+            "padding:2px 10px;background:#fff;font-size:11px;}"
+        )
+        self.clear_chat_btn.clicked.connect(self.on_clear_chat)
+
+        self.settings_btn = QPushButton("设置")
+        self.settings_btn.setFixedHeight(22)
+        self.settings_btn.setStyleSheet(
+            "QPushButton{border:1px solid #d1d5db;border-radius:5px;"
+            "padding:2px 10px;background:#fff;font-size:11px;}"
+        )
+        self.settings_btn.clicked.connect(self.on_settings)
+
+        header.addWidget(self.clear_chat_btn)
+        header.addWidget(self.settings_btn)
+        layout.addLayout(header)
+
+        self.chat_view = QTextBrowser()
+        self.chat_view.setOpenExternalLinks(False)
+        self.chat_view.setStyleSheet(
+            "QTextBrowser{border:1px solid #e5e7eb; border-radius:10px; "
+            "background:#ffffff; padding:10px; font-size:13px;}"
+        )
+        layout.addWidget(self.chat_view, 1)
+        return panel
+
+    # ── 中间下：输入框 ────────────────────────────────────────────────────
 
     def _build_input_panel(self) -> QWidget:
         panel = QWidget()
         layout = QVBoxLayout(panel)
-        layout.setContentsMargins(10, 8, 10, 6)
-        layout.setSpacing(6)
+        layout.setContentsMargins(10, 2, 10, 8)
+        layout.setSpacing(4)
 
-        header = QHBoxLayout()
-        title = QLabel("推理输入")
-        title.setStyleSheet("font-weight:600; color:#374151; font-size:13px;")
-        header.addWidget(title)
-        header.addStretch(1)
-        self.settings_btn = QPushButton("设置")
-        self.settings_btn.setStyleSheet(
-            "QPushButton{border:1px solid #d1d5db;border-radius:6px;"
-            "padding:5px 12px;background:#fff;font-size:12px;}"
-        )
-        self.settings_btn.clicked.connect(self.on_settings)
-        header.addWidget(self.settings_btn)
-        layout.addLayout(header)
-
-        # 输入框 + 右下角悬浮按钮
         container = QWidget()
         grid = QGridLayout(container)
         grid.setContentsMargins(0, 0, 0, 0)
@@ -207,7 +176,7 @@ class MainWindow(QMainWindow):
 
         self.input = QPlainTextEdit()
         self.input.setPlaceholderText(
-            "描述检索需求，支持多行。Ctrl+Enter 发送，例如：\n找出海边日落的图片，再找几张猫的照片"
+            "描述你想找的图片，支持多行。Ctrl+Enter 发送，例如：\n找两张猫的图片，再找几张海边的日落"
         )
         self.input.setStyleSheet(
             "QPlainTextEdit{border:1px solid #d1d5db;border-radius:10px;"
@@ -228,17 +197,16 @@ class MainWindow(QMainWindow):
         self.model_btn.setStyleSheet(
             "QToolButton{border:1px solid #d1d5db;border-radius:7px;"
             "padding:6px 12px;background:#f9fafb;font-size:12px;}"
-            "QToolButton:hover{background:#f3f4f6;}"
         )
         self.model_btn.clicked.connect(self.on_model_menu)
 
         self.send_btn = QPushButton("发送")
         self.send_btn.setStyleSheet(
             "QPushButton{background:#2563eb;color:white;border:none;"
-            "border-radius:7px;padding:7px 18px;font-size:13px;}"
+            "border-radius:7px;padding:7px 20px;font-size:13px;}"
             "QPushButton:disabled{background:#93c5fd;}"
         )
-        self.send_btn.clicked.connect(self.on_plan)
+        self.send_btn.clicked.connect(self.on_send)
 
         btn_row.addWidget(self.model_btn)
         btn_row.addWidget(self.send_btn)
@@ -246,12 +214,12 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(container)
 
-        self.state_label = QLabel("输入需求后点「发送」，确认任务链后点「执行任务」。")
+        self.state_label = QLabel("输入需求后点发送，Agent 会自动规划并检索。")
         self.state_label.setStyleSheet("font-size:12px; color:#6b7280;")
         self.state_label.setWordWrap(True)
         layout.addWidget(self.state_label)
 
-        QShortcut(QKeySequence("Ctrl+Return"), self.input, activated=self.on_plan)
+        QShortcut(QKeySequence("Ctrl+Return"), self.input, activated=self.on_send)
         return panel
 
     def _adjust_input_height(self) -> None:
@@ -260,7 +228,6 @@ class MainWindow(QMainWindow):
         rect = self.input.fontMetrics().boundingRect(
             QRect(0, 0, width, 10000), Qt.TextWordWrap, text
         )
-        # 上下 padding + 右下按钮留白
         content = rect.height() + 46 + 16
         window_h = self.height() or 880
         max_h = max(110, int(window_h * 0.25))
@@ -270,42 +237,11 @@ class MainWindow(QMainWindow):
         super().resizeEvent(event)
         self._adjust_input_height()
 
-    # ── 中间下：最终结果 ──────────────────────────────────────────────────
-
-    def _build_result_panel(self) -> QWidget:
-        panel = QWidget()
-        layout = QVBoxLayout(panel)
-        layout.setContentsMargins(10, 2, 10, 10)
-        layout.setSpacing(6)
-
-        title = QLabel("最终结果")
-        title.setStyleSheet("font-weight:600; color:#374151; font-size:13px;")
-        layout.addWidget(title)
-
-        self.reply_view = QTextBrowser()
-        self.reply_view.setFixedHeight(86)
-        self.reply_view.setStyleSheet(
-            "QTextBrowser{border:1px solid #e5e7eb; border-radius:8px; "
-            "background:#f8fafc; padding:6px; font-size:12.5px;}"
-        )
-        layout.addWidget(self.reply_view)
-
-        self.result_scroll = QScrollArea()
-        self.result_scroll.setWidgetResizable(True)
-        self.result_scroll.setStyleSheet(
-            "QScrollArea{border:1px solid #e5e7eb; border-radius:8px; background:#fafafa;}"
-        )
-        self.result_grid = ImageGrid()
-        self.result_scroll.setWidget(self.result_grid)
-        layout.addWidget(self.result_scroll, 1)
-        return panel
-
     # ── 左侧 ──────────────────────────────────────────────────────────────
 
     def _build_left_column(self) -> QSplitter:
         split = QSplitter(Qt.Vertical)
 
-        # 上：运行日志 + 新对话按钮
         log_panel = QWidget()
         log_layout = QVBoxLayout(log_panel)
         log_layout.setContentsMargins(6, 6, 6, 6)
@@ -340,7 +276,6 @@ class MainWindow(QMainWindow):
         log_layout.addWidget(self.log_view, 1)
         split.addWidget(log_panel)
 
-        # 下：会话列表 + 当前会话消息
         mem_panel = QWidget()
         mem_layout = QVBoxLayout(mem_panel)
         mem_layout.setContentsMargins(6, 6, 6, 6)
@@ -361,6 +296,7 @@ class MainWindow(QMainWindow):
             "QListWidget::item:selected{background:#e0e7ff;color:#1e40af;}"
         )
         self.session_list.itemClicked.connect(self.on_session_clicked)
+        self.session_list.itemDoubleClicked.connect(self.on_rename_session)
 
         self.memory_view = QTextBrowser()
         self.memory_view.setStyleSheet(
@@ -376,6 +312,8 @@ class MainWindow(QMainWindow):
 
         split.setSizes([360, 420])
         return split
+
+    # ── 右侧 ──────────────────────────────────────────────────────────────
 
     def _build_task_panel(self) -> QWidget:
         panel = QWidget()
@@ -414,12 +352,13 @@ class MainWindow(QMainWindow):
         for b in (self.add_btn, self.del_btn, self.up_btn, self.down_btn):
             btn_row.addWidget(b)
 
-        self.run_btn = QPushButton("执行")
+        self.run_btn = QPushButton("重跑")
         self.run_btn.setStyleSheet(
             "QPushButton{background:#16a34a;color:white;border:none;"
             "border-radius:5px;padding:4px 10px;font-size:12px;}"
             "QPushButton:disabled{background:#86efac;}"
         )
+        self.run_btn.setToolTip("按当前编辑后的任务链重新执行")
         self.run_btn.clicked.connect(self.on_run_tasks)
         btn_row.addStretch(1)
         btn_row.addWidget(self.run_btn)
@@ -456,7 +395,6 @@ class MainWindow(QMainWindow):
             "QLineEdit{background:transparent;border:none;"
             "font-size:10.5px;color:#6b7280;padding:0;}"
         )
-        self.path_label.setToolTip(str(ROOT))
         self.results_btn = QPushButton("结果")
         self.results_btn.setFixedWidth(40)
         self.results_btn.setToolTip("查看最近检索结果")
@@ -495,7 +433,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(split, 1)
         return panel
 
-    # ── 组装 ──────────────────────────────────────────────────────────────
+    # ── 组装：1 : 4 : 1 ───────────────────────────────────────────────────
 
     def _build_ui(self) -> None:
         central = QWidget()
@@ -506,9 +444,9 @@ class MainWindow(QMainWindow):
         left = self._build_left_column()
 
         center = QSplitter(Qt.Vertical)
+        center.addWidget(self._build_chat_panel())
         center.addWidget(self._build_input_panel())
-        center.addWidget(self._build_result_panel())
-        center.setSizes([190, 600])
+        center.setSizes([560, 190])
 
         right = QSplitter(Qt.Vertical)
         right.addWidget(self._build_task_panel())
@@ -548,6 +486,78 @@ class MainWindow(QMainWindow):
         bar = self.log_view.verticalScrollBar()
         bar.setValue(bar.maximum())
 
+    def _render_memory(self) -> None:
+        rows = []
+        for who, text in self.conversation[-80:]:
+            safe = html.escape(str(text)).replace("\n", "<br/>")
+            color = "#2563eb" if who == "你" else "#111827"
+            rows.append(
+                f'<p style="margin:5px 0;color:{color};"><b>{who}：</b>{safe}</p>'
+            )
+        self.memory_view.setHtml(
+            "".join(rows) or "<p style='color:#9ca3af'>暂无对话</p>"
+        )
+        bar = self.memory_view.verticalScrollBar()
+        bar.setValue(bar.maximum())
+
+    # ── 聊天记录 ──────────────────────────────────────────────────────────
+
+    def _chat_html(self, role: str, text: str, images: list | None = None) -> str:
+        safe = html.escape(str(text)).replace("\n", "<br/>")
+        if role == "你":
+            return (
+                '<div style="text-align:right;margin:8px 0;">'
+                '<span style="display:inline-block;background:#2563eb;color:#fff;'
+                'padding:8px 12px;border-radius:10px;max-width:82%;'
+                'text-align:left;">' + safe + "</span></div>"
+            )
+
+        thumbs = ""
+        if images:
+            parts = []
+            for img in images[:4]:
+                path = img.get("path", "") if isinstance(img, dict) else getattr(img, "path", "")
+                if path and Path(path).exists():
+                    try:
+                        uri = Path(path).as_uri()
+                    except ValueError:
+                        continue
+                    parts.append(
+                        f'<img src="{uri}" width="104" style="margin:2px;border-radius:4px;">'
+                    )
+            if parts:
+                thumbs = '<div style="margin-top:6px;">' + "".join(parts) + "</div>"
+
+        return (
+            '<div style="text-align:left;margin:8px 0;">'
+            '<span style="display:inline-block;background:#f3f4f6;color:#111827;'
+            'padding:8px 12px;border-radius:10px;max-width:82%;">'
+            + safe + thumbs + "</span></div>"
+        )
+
+    def _append_chat(self, role: str, text: str, images: list | None = None) -> None:
+        self.chat_view.append(self._chat_html(role, text, images))
+        bar = self.chat_view.verticalScrollBar()
+        bar.setValue(bar.maximum())
+
+    def _load_chat(self, session_id: str) -> None:
+        self.chat_view.clear()
+        self.conversation = []
+        if self.agent is None:
+            return
+        for m in self.agent.memory.load_messages(session_id):
+            role = "你" if m.get("role") == "user" else "Agent"
+            content = m.get("content", "")
+            self.conversation.append((role, content))
+            self._append_chat(role, content)
+        self._render_memory()
+
+    def on_clear_chat(self) -> None:
+        self.chat_view.clear()
+        self.append_log(">>> 对话窗口已清屏（历史仍保存在会话中）")
+
+    # ── 会话管理 ──────────────────────────────────────────────────────────
+
     def _refresh_sessions(self) -> None:
         self.session_list.clear()
         if self.agent is None:
@@ -568,14 +578,29 @@ class MainWindow(QMainWindow):
             agent.memory.prune_sessions(keep=max(1, int(agent.config.memory_max_sessions)))
             self.conversation = []
             self.last_results = []
-            self.result_grid.clear()
-            self.reply_view.setHtml("")
+            self.chat_view.clear()
             self.task_list.clear()
             self._render_memory()
             self._refresh_sessions()
             self.append_log(">>> 已开始新对话 " + agent.memory.session_id)
         except Exception as e:
             self.append_log("新建对话失败: " + str(e))
+
+    def on_session_clicked(self, item: QListWidgetItem) -> None:
+        sid = item.data(Qt.UserRole)
+        if not sid:
+            return
+        try:
+            agent = self._get_agent()
+            agent.memory.switch_session(sid)
+            self._load_chat(sid)
+            self.task_list.clear()
+            for t in agent.memory.load_tasks(sid):
+                self._add_task_item(t)
+            self._refresh_sessions()
+            self.append_log(">>> 已切换历史会话 " + sid)
+        except Exception as e:
+            self.append_log("切换会话失败: " + str(e))
 
     def on_rename_session(self, item: QListWidgetItem) -> None:
         sid = item.data(Qt.UserRole)
@@ -593,71 +618,22 @@ class MainWindow(QMainWindow):
         self._refresh_sessions()
         self.append_log(">>> 会话已重命名为「" + title.strip() + "」")
 
-    def on_session_clicked(self, item: QListWidgetItem) -> None:
-        sid = item.data(Qt.UserRole)
-        if not sid:
-            return
-        try:
-            agent = self._get_agent()
-            agent.memory.switch_session(sid)
-            self.conversation = []
-            for m in agent.memory.load_messages(sid):
-                role = "你" if m.get("role") == "user" else "Agent"
-                self.conversation.append((role, m.get("content", "")))
-            self._render_memory()
-            self.task_list.clear()
-            for t in agent.memory.load_tasks(sid):
-                self._add_task_item(t)
-            self._refresh_sessions()
-            self.append_log(">>> 已切换历史会话 " + sid)
-        except Exception as e:
-            self.append_log("切换会话失败: " + str(e))
-
     def _restore_history(self) -> None:
-        """启动时恢复最近会话，并列出历史会话。"""
         try:
             agent = self._get_agent()
             self._refresh_sessions()
-            if not self.conversation:
-                for item in agent.memory.history()[-60:]:
-                    role = "你" if item.get("role") == "user" else "Agent"
-                    self.conversation.append((role, item.get("content", "")))
-                self._render_memory()
-            self.append_log(f">>> 已恢复会话 {agent.memory.session_id}")
+            self._load_chat(agent.memory.session_id)
+            self.append_log(">>> 已恢复会话 " + agent.memory.session_id)
         except Exception as e:
-            self.append_log(f"加载历史失败: {e}")
+            self.append_log("加载历史失败: " + str(e))
 
-    def _render_memory(self) -> None:
-        rows = []
-        for who, text in self.conversation[-80:]:
-            safe = html.escape(str(text)).replace("\n", "<br/>")
-            if who == "你":
-                rows.append(
-                    '<div style="text-align:right;margin:6px 0;">'
-                    '<span style="display:inline-block;background:#2563eb;color:#fff;'
-                    'padding:6px 10px;border-radius:10px;max-width:85%;'
-                    'text-align:left;">' + safe + "</span></div>"
-                )
-            else:
-                rows.append(
-                    '<div style="text-align:left;margin:6px 0;">'
-                    '<span style="display:inline-block;background:#f3f4f6;color:#111827;'
-                    'padding:6px 10px;border-radius:10px;max-width:85%;">'
-                    + safe + "</span></div>"
-                )
-        self.memory_view.setHtml(
-            "".join(rows) or "<p style='color:#9ca3af'>暂无对话</p>"
-        )
-        bar = self.memory_view.verticalScrollBar()
-        bar.setValue(bar.maximum())
+    # ── 模型选择 ──────────────────────────────────────────────────────────
 
     def _refresh_model_button(self) -> None:
-        store = ModelStore()
-        entry = store.get_active()
-        if entry:
-            self.model_btn.setText(entry.get("label", entry.get("model", "选择模型")))
-        else:
-            self.model_btn.setText("选择模型")
+        entry = ModelStore().get_active()
+        self.model_btn.setText(
+            entry.get("label", entry.get("model", "选择模型")) if entry else "选择模型"
+        )
 
     def on_model_menu(self) -> None:
         store = ModelStore()
@@ -676,9 +652,7 @@ class MainWindow(QMainWindow):
             menu.addSeparator()
             menu.addAction("添加模型…").triggered.connect(self.on_add_model)
 
-        # 贴近按钮向上弹出，避免跳到屏幕中央
-        pos = self.model_btn.mapToGlobal(QPoint(0, self.model_btn.height()))
-        menu.exec_(pos)
+        menu.exec_(self.model_btn.mapToGlobal(QPoint(0, self.model_btn.height())))
 
     def on_select_model(self, model_id: str) -> None:
         store = ModelStore()
@@ -686,17 +660,15 @@ class MainWindow(QMainWindow):
         if entry is None:
             return
         store.set_active(model_id)
-        cfg = ModelStore.to_llm_config(entry)
         if self.agent is not None:
-            self.agent.set_llm(cfg)
+            self.agent.set_llm(ModelStore.to_llm_config(entry))
         self.model_btn.setText(entry.get("label", entry.get("model", "")))
-        self.append_log(f">>> 切换模型：{entry.get('label')}")
+        self.append_log(">>> 切换模型：" + str(entry.get("label")))
 
     def on_settings(self) -> None:
         self._open_settings(SettingsDialog.PAGE_MODELS)
 
     def on_add_model(self) -> None:
-        """从模型菜单直接跳到「添加模型」页。"""
         self._open_settings(SettingsDialog.PAGE_MODELS)
 
     def _open_settings(self, page: int) -> None:
@@ -706,8 +678,16 @@ class MainWindow(QMainWindow):
         dialog.exec_()
         self._on_models_changed()
 
+    def _on_models_changed(self) -> None:
+        entry = ModelStore().get_active()
+        if entry is None:
+            self.model_btn.setText("选择模型")
+            return
+        self.model_btn.setText(entry.get("label", entry.get("model", "")))
+        if self.agent is not None:
+            self.agent.set_llm(ModelStore.to_llm_config(entry))
+
     def _on_config_changed(self) -> None:
-        """设置保存后把新参数同步到运行中的 Agent。"""
         if self.agent is None:
             return
         try:
@@ -721,21 +701,10 @@ class MainWindow(QMainWindow):
             self.agent.critic.max_retries = cfg.max_retries
             self._refresh_sessions()
             self.append_log(
-                f">>> 设置已更新：保留会话 {cfg.memory_max_sessions} 个，"
-                f"阈值 {cfg.similarity_threshold}"
+                f">>> 设置已更新：保留会话 {cfg.memory_max_sessions} 个"
             )
         except Exception as e:
-            self.append_log(f"应用设置失败: {e}")
-
-    def _on_models_changed(self) -> None:
-        store = ModelStore()
-        entry = store.get_active()
-        if entry is None:
-            self.model_btn.setText("选择模型")
-            return
-        self.model_btn.setText(entry.get("label", entry.get("model", "")))
-        if self.agent is not None:
-            self.agent.set_llm(ModelStore.to_llm_config(entry))
+            self.append_log("应用设置失败: " + str(e))
 
     # ── 任务操作 ──────────────────────────────────────────────────────────
 
@@ -812,84 +781,98 @@ class MainWindow(QMainWindow):
             b.setEnabled(not busy)
         self.input.setEnabled(not busy)
 
-    def on_plan(self) -> None:
+    def on_send(self) -> None:
         text = self.input.toPlainText().strip()
         if not text or self.worker is not None:
             return
-        self.conversation.append(("你", text))
-        self._render_memory()
-        self._set_busy(True)
-        self.state_label.setText("正在拆解任务…")
-        self.append_log(f">>> 拆解任务：{text.replace(chr(10), ' ')[:60]}")
 
-        self.worker = Worker(lambda: self._get_agent().plan_tasks(text))
-        self.worker.done.connect(self.on_plan_done)
+        self.conversation.append(("你", text))
+        self._append_chat("你", text)
+        self._render_memory()
+        self.input.clear()
+        self._set_busy(True)
+        self.state_label.setText("Agent 正在理解需求并检索…")
+        self.append_log(">>> 用户：" + text.replace("\n", " ")[:60])
+
+        self.worker = Worker(self._run_turn, text)
+        self.worker.done.connect(self.on_turn_done)
         self.worker.failed.connect(self.on_worker_failed)
         self.worker.finished.connect(self._finish_worker)
         self.worker.start()
 
-    def on_plan_done(self, tasks) -> None:
+    def _run_turn(self, text: str):
+        agent = self._get_agent()
+        agent.memory.add("user", text)
+        tasks = agent.plan_tasks(text)
+        agent.memory.save_tasks(list(tasks))
+        results = agent.run_tasks(tasks, write_memory=False)
+        replies = [r.reply for r in results if r.reply]
+        combined = "\n".join(replies) or "没有找到相关图片。"
+        images = [img for r in results for img in r.results]
+        agent.memory.add("assistant", combined)
+        return tasks, results, combined, images
+
+    def on_turn_done(self, payload) -> None:
+        tasks, results, combined, images = payload
+        self.conversation.append(("Agent", combined))
+        self._append_chat("Agent", combined, images)
+        self._render_memory()
+
         self.task_list.clear()
         for t in tasks:
             self._add_task_item(t)
+
+        self.last_results = images
         self.state_label.setText(
-            f"已生成 {len(tasks)} 条任务，可编辑、勾选或调整顺序后执行。"
+            f"完成 {len(results)} 条任务，共 {len(images)} 张图片"
         )
-        self.append_log(f">>> 已生成 {len(tasks)} 条任务")
         self._refresh_sessions()
 
     def on_run_tasks(self) -> None:
         tasks = self._collect_tasks()
         if not tasks or self.worker is not None:
             return
-        pending = sum(1 for t in tasks if t.status == "pending")
-        if pending == 0:
+        if not any(t.status == "pending" for t in tasks):
             self.state_label.setText("没有勾选任何任务。")
             return
 
         self._set_busy(True)
-        self.state_label.setText(f"正在执行 {pending} 条任务…")
-        self.append_log(f">>> 开始执行 {pending} 条任务")
-
-        self.worker = Worker(lambda: self._get_agent().run_tasks(tasks))
-        self.worker.done.connect(self.on_run_done)
+        self.state_label.setText("正在按任务链重新执行…")
+        self.worker = Worker(self._run_existing_tasks, tasks)
+        self.worker.done.connect(self.on_turn_done)
         self.worker.failed.connect(self.on_worker_failed)
         self.worker.finished.connect(self._finish_worker)
         self.worker.start()
 
-    def on_run_done(self, results) -> None:
-        self.last_results = []
-        replies: list[str] = []
-        for r in results:
-            self.conversation.append(("Agent", r.reply))
-            replies.append(r.reply)
-            self.last_results.extend(r.results)
-            self.append_log(
-                f">>> 任务完成 | 置信度 {r.confidence:.3f} | 重试 {r.retries} | trace {r.trace_id}"
-            )
-
-        self.reply_view.setHtml(
-            "<br/>".join(html.escape(x) for x in replies)
-            or "<span style='color:#9ca3af'>没有返回结果</span>"
-        )
-        self.result_grid.set_results(self.last_results)
-        self.state_label.setText(
-            f"完成 {len(results)} 条任务，共 {len(self.last_results)} 张图片。"
-        )
-        self._render_memory()
-        self._refresh_results()
-        self._refresh_sessions()
+    def _run_existing_tasks(self, tasks: list[TaskSpec]):
+        agent = self._get_agent()
+        results = agent.run_tasks(tasks, write_memory=False)
+        replies = [r.reply for r in results if r.reply]
+        combined = "\n".join(replies) or "没有找到相关图片。"
+        images = [img for r in results for img in r.results]
+        agent.memory.add("assistant", combined)
+        return tasks, results, combined, images
 
     def on_worker_failed(self, error: str) -> None:
-        self.append_log(f"!!! 执行失败：{error}")
-        self.state_label.setText(f"执行失败：{error}")
-        self.conversation.append(("Agent", f"出错了：{error}"))
+        self.append_log("!!! 执行失败：" + error)
+        self.state_label.setText("执行失败：" + error)
+        self.conversation.append(("Agent", "出错了：" + error))
+        self._append_chat("Agent", "出错了：" + error)
         self._render_memory()
 
     def _finish_worker(self) -> None:
         self.worker = None
         self._set_busy(False)
         self.input.setFocus()
+
+    def closeEvent(self, event) -> None:
+        """关闭窗口时释放向量库文件锁，便于下次启动。"""
+        try:
+            if self.agent is not None:
+                self.agent.close()
+        except Exception:
+            pass
+        super().closeEvent(event)
 
     # ── 文件树 ────────────────────────────────────────────────────────────
 
@@ -961,8 +944,7 @@ class MainWindow(QMainWindow):
         self.tree.clear()
         self.path_label.setText("最近检索结果")
         if not self.last_results:
-            item = QTreeWidgetItem(["（暂无结果）"])
-            self.tree.addTopLevelItem(item)
+            self.tree.addTopLevelItem(QTreeWidgetItem(["（暂无结果）"]))
             return
         for img in self.last_results:
             path = img.get("path", "") if isinstance(img, dict) else getattr(img, "path", "")
@@ -990,15 +972,12 @@ class MainWindow(QMainWindow):
 
 
 def _setup_file_logging() -> None:
-    """pythonw 启动时没有控制台，日志落文件便于排查。"""
     try:
         log_dir = ROOT / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
         handler = logging.FileHandler(log_dir / "app.log", encoding="utf-8")
         handler.setFormatter(
-            logging.Formatter(
-                "%(asctime)s | %(levelname)-7s | %(name)s | %(message)s"
-            )
+            logging.Formatter("%(asctime)s | %(levelname)-7s | %(name)s | %(message)s")
         )
         root = logging.getLogger()
         root.addHandler(handler)
@@ -1014,6 +993,20 @@ def main() -> int:
     QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
     app = QApplication(sys.argv)
     app.setApplicationName("imgsearch Agent")
+
+    from PyQt5.QtCore import QDir, QLockFile
+    from PyQt5.QtWidgets import QMessageBox
+
+    lock = QLockFile(QDir.temp().filePath("imgsearch_agent.lock"))
+    if not lock.tryLock(100):
+        QMessageBox.warning(
+            None,
+            "已有实例在运行",
+            "imgsearch Agent 已经打开了一个窗口。\n"
+            "Qdrant 本地模式只允许单进程访问，请先关闭已有窗口。",
+        )
+        return 1
+
     window = MainWindow()
     window.show()
     return app.exec_()

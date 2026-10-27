@@ -130,8 +130,13 @@ class ImageSearchAgent:
             user_input, tools_desc, history=self.memory.recent(n=20)
         )
 
-    def run_tasks(self, tasks: list[TaskSpec]) -> list[AgentResult]:
-        """按任务列表逐条执行，跳过 skipped。"""
+    def run_tasks(
+        self, tasks: list[TaskSpec], write_memory: bool = True
+    ) -> list[AgentResult]:
+        """按任务列表逐条执行，跳过 skipped。
+
+        write_memory=False 时由调用方统一写入对话记忆，避免一轮多任务产生重复消息。
+        """
         results: list[AgentResult] = []
         for task in tasks:
             if task.status == "skipped" or not task.query.strip():
@@ -145,8 +150,9 @@ class ImageSearchAgent:
             }
             result, retries = self._execute_with_retry(tool, args)
             reply = self.responder.compose(task.query, result)
-            self.memory.add("user", task.query)
-            self.memory.add("assistant", reply)
+            if write_memory:
+                self.memory.add("user", task.query)
+                self.memory.add("assistant", reply)
             results.append(
                 AgentResult(
                     reply=reply,
