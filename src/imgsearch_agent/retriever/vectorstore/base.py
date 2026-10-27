@@ -100,6 +100,10 @@ class VectorStore(abc.ABC):
     ) -> list[VectorHit]:
         """按 id 取记录；ids 为空时返回前 limit 条（用于遍历）。"""
 
+    def update_payload(self, ids: Sequence[str], payload: dict[str, Any]) -> None:
+        """给指定记录打标记（软删除用）。后端不支持时抛错。"""
+        raise NotImplementedError(f"{self.backend_name} 不支持更新 payload")
+
     def get_vectors(
         self, limit: int | None = None
     ) -> list[tuple[str, np.ndarray, dict[str, Any]]]:

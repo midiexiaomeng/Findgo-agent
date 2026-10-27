@@ -188,6 +188,14 @@ class ChromaVectorStore(VectorStore):
             out.append(VectorHit(id=str(_id), score=1.0, metadata=meta))
         return out
 
+    def update_payload(self, ids, payload: dict) -> None:
+        if not ids:
+            return
+        self._collection.update(
+            ids=list(ids),
+            metadatas=[dict(payload) for _ in ids],
+        )
+
     def count(self) -> int:
         return int(self._col.count())
 

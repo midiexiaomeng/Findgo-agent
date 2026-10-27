@@ -168,6 +168,7 @@ class TrashStaging:
         restored = 0
         conflicts = 0
         failed: list[str] = []
+        restored_paths: list[str] = []
 
         for row in rows:
             original = Path(row["original_abs_path"])
@@ -202,11 +203,13 @@ class TrashStaging:
                     (self.STATUS_RESTORED, row["id"]),
                 )
             restored += 1
+            restored_paths.append(str(original))
 
         return {
             "restored": restored,
             "conflicts": conflicts,
             "failed": failed,
+            "paths": restored_paths,
         }
 
     # ── 永久删除 ────────────────────────────────────────────────────────────
@@ -216,6 +219,7 @@ class TrashStaging:
         purged = 0
         freed = 0
         failed: list[str] = []
+        purged_paths: list[str] = []
 
         for row in rows:
             original = Path(row["original_abs_path"])
@@ -235,8 +239,14 @@ class TrashStaging:
                 )
             purged += 1
             freed += int(row["size"])
+            purged_paths.append(str(original))
 
-        return {"purged": purged, "freed_bytes": freed, "failed": failed}
+        return {
+            "purged": purged,
+            "freed_bytes": freed,
+            "failed": failed,
+            "paths": purged_paths,
+        }
 
     # ── 清理 ────────────────────────────────────────────────────────────────
 

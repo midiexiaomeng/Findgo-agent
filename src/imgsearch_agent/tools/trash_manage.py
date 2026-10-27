@@ -57,6 +57,14 @@ class TrashManageTool(BaseTool):
             self.max_total_gb = 10.0
 
     @property
+    def pipeline(self):
+        if self._pipeline is None:
+            from ..retriever import build_pipeline
+
+            self._pipeline = build_pipeline()
+        return self._pipeline
+
+    @property
     def staging(self):
         if self._staging is None:
             from ..retriever.runtime import PROJECT_ROOT
@@ -102,6 +110,7 @@ class TrashManageTool(BaseTool):
                 }
             if action == "restore":
                 result = self.staging.restore(task_id or None, ids or None)
+                self._mark(result.get("paths", []), staged=False)
                 return {
                     **result,
                     "summary": (
@@ -110,6 +119,7 @@ class TrashManageTool(BaseTool):
                     ),
                 }
             result = self.staging.purge(task_id or None, ids or None)
+            self._drop(result.get("paths", []))
             return {
                 **result,
                 "summary": (
@@ -132,6 +142,30 @@ class TrashManageTool(BaseTool):
 
         return {"error": "unknown_action", "summary": f"不支持的操作：{action}"}
 
+    def _mark(self, paths: list[str], staged: bool) -> None:
+        """同步向量库软删除标记。失败不影响文件操作。"""
+        if not paths:
+            return
+        try:
+            from ..retriever.indexer import Indexer
+
+            ids = [Indexer.image_id(p) for p in paths]
+            self.pipeline.store.update_payload(ids, {"is_staged": staged})
+        except Exception as e:
+            logger.warning("更新向量标记失败: %s", e)
+
+    def _drop(self, paths: list[str]) -> None:
+        """永久删除后，把对应向量从库里移除。"""
+        if not paths:
+            return
+        try:
+            from ..retriever.indexer import Indexer
+
+            ids = [Indexer.image_id(p) for p in paths]
+            self.pipeline.store.delete(ids)
+        except Exception as e:
+            logger.warning("删除向量失败: %s", e)
+
     def _stage(self, paths: list[str], task_id: str) -> dict[str, Any]:
         if not paths:
             return {"staged": 0, "summary": "没有提供要暂存的图片路径"}
@@ -146,6 +180,7 @@ class TrashManageTool(BaseTool):
 
         tid = task_id or f"trash_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         result = self.staging.stage(safe, tid)
+        self._mark(safe, staged=True)
         return {
             **result,
             "summary": (

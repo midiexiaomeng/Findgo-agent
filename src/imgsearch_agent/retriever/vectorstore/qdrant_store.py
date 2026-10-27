@@ -306,6 +306,15 @@ class QdrantVectorStore(VectorStore):
         except Exception:
             return 0
 
+    def update_payload(self, ids, payload: dict) -> None:
+        if not ids:
+            return
+        self._client.set_payload(
+            collection_name=self.collection,
+            payload=dict(payload),
+            points=[str(i) for i in ids],
+        )
+
     def get_vectors(
         self, limit: int | None = None
     ) -> list[tuple[str, np.ndarray, dict]]:

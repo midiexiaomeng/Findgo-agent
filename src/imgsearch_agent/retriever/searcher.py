@@ -241,9 +241,13 @@ class Searcher:
         min_score: float,
         scope: str | None = None,
     ):
-        # 指定目录时多召回一些，过滤后再截断
+        # 指定目录时多召回一些，过滤后再截断；软删除记录也占名额，留出余量
         limit = recall_k * 3 if scope else recall_k
+        limit = int(limit * 1.5) + 20
         hits = self.store.query(query_vec, top_k=max(1, limit))
+
+        # 已暂存待删的图片不再参与检索
+        hits = [h for h in hits if not h.metadata.get("is_staged")]
 
         if scope:
             try:
