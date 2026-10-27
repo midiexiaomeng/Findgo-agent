@@ -146,7 +146,7 @@ class Planner:
                     id=int(item.get("id", i)),
                     description=str(item.get("description") or q),
                     query=q,
-                    top_k=max(0, min(top_k, 50)),
+                    top_k=max(0, min(top_k, 1000)),
                     path=task_path or known_path,
                     all_results=all_results,
                 )

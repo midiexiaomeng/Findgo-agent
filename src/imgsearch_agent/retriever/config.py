@@ -140,6 +140,7 @@ class FusionConfig:
 class SearchConfig:
     recall_k: int = 50          # 第一级 ANN 召回数，宁多勿漏
     top_k: int = 12              # 最终展示数
+    max_all: int = 1000          # “全部结果”的上限，防止一次拉爆内存
     min_score: float = 0.0
     fusion: FusionConfig = field(default_factory=FusionConfig)
 

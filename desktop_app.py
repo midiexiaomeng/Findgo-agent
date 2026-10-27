@@ -527,6 +527,36 @@ class MainWindow(QMainWindow):
 
     # ── 聊天记录 ──────────────────────────────────────────────────────────
 
+    def _thumb_path(self, path: str, size: int = 112) -> str:
+        """生成正方形缩略图，保证对话里图片高度一致。"""
+        import hashlib
+
+        from PIL import Image, ImageOps
+
+        source = Path(path)
+        try:
+            stat = source.stat()
+        except OSError:
+            return ""
+
+        key = hashlib.md5(
+            f"{source.resolve()}|{stat.st_mtime}|{size}".encode("utf-8")
+        ).hexdigest()
+        cache_dir = Path(__file__).resolve().parent / "data" / "thumbs"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        target = cache_dir / f"{key}.jpg"
+        if target.exists():
+            return str(target)
+
+        try:
+            with Image.open(source) as im:
+                im = ImageOps.exif_transpose(im).convert("RGB")
+                im = ImageOps.fit(im, (size, size), method=Image.LANCZOS)
+                im.save(target, "JPEG", quality=85)
+        except Exception:
+            return ""
+        return str(target)
+
     def _chat_html(self, role: str, text: str, images: list | None = None) -> str:
         safe = html.escape(str(text)).replace("\n", "<br/>")
         if role == "你":
@@ -540,25 +570,45 @@ class MainWindow(QMainWindow):
         thumbs = ""
         if images:
             parts = []
-            for img in images[:4]:
+            shown = 0
+            for img in images[:60]:
                 if isinstance(img, str):
                     path = img
                 elif isinstance(img, dict):
                     path = img.get("path", "")
                 else:
                     path = getattr(img, "path", "")
-                if path and Path(path).exists():
-                    try:
-                        uri = Path(path).as_uri()
-                    except ValueError:
-                        continue
-                    parts.append(
-                        '<a href="' + uri + '">'
-                        '<img src="' + uri + '" width="112" '
-                        'style="margin:3px;border-radius:6px;"></a>'
-                    )
+                if not path or not Path(path).exists():
+                    continue
+                thumb = self._thumb_path(path)
+                if not thumb:
+                    continue
+                try:
+                    full_uri = Path(path).as_uri()
+                    thumb_uri = Path(thumb).as_uri()
+                except ValueError:
+                    continue
+                parts.append(
+                    '<a href="' + full_uri + '">'
+                    '<img src="' + thumb_uri + '" width="112" height="112" '
+                    'style="margin:5px;border-radius:8px;"></a>'
+                )
+                shown += 1
+
             if parts:
-                thumbs = '<div style="margin-top:8px;">' + "".join(parts) + "</div>"
+                rest = len(images) - shown
+                extra = ""
+                if rest > 0:
+                    extra = (
+                        '<div style="color:#6b7280;font-size:12px;'
+                        'margin-top:6px;">还有 ' + str(rest) + " 张未显示</div>"
+                    )
+                thumbs = (
+                    '<div style="margin-top:8px;line-height:0;">'
+                    + "".join(parts)
+                    + "</div>"
+                    + extra
+                )
 
         return (
             '<div style="margin:10px 0;text-align:left;">'
