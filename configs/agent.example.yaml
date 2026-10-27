@@ -1,3 +1,7 @@
+# 本文件是模板，会随发布包分发。
+# 首次使用：复制为 configs/agent.yaml，再填 api_key。
+# agent.yaml 已被 .gitignore 和打包脚本排除，不会泄露。
+
 # Agent 层配置：行为、阈值、重试与提示词模板。
 # 改动这些无需改代码，重启即生效。
 
@@ -15,7 +19,7 @@ llm:
   # DeepSeek V4.1 Flash 官方模型名为 deepseek-flash；旧版可用 deepseek-v4-flash
   model: deepseek-flash
   base_url: https://api.deepseek.com/v1
-  api_key: ""          # 填入你的 API Key
+  api_key: ""          # 复制本文件为 agent.yaml 后在此填 Key
   timeout: 120
   # DeepSeek V4 可选推理强度：low / high / max，留空则不传
   reasoning_effort: ""

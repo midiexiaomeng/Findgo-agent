@@ -17,6 +17,7 @@ env/
 # 部署生成的配置（可能含 API Key，绝不入库/入包）
 config.local.yaml
 config.api.yaml
+configs/agent.yaml
 
 # IDE
 .vscode/

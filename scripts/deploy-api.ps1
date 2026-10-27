@@ -154,6 +154,12 @@ if (-not $ApiKey) {
 Write-Host "[5/6] writing config.api.yaml ..."
 & $Py scripts\make_config.py --mode api --out config.api.yaml --base-url $BaseUrl --api-key $ApiKey --model $Model
 
+if (-not (Test-Path "configs\agent.yaml")) {
+    Write-Host "      initializing configs/agent.yaml from template ..."
+    & $Py scripts\init_agent_config.py
+}
+
+
 Write-Host "      testing endpoint ..."
 & $Py scripts\test_llm.py --config config.api.yaml
 if ($LASTEXITCODE -ne 0) {

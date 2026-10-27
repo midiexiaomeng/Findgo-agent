@@ -159,6 +159,12 @@ if ($SkipOllama) {
 Write-Host "[5/6] writing config.local.yaml ..."
 & $Py scripts\make_config.py --mode local --out config.local.yaml --llm-model $Model
 
+if (-not (Test-Path "configs\agent.yaml")) {
+    Write-Host "      initializing configs/agent.yaml from template ..."
+    & $Py scripts\init_agent_config.py
+}
+
+
 # 6. optional index
 if ($Index) {
     Write-Host "[6/6] indexing: $Index"

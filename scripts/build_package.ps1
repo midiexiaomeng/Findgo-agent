@@ -26,7 +26,7 @@ $ExcludeDirs = @(
     "models", "data", "datasets", "ollama", ".venv", ".venv-local", ".venv-api", "venv",
     "__pycache__", ".git", "legacy", "dist", ".pytest_cache", ".idea", ".vscode", "logs"
 )
-$ExcludeFiles = @("*.pyc", "*.pyo", "*.log", "*.sqlite", "*.zip", "config.local.yaml", "config.api.yaml")
+$ExcludeFiles = @("*.pyc", "*.pyo", "*.log", "*.sqlite", "*.zip", "config.local.yaml", "config.api.yaml", "agent.yaml")
 
 Write-Host "copying ..."
 $null = robocopy $Root $Stage /E /XD $ExcludeDirs /XF $ExcludeFiles /NFL /NDL /NJH /NJS /NP

@@ -21,7 +21,14 @@ class AgentConfig:
     """Agent 行为配置，与代码分离。"""
 
     def __init__(self, path: str | Path | None = None):
-        raw = _load(Path(path) if path else PROJECT_ROOT / "configs" / "agent.yaml")
+        if path:
+            config_path = Path(path)
+        else:
+            local = PROJECT_ROOT / "configs" / "agent.yaml"
+            example = PROJECT_ROOT / "configs" / "agent.example.yaml"
+            config_path = local if local.exists() else example
+        raw = _load(config_path)
+        self.config_path = str(config_path)
         self.raw = raw
 
         agent = raw.get("agent", {}) or {}
