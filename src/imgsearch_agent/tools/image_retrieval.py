@@ -81,6 +81,7 @@ class ImageRetrievalTool(BaseTool):
         folder_path: str = "",
         path: str = "",
         all_results: bool = False,
+        should_stop=None,
     ) -> dict[str, Any]:
         target = folder_path or path
         scope = ""
@@ -104,6 +105,7 @@ class ImageRetrievalTool(BaseTool):
             top_k=top_k,
             scope=scope or None,
             all_results=all_results,
+            should_stop=should_stop,
         )
         images = [
             RetrievedImage(

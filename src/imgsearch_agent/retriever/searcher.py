@@ -126,6 +126,7 @@ class Searcher:
         min_score: float | None = None,
         scope: str | None = None,
         all_results: bool = False,
+        should_stop=None,
     ) -> SearchResponse:
         query = (query or "").strip()
         started = time.time()
@@ -151,7 +152,7 @@ class Searcher:
         hits = self._recall(query_vec, recall_k, min_score, scope)
 
         candidates, report = self.reranker.rerank(
-            query, hits, top_k=top_k, use_llm=use_rerank
+            query, hits, top_k=top_k, use_llm=use_rerank, should_stop=should_stop
         )
 
         return SearchResponse(

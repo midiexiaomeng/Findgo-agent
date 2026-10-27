@@ -207,7 +207,9 @@ class ImageSearchAgent:
                     "all_results": bool(task.all_results),
                 }
 
-            result, retries = self._execute_with_retry(tool, args)
+            result, retries = self._execute_with_retry(
+                tool, args, should_stop=should_stop
+            )
 
             if task.action == "scan":
                 reply = str(result.get("summary") or "")
@@ -244,7 +246,7 @@ class ImageSearchAgent:
     # ── 内部 ──────────────────────────────────────────────────────────────
 
     def _execute_with_retry(
-        self, tool: BaseTool, args: dict[str, Any]
+        self, tool: BaseTool, args: dict[str, Any], should_stop=None
     ) -> tuple[dict[str, Any], int]:
         query = str(args.get("query", ""))
         attempt = 0
@@ -253,6 +255,11 @@ class ImageSearchAgent:
         while True:
             try:
                 payload = tool.validate(args)
+                if should_stop is not None:
+                    import inspect
+
+                    if "should_stop" in inspect.signature(tool.run).parameters:
+                        payload["should_stop"] = should_stop
                 result = tool.run(**payload)
             except ValidationError as e:
                 # 参数不合法不重试，直接把原因返回给上层

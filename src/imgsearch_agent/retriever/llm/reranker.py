@@ -82,6 +82,7 @@ class LLMReranker:
         hits: Sequence[VectorHit],
         top_k: int | None = None,
         use_llm: bool = True,
+        should_stop=None,
     ) -> tuple[list[ScoredCandidate], RerankReport]:
         """对候选做语义重排。
 
@@ -165,7 +166,9 @@ class LLMReranker:
             return self._finish(scored, top_k, tail), report
 
         # ── 分批打分 ──
-        llm_scores, used, errors = self._score_batches(query, candidates)
+        llm_scores, used, errors = self._score_batches(
+            query, candidates, should_stop
+        )
         report.errors.extend(errors)
         report.llm_scored = len(llm_scores)
         report.used = used
@@ -186,7 +189,10 @@ class LLMReranker:
     # ── 打分 ────────────────────────────────────────────────────────────────
 
     def _score_batches(
-        self, query: str, candidates: Sequence[VectorHit]
+        self,
+        query: str,
+        candidates: Sequence[VectorHit],
+        should_stop=None,
     ) -> tuple[dict[str, float], bool, list[str]]:
         scores: dict[str, float] = {}
         errors: list[str] = []
@@ -194,6 +200,9 @@ class LLMReranker:
         consecutive_failures = 0
 
         for start in range(0, len(candidates), bs):
+            if should_stop is not None and should_stop():
+                errors.append("已手动停止")
+                break
             batch = candidates[start : start + bs]
             payload = self._build_prompt(query, batch)
             answer = self._call_with_retry(payload)
