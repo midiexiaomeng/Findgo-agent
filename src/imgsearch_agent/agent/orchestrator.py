@@ -35,6 +35,7 @@ from ..utils.logger import TraceLogger
 from ..utils.exceptions import ValidationError
 from ..utils.schemas import AgentAction, TaskSpec
 from .critic import Critic
+from .executor import ToolExecutor
 from .memory import Memory
 from .planner import Planner
 from .responder import Responder
@@ -72,6 +73,7 @@ class ImageSearchAgent:
 
         persist = self.config.resolve_db_path() if self.config.memory_persist else None
         self.memory = Memory(persist_path=persist, resume=True)
+        self.executor = ToolExecutor()
 
         if tools is not None:
             self.tools = tools
@@ -253,26 +255,20 @@ class ImageSearchAgent:
         result: dict[str, Any] = {}
 
         while True:
-            try:
-                payload = tool.validate(args)
-                if should_stop is not None:
-                    import inspect
-
-                    if "should_stop" in inspect.signature(tool.run).parameters:
-                        payload["should_stop"] = should_stop
-                result = tool.run(**payload)
-            except ValidationError as e:
-                # 参数不合法不重试，直接把原因返回给上层
-                self.trace.error("tool", "invalid_args", tool=tool.name, error=str(e))
-                return {
+            result, _ = self.executor.execute(
+                tool, args, should_stop=should_stop
+            )
+            if result.get("error") in ("invalid_args", "timeout"):
+                self.trace.error(
+                    "tool", result["error"], tool=tool.name, error=result.get("summary", "")
+                )
+                return result, 0
+            if result.get("error") == "run_failed":
+                result = {
                     "images": [],
-                    "summary": str(e),
-                    "error": "invalid_args",
-                }, 0
-            except Exception as e:
-                self.trace.error("tool", "run_failed", tool=tool.name, error=str(e))
-                logger.warning("工具执行失败: %s", e)
-                result = {"images": [], "confidence": 0.0, "summary": f"工具执行失败: {e}"}
+                    "confidence": 0.0,
+                    "summary": result.get("summary", "工具执行失败"),
+                }
 
             critique = self.critic.check(result)
             self.trace.info(
