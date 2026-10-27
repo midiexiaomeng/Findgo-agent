@@ -1,0 +1,17 @@
+# 工具注册配置。新增工具在这里登记，Agent 主流程无需改动。
+
+tools:
+  - name: image_retrieval
+    module: imgsearch_agent.tools.image_retrieval
+    class: ImageRetrievalTool
+    enabled: true
+    description: 用自然语言描述搜索本地图片库，返回图片、路径与相似度
+    parameters:
+      query:
+        type: string
+        description: 图片内容描述
+        required: true
+      top_k:
+        type: integer
+        description: 返回数量
+        default: 8

@@ -1,0 +1,35 @@
+# Agent 层配置：行为、阈值、重试与提示词模板。
+# 改动这些无需改代码，重启即生效。
+
+agent:
+  max_iterations: 5          # ReAct 循环最大轮次，防止无限循环
+  max_retries: 2             # Critic 判定低置信时最多改写 query 重试次数
+  similarity_threshold: 0.25 # 平均相似度低于此值判定为低置信
+  top_k: 8                   # 检索默认返回数量
+
+llm:
+  # 与 retriever 的重排模型相互独立，Agent 决策/总结可单独指定后端
+  backend: transformers      # ollama | openai | transformers | none
+  model: Qwen2.5-3B-Instruct
+  base_url: http://localhost:11434   # ollama 服务地址
+  api_key: ""                        # openai 兼容后端的 key
+  timeout: 120
+
+prompts:
+  system: |
+    你是本地图片库的检索助手。你负责理解用户意图，调用检索工具，并校验结果质量。
+    只输出 JSON，不要输出任何其他文字。
+  react_template: |
+    可用工具：
+    {tools}
+
+    用户请求：{query}
+
+    请决定下一步动作，输出 JSON：
+    - 调用工具：{{"action_type": "tool_call", "tool_name": "image_retrieval", "tool_args": {{"query": "..."}}, "thought": "..."}}
+    - 追问用户：{{"action_type": "ask_user", "reply": "请补充..."}}
+    - 直接回答：{{"action_type": "answer", "reply": "..."}}
+  summarize_template: |
+    用户请求：{query}
+    检索结果：{summary}
+    请用一两句中文，简洁地告诉用户检索结果。
