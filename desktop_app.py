@@ -723,13 +723,14 @@ class MainWindow(QMainWindow):
                 parts.append(
                     '<a href="' + full_uri + '">'
                     '<img src="' + thumb_uri + '" width="112" height="112" '
-                    'style="margin:5px;border-radius:8px;"></a>'
+                    'style="margin:5px;border-radius:8px;vertical-align:middle;"></a>'
                 )
                 shown += 1
 
             if parts:
+                # 不能用 line-height:0，Qt 会按行高算容器高度，导致图片不占位
                 thumbs = (
-                    '<div style="margin-top:8px;line-height:0;">'
+                    '<div style="margin-top:10px;margin-bottom:6px;">'
                     + "".join(parts)
                     + "</div>"
                 )
@@ -743,12 +744,24 @@ class MainWindow(QMainWindow):
                         "查看全部 " + str(len(images)) + " 张</a></div>"
                     )
 
+        if thumbs:
+            # 有图片时用 table 布局：Qt 对 inline-block 内嵌块级元素的高度计算不可靠
+            return (
+                '<div style="margin:10px 0;text-align:left;">'
+                '<table cellspacing="0" cellpadding="0">'
+                '<tr><td style="background:#F5F3EE;color:#2E2E2E;'
+                'padding:14px 18px;border-radius:16px;'
+                'font-size:13px;line-height:1.65;">'
+                + safe + thumbs
+                + "</td></tr></table></div>"
+            )
+
         return (
             '<div style="margin:10px 0;text-align:left;">'
             '<span style="display:inline-block;background:#F5F3EE;color:#2E2E2E;'
             'padding:14px 18px;border-radius:16px;max-width:76%;min-width:120px;'
             'font-size:13px;line-height:1.65;">'
-            + safe + thumbs + "</span></div>"
+            + safe + "</span></div>"
         )
 
     def _append_chat(self, role: str, text: str, images: list | None = None) -> None:
