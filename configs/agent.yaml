@@ -9,10 +9,12 @@ agent:
 
 llm:
   # 与 retriever 的重排模型相互独立，Agent 决策/总结可单独指定后端
-  backend: transformers      # ollama | openai | transformers | none
-  model: Qwen2.5-3B-Instruct
-  base_url: http://localhost:11434   # ollama 服务地址
-  api_key: ""                        # openai 兼容后端的 key
+  # openai: 任意 OpenAI 兼容 API（DeepSeek、通义、月之暗面、OpenAI 等）
+  # ollama: 本地 Ollama
+  backend: openai
+  model: deepseek-chat
+  base_url: https://api.deepseek.com/v1
+  api_key: ""          # 填入你的 API Key
   timeout: 120
 
 prompts:
