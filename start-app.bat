@@ -2,7 +2,7 @@
 chcp 65001 >nul
 cd /d "%~dp0"
 
-REM 正常启动：无控制台窗口
+REM Normal launch: no console window
 if not exist "logs" mkdir logs
 
 where pythonw >nul 2>nul
