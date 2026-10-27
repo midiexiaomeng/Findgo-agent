@@ -94,3 +94,41 @@ tools:
         type: string
         description: 图片路径
         required: true
+
+  - name: export_results
+    module: imgsearch_agent.tools.export_results
+    class: ExportResultsTool
+    enabled: true
+    description: 把检索结果导出成 CSV 或 TXT 清单
+    parameters:
+      query:
+        type: string
+        description: 检索描述
+        required: true
+      top_k:
+        type: integer
+        description: 导出条数
+        default: 20
+      folder_path:
+        type: string
+        description: 限定检索的文件夹路径
+        required: false
+      output_format:
+        type: string
+        description: csv 或 txt
+        default: csv
+
+  - name: remove_index
+    module: imgsearch_agent.tools.remove_index
+    class: RemoveIndexTool
+    enabled: true
+    description: 移除某个文件夹的索引记录，默认只试运行
+    parameters:
+      folder_path:
+        type: string
+        description: 要移除索引的文件夹
+        required: true
+      dry_run:
+        type: boolean
+        description: True 只统计，False 真正删除
+        default: true

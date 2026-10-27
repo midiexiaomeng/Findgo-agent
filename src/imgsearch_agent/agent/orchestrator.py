@@ -18,12 +18,14 @@ from ..config import AgentConfig
 from ..llm import ChatClient
 from ..tools import (
     DescribeImageTool,
+    ExportResultsTool,
     FolderScanTool,
     GetIndexStatsTool,
     ImageSearchByImageTool,
     ImageRetrievalTool,
     IndexFolderTool,
     ListIndexedFoldersTool,
+    RemoveIndexTool,
     SwitchVectorBackendTool,
 )
 from ..tools.base_tool import BaseTool
@@ -74,6 +76,12 @@ class ImageSearchAgent:
         else:
             from ..utils.path_guard import PathGuard
 
+            # 所有工具共享同一个 Pipeline，避免各自连接导致 Qdrant 文件锁冲突
+            if pipeline is None:
+                from ..retriever import build_pipeline
+
+                pipeline = build_pipeline()
+
             guard = PathGuard(self.config.allowed_roots or None)
             self.tools = {
                 "image_retrieval": ImageRetrievalTool(pipeline, guard=guard),
@@ -85,6 +93,8 @@ class ImageSearchAgent:
                 "switch_vector_backend": SwitchVectorBackendTool(pipeline),
                 "list_indexed_folders": ListIndexedFoldersTool(pipeline),
                 "describe_image": DescribeImageTool(pipeline, guard=guard),
+                "export_results": ExportResultsTool(pipeline, guard=guard),
+                "remove_index": RemoveIndexTool(pipeline, guard=guard),
                 "folder_scan": FolderScanTool(guard=guard),
             }
 
