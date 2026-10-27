@@ -1,13 +1,12 @@
-"""imgsearch Agent 桌面应用（PyQt5）—— 三列四象限布局。
+"""imgsearch Agent 桌面应用（PyQt5）—— 三列布局。
 
 ┌──────┬────────────────────────────┬──────┐
-│ 日志 │ ① 推理输入（需求 / 拆解 / 执行）│ 任务 │
+│ 日志 │ 推理输入（多行 / 模型 / 发送）│ 任务 │
 │      ├────────────────────────────┤      │
-│ 记忆 │ ② 最终结果（回复 + 图片墙）    │ 文件 │
+│ 记忆 │ 最终结果（回复 + 图片墙）    │ 文件 │
 └──────┴────────────────────────────┴──────┘
 
-左、中、右宽度比为 1 : 4 : 1，左右两侧合计正好是中间的一半。
-原生窗口，不占端口。双击 start-app.bat 启动。
+左右宽度比为 1 : 4 : 1，左右合计正好是中间的一半。
 """
 
 from __future__ import annotations
@@ -20,33 +19,38 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from PyQt5.QtCore import QObject, Qt, QThread, pyqtSignal
-from PyQt5.QtGui import QFont, QPixmap
+from PyQt5.QtCore import QObject, QPoint, QRect, Qt, QThread, pyqtSignal
+from PyQt5.QtGui import QFont, QKeySequence, QPixmap
 from PyQt5.QtWidgets import (
     QApplication,
     QGridLayout,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QListWidget,
     QListWidgetItem,
     QMainWindow,
+    QMenu,
     QPlainTextEdit,
     QPushButton,
     QScrollArea,
+    QShortcut,
     QSplitter,
     QTextBrowser,
+    QToolButton,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
+from imgsearch_agent.model_store import ModelStore
+from imgsearch_agent.settings_dialog import SettingsDialog
 from imgsearch_agent.utils.schemas import TaskSpec
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"}
 THUMB_W, THUMB_H = 180, 135
 GRID_COLUMNS = 4
+LOADED_ROLE = Qt.UserRole + 1
 
 
 # ── 日志桥接 ──────────────────────────────────────────────────────────────────
@@ -151,7 +155,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("imgsearch Agent · 多模态图像检索")
-        self.resize(1440, 860)
+        self.resize(1440, 880)
 
         self.worker: Worker | None = None
         self.agent = None
@@ -161,61 +165,108 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self._setup_logging()
         self._load_file_tree()
+        self._refresh_model_button()
+        self._adjust_input_height()
 
     # ── 中间上：推理输入 ──────────────────────────────────────────────────
 
     def _build_input_panel(self) -> QWidget:
         panel = QWidget()
         layout = QVBoxLayout(panel)
-        layout.setContentsMargins(10, 10, 10, 8)
+        layout.setContentsMargins(10, 8, 10, 6)
         layout.setSpacing(6)
 
+        header = QHBoxLayout()
         title = QLabel("推理输入")
         title.setStyleSheet("font-weight:600; color:#374151; font-size:13px;")
-        layout.addWidget(title)
-
-        row = QHBoxLayout()
-        self.input = QLineEdit()
-        self.input.setPlaceholderText("描述检索需求，例如：找几张海边的日落和猫")
-        self.input.setStyleSheet(
-            "QLineEdit{border:1px solid #d1d5db; border-radius:8px; "
-            "padding:9px 12px; font-size:14px;}"
+        header.addWidget(title)
+        header.addStretch(1)
+        self.settings_btn = QPushButton("设置")
+        self.settings_btn.setStyleSheet(
+            "QPushButton{border:1px solid #d1d5db;border-radius:6px;"
+            "padding:5px 12px;background:#fff;font-size:12px;}"
         )
-        self.input.returnPressed.connect(self.on_plan)
+        self.settings_btn.clicked.connect(self.on_settings)
+        header.addWidget(self.settings_btn)
+        layout.addLayout(header)
 
-        self.plan_btn = QPushButton("拆解任务")
-        self.plan_btn.setStyleSheet(
+        # 输入框 + 右下角悬浮按钮
+        container = QWidget()
+        grid = QGridLayout(container)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setSpacing(0)
+
+        self.input = QPlainTextEdit()
+        self.input.setPlaceholderText(
+            "描述检索需求，支持多行。Ctrl+Enter 发送，例如：\n找出海边日落的图片，再找几张猫的照片"
+        )
+        self.input.setStyleSheet(
+            "QPlainTextEdit{border:1px solid #d1d5db;border-radius:10px;"
+            "padding:10px 12px 46px 12px;font-size:14px;background:#ffffff;}"
+        )
+        self.input.textChanged.connect(self._adjust_input_height)
+        grid.addWidget(self.input, 0, 0)
+
+        overlay = QWidget()
+        overlay.setStyleSheet("background: transparent;")
+        btn_row = QHBoxLayout(overlay)
+        btn_row.setContentsMargins(0, 0, 8, 8)
+        btn_row.setSpacing(6)
+
+        self.model_btn = QToolButton()
+        self.model_btn.setText("选择模型")
+        self.model_btn.setToolButtonStyle(Qt.ToolButtonTextOnly)
+        self.model_btn.setStyleSheet(
+            "QToolButton{border:1px solid #d1d5db;border-radius:7px;"
+            "padding:6px 12px;background:#f9fafb;font-size:12px;}"
+            "QToolButton:hover{background:#f3f4f6;}"
+        )
+        self.model_btn.clicked.connect(self.on_model_menu)
+
+        self.send_btn = QPushButton("发送")
+        self.send_btn.setStyleSheet(
             "QPushButton{background:#2563eb;color:white;border:none;"
-            "border-radius:8px;padding:9px 18px;font-size:13px;}"
+            "border-radius:7px;padding:7px 18px;font-size:13px;}"
             "QPushButton:disabled{background:#93c5fd;}"
         )
-        self.plan_btn.clicked.connect(self.on_plan)
+        self.send_btn.clicked.connect(self.on_plan)
 
-        self.run_btn = QPushButton("执行任务")
-        self.run_btn.setStyleSheet(
-            "QPushButton{background:#16a34a;color:white;border:none;"
-            "border-radius:8px;padding:9px 18px;font-size:13px;}"
-            "QPushButton:disabled{background:#86efac;}"
-        )
-        self.run_btn.clicked.connect(self.on_run_tasks)
+        btn_row.addWidget(self.model_btn)
+        btn_row.addWidget(self.send_btn)
+        grid.addWidget(overlay, 0, 0, Qt.AlignBottom | Qt.AlignRight)
 
-        row.addWidget(self.input, 1)
-        row.addWidget(self.plan_btn)
-        row.addWidget(self.run_btn)
-        layout.addLayout(row)
+        layout.addWidget(container)
 
-        self.state_label = QLabel("输入需求后点「拆解任务」，确认任务链后点「执行任务」。")
+        self.state_label = QLabel("输入需求后点「发送」，确认任务链后点「执行任务」。")
         self.state_label.setStyleSheet("font-size:12px; color:#6b7280;")
         self.state_label.setWordWrap(True)
         layout.addWidget(self.state_label)
+
+        QShortcut(QKeySequence("Ctrl+Return"), self.input, activated=self.on_plan)
         return panel
+
+    def _adjust_input_height(self) -> None:
+        text = self.input.toPlainText() or " "
+        width = max(self.input.viewport().width() - 4, 120)
+        rect = self.input.fontMetrics().boundingRect(
+            QRect(0, 0, width, 10000), Qt.TextWordWrap, text
+        )
+        # 上下 padding + 右下按钮留白
+        content = rect.height() + 46 + 16
+        window_h = self.height() or 880
+        max_h = max(110, int(window_h * 0.25))
+        self.input.setFixedHeight(int(min(max(content, 56), max_h)))
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._adjust_input_height()
 
     # ── 中间下：最终结果 ──────────────────────────────────────────────────
 
     def _build_result_panel(self) -> QWidget:
         panel = QWidget()
         layout = QVBoxLayout(panel)
-        layout.setContentsMargins(10, 4, 10, 10)
+        layout.setContentsMargins(10, 2, 10, 10)
         layout.setSpacing(6)
 
         title = QLabel("最终结果")
@@ -240,7 +291,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.result_scroll, 1)
         return panel
 
-    # ── 左侧：日志 / 记忆 ─────────────────────────────────────────────────
+    # ── 左侧 ──────────────────────────────────────────────────────────────
 
     def _build_left_column(self) -> QSplitter:
         split = QSplitter(Qt.Vertical)
@@ -285,7 +336,7 @@ class MainWindow(QMainWindow):
         split.setSizes([400, 380])
         return split
 
-    # ── 右侧：任务 / 文件 ─────────────────────────────────────────────────
+    # ── 右侧 ──────────────────────────────────────────────────────────────
 
     def _build_task_panel(self) -> QWidget:
         panel = QWidget()
@@ -312,10 +363,10 @@ class MainWindow(QMainWindow):
         self.up_btn = QPushButton("↑")
         self.down_btn = QPushButton("↓")
         for b in (self.add_btn, self.del_btn, self.up_btn, self.down_btn):
-            b.setFixedWidth(30)
+            b.setFixedWidth(28)
             b.setStyleSheet(
                 "QPushButton{border:1px solid #d1d5db;border-radius:5px;"
-                "padding:4px 0;background:#fff;font-size:12px;}"
+                "padding:3px 0;background:#fff;font-size:12px;}"
             )
         self.add_btn.clicked.connect(self.on_add_task)
         self.del_btn.clicked.connect(self.on_del_task)
@@ -323,7 +374,16 @@ class MainWindow(QMainWindow):
         self.down_btn.clicked.connect(lambda: self._move_task(1))
         for b in (self.add_btn, self.del_btn, self.up_btn, self.down_btn):
             btn_row.addWidget(b)
+
+        self.run_btn = QPushButton("执行")
+        self.run_btn.setStyleSheet(
+            "QPushButton{background:#16a34a;color:white;border:none;"
+            "border-radius:5px;padding:4px 10px;font-size:12px;}"
+            "QPushButton:disabled{background:#86efac;}"
+        )
+        self.run_btn.clicked.connect(self.on_run_tasks)
         btn_row.addStretch(1)
+        btn_row.addWidget(self.run_btn)
         layout.addLayout(btn_row)
         return panel
 
@@ -345,6 +405,7 @@ class MainWindow(QMainWindow):
             "background:#ffffff; font-size:11.5px;}"
         )
         self.tree.itemClicked.connect(self.on_file_clicked)
+        self.tree.itemExpanded.connect(self._on_tree_expand)
 
         self.preview = QLabel("点击图片预览")
         self.preview.setAlignment(Qt.AlignCenter)
@@ -360,7 +421,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(split, 1)
         return panel
 
-    # ── 组装：1 : 4 : 1 ───────────────────────────────────────────────────
+    # ── 组装 ──────────────────────────────────────────────────────────────
 
     def _build_ui(self) -> None:
         central = QWidget()
@@ -373,14 +434,13 @@ class MainWindow(QMainWindow):
         center = QSplitter(Qt.Vertical)
         center.addWidget(self._build_input_panel())
         center.addWidget(self._build_result_panel())
-        center.setSizes([150, 640])
+        center.setSizes([190, 600])
 
         right = QSplitter(Qt.Vertical)
         right.addWidget(self._build_task_panel())
         right.addWidget(self._build_file_panel())
         right.setSizes([400, 380])
 
-        # 左右各占 1 份，中间占 4 份：左右合计 = 中间的一半
         row.addWidget(left, 1)
         row.addWidget(center, 4)
         row.addWidget(right, 1)
@@ -391,7 +451,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
         self.setStyleSheet("QMainWindow{background:#f3f4f6;}")
 
-    # ── 日志 ──────────────────────────────────────────────────────────────
+    # ── 日志 / 记忆 ───────────────────────────────────────────────────────
 
     def _setup_logging(self) -> None:
         self.bridge = LogBridge()
@@ -414,8 +474,6 @@ class MainWindow(QMainWindow):
         bar = self.log_view.verticalScrollBar()
         bar.setValue(bar.maximum())
 
-    # ── 记忆 ──────────────────────────────────────────────────────────────
-
     def _render_memory(self) -> None:
         rows = []
         for who, text in self.conversation[-30:]:
@@ -429,6 +487,66 @@ class MainWindow(QMainWindow):
         )
         bar = self.memory_view.verticalScrollBar()
         bar.setValue(bar.maximum())
+
+    # ── 模型选择 ──────────────────────────────────────────────────────────
+
+    def _refresh_model_button(self) -> None:
+        store = ModelStore()
+        entry = store.get_active()
+        if entry:
+            self.model_btn.setText(entry.get("label", entry.get("model", "选择模型")))
+        else:
+            self.model_btn.setText("选择模型")
+
+    def on_model_menu(self) -> None:
+        store = ModelStore()
+        menu = QMenu(self)
+        if not store.models:
+            act = menu.addAction("尚未添加模型，去设置…")
+            act.triggered.connect(self.on_settings)
+        else:
+            for entry in store.models:
+                label = entry.get("label", entry.get("model", ""))
+                prefix = "● " if entry.get("id") == store.active else "○ "
+                act = menu.addAction(prefix + label)
+                act.triggered.connect(
+                    lambda checked=False, mid=entry.get("id"): self.on_select_model(mid)
+                )
+            menu.addSeparator()
+            menu.addAction("设置…").triggered.connect(self.on_settings)
+
+        # 贴近按钮向上弹出，避免跳到屏幕中央
+        pos = self.model_btn.mapToGlobal(QPoint(0, self.model_btn.height()))
+        menu.exec_(pos)
+
+    def on_select_model(self, model_id: str) -> None:
+        store = ModelStore()
+        entry = next((m for m in store.models if m.get("id") == model_id), None)
+        if entry is None:
+            return
+        store.set_active(model_id)
+        cfg = ModelStore.to_llm_config(entry)
+        if self.agent is not None:
+            self.agent.set_llm(cfg)
+        self.model_btn.setText(entry.get("label", entry.get("model", "")))
+        self.append_log(f">>> 切换模型：{entry.get('label')}")
+
+    def on_settings(self) -> None:
+        store = ModelStore()
+        dialog = SettingsDialog(store, self)
+        dialog.models_changed.connect(self._on_models_changed)
+        dialog.exec_()
+        self._on_models_changed()
+
+    def _on_models_changed(self) -> None:
+        store = ModelStore()
+        entry = store.get_active()
+        if entry is None:
+            self.model_btn.setText("选择模型")
+            return
+        self.model_btn.setText(entry.get("label", entry.get("model", "")))
+        if self.agent is not None:
+            self.agent.set_llm(ModelStore.to_llm_config(entry))
 
     # ── 任务操作 ──────────────────────────────────────────────────────────
 
@@ -484,29 +602,34 @@ class MainWindow(QMainWindow):
             from imgsearch_agent.app import get_agent
 
             self.agent = get_agent()
+            entry = ModelStore().get_active()
+            if entry:
+                self.agent.set_llm(ModelStore.to_llm_config(entry))
+                self.model_btn.setText(entry.get("label", entry.get("model", "")))
         return self.agent
 
     def _set_busy(self, busy: bool) -> None:
         for b in (
-            self.plan_btn,
+            self.send_btn,
             self.run_btn,
             self.add_btn,
             self.del_btn,
             self.up_btn,
             self.down_btn,
+            self.settings_btn,
         ):
             b.setEnabled(not busy)
         self.input.setEnabled(not busy)
 
     def on_plan(self) -> None:
-        text = self.input.text().strip()
+        text = self.input.toPlainText().strip()
         if not text or self.worker is not None:
             return
         self.conversation.append(("你", text))
         self._render_memory()
         self._set_busy(True)
         self.state_label.setText("正在拆解任务…")
-        self.append_log(f">>> 拆解任务：{text}")
+        self.append_log(f">>> 拆解任务：{text.replace(chr(10), ' ')[:60]}")
 
         self.worker = Worker(lambda: self._get_agent().plan_tasks(text))
         self.worker.done.connect(self.on_plan_done)
@@ -581,6 +704,7 @@ class MainWindow(QMainWindow):
         self.tree.clear()
         root_item = QTreeWidgetItem([ROOT.name])
         root_item.setData(0, Qt.UserRole, str(ROOT))
+        root_item.setData(0, LOADED_ROLE, True)
         self.tree.addTopLevelItem(root_item)
 
         self.results_node = QTreeWidgetItem(["最近检索结果"])
@@ -592,8 +716,10 @@ class MainWindow(QMainWindow):
                 continue
             node = QTreeWidgetItem([name])
             node.setData(0, Qt.UserRole, str(path))
+            node.setData(0, LOADED_ROLE, False)
             root_item.addChild(node)
-            self._fill_dir(node, path, depth=1, limit=30)
+            self._fill_dir(node, path, depth=1, limit=40)
+            node.setData(0, LOADED_ROLE, True)
 
         root_item.setExpanded(True)
 
@@ -609,9 +735,21 @@ class MainWindow(QMainWindow):
                 continue
             item = QTreeWidgetItem([p.name])
             item.setData(0, Qt.UserRole, str(p))
+            item.setData(0, LOADED_ROLE, False)
             parent.addChild(item)
-            if p.is_dir():
+            if p.is_dir() and depth > 1:
                 self._fill_dir(item, p, depth - 1, limit)
+
+    def _on_tree_expand(self, item: QTreeWidgetItem) -> None:
+        if item.data(0, LOADED_ROLE):
+            return
+        path = item.data(0, Qt.UserRole)
+        if not path:
+            return
+        p = Path(path)
+        if p.is_dir():
+            self._fill_dir(item, p, depth=1, limit=200)
+            item.setData(0, LOADED_ROLE, True)
 
     def _refresh_results_node(self) -> None:
         self.results_node.takeChildren()
