@@ -50,6 +50,7 @@ class TestWorker(QThread):
 
 class SettingsDialog(QDialog):
     models_changed = pyqtSignal()
+    config_changed = pyqtSignal()
 
     PAGE_MODELS = 0
     PAGE_PARAMS = 1
@@ -194,6 +195,11 @@ class SettingsDialog(QDialog):
         self.retries.setRange(0, 5)
         form.addRow("最大重试次数", self.retries)
 
+        self.max_sessions = QSpinBox()
+        self.max_sessions.setRange(1, 200)
+        self.max_sessions.setToolTip("超过这个数量后，新建对话会删除最旧的会话")
+        form.addRow("保留会话数", self.max_sessions)
+
         layout.addLayout(form)
 
         save_btn = QPushButton("保存参数")
@@ -314,6 +320,7 @@ class SettingsDialog(QDialog):
 
         cfg = AgentConfig()
         self.threshold.setValue(cfg.similarity_threshold)
+        self.max_sessions.setValue(cfg.memory_max_sessions)
         self.retries.setValue(cfg.max_retries)
 
     def on_save_params(self) -> None:
@@ -327,10 +334,13 @@ class SettingsDialog(QDialog):
             data.setdefault("agent", {})
             data["agent"]["similarity_threshold"] = round(self.threshold.value(), 2)
             data["agent"]["max_retries"] = self.retries.value()
+            data.setdefault("memory", {})
+            data["memory"]["max_sessions"] = self.max_sessions.value()
             path.write_text(
                 yaml.safe_dump(data, allow_unicode=True, sort_keys=False),
                 encoding="utf-8",
             )
-            self.params_status.setText("已保存，下次启动生效。")
+            self.params_status.setText("已保存并即时生效。")
+            self.config_changed.emit()
         except Exception as e:
             self.params_status.setText(f"保存失败：{e}")

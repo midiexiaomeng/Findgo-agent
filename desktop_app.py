@@ -682,8 +682,30 @@ class MainWindow(QMainWindow):
     def _open_settings(self, page: int) -> None:
         dialog = SettingsDialog(ModelStore(), self, page=page)
         dialog.models_changed.connect(self._on_models_changed)
+        dialog.config_changed.connect(self._on_config_changed)
         dialog.exec_()
         self._on_models_changed()
+
+    def _on_config_changed(self) -> None:
+        """设置保存后把新参数同步到运行中的 Agent。"""
+        if self.agent is None:
+            return
+        try:
+            from imgsearch_agent.config import AgentConfig
+
+            cfg = AgentConfig()
+            self.agent.config.memory_max_sessions = cfg.memory_max_sessions
+            self.agent.config.similarity_threshold = cfg.similarity_threshold
+            self.agent.config.max_retries = cfg.max_retries
+            self.agent.critic.threshold = cfg.similarity_threshold
+            self.agent.critic.max_retries = cfg.max_retries
+            self._refresh_sessions()
+            self.append_log(
+                f">>> 设置已更新：保留会话 {cfg.memory_max_sessions} 个，"
+                f"阈值 {cfg.similarity_threshold}"
+            )
+        except Exception as e:
+            self.append_log(f"应用设置失败: {e}")
 
     def _on_models_changed(self) -> None:
         store = ModelStore()
