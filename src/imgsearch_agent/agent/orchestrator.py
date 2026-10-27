@@ -155,7 +155,10 @@ class ImageSearchAgent:
         )
 
     def run_tasks(
-        self, tasks: list[TaskSpec], write_memory: bool = True
+        self,
+        tasks: list[TaskSpec],
+        write_memory: bool = True,
+        should_stop=None,
     ) -> list[AgentResult]:
         """按任务列表逐条执行，跳过 skipped。
 
@@ -165,6 +168,9 @@ class ImageSearchAgent:
         for task in tasks:
             if task.status == "skipped":
                 continue
+            if should_stop is not None and should_stop():
+                logger.info("收到停止信号，剩余任务跳过")
+                break
 
             if task.action == "scan":
                 tool = self.tools.get("folder_scan")

@@ -176,6 +176,7 @@ class MainWindow(QMainWindow):
         self.resize(1440, 880)
 
         self.worker: Worker | None = None
+        self._cancel = False
         self.agent = None
         self.conversation: list[tuple[str, str]] = []
         self.last_results: list[dict] = []
@@ -189,6 +190,7 @@ class MainWindow(QMainWindow):
         self._refresh_model_button()
         self._adjust_input_height()
         self._restore_history()
+        self._prepare_agent()
         self._warmup()
 
     # ── 中间上：对话记录 ──────────────────────────────────────────────────
@@ -437,7 +439,19 @@ class MainWindow(QMainWindow):
         )
         self.run_btn.setToolTip("按当前编辑后的任务链重新执行")
         self.run_btn.clicked.connect(self.on_run_tasks)
+
+        self.stop_btn = QPushButton("停止")
+        self.stop_btn.setStyleSheet(
+            "QPushButton{background:#ef4444;color:white;border:none;"
+            "border-radius:5px;padding:4px 10px;font-size:12px;}"
+            "QPushButton:disabled{background:#fca5a5;}"
+        )
+        self.stop_btn.setToolTip("中断后续任务，当前这一条检索会先跑完")
+        self.stop_btn.setEnabled(False)
+        self.stop_btn.clicked.connect(self.on_stop)
+
         btn_row.addStretch(1)
+        btn_row.addWidget(self.stop_btn)
         btn_row.addWidget(self.run_btn)
         layout.addLayout(btn_row)
         return panel
@@ -583,12 +597,27 @@ class MainWindow(QMainWindow):
 
         def run():
             try:
-                self._get_agent().encoder.load()
+                agent = self._get_agent()
+                tool = agent.tools.get("image_retrieval")
+                if tool is None:
+                    return
+                # pipeline 已在主线程创建，这里只加载权重
+                tool.pipeline.encoder.load()
                 self.bridge.message.emit(">>> CLIP 预热完成")
             except Exception as e:
                 self.bridge.message.emit(f">>> CLIP 预热失败: {e}")
 
         threading.Thread(target=run, daemon=True).start()
+
+    def _prepare_agent(self) -> None:
+        """主线程创建 Agent 与 Pipeline，避免后台线程碰 SQLite / Qdrant 连接。"""
+        try:
+            agent = self._get_agent()
+            tool = agent.tools.get("image_retrieval")
+            if tool is not None:
+                _ = tool.pipeline  # 触发一次构建，连接留在主线程
+        except Exception as e:
+            self.append_log("初始化检索服务失败: " + str(e))
 
     # ── 聊天记录 ──────────────────────────────────────────────────────────
 
@@ -1012,10 +1041,12 @@ class MainWindow(QMainWindow):
             self.del_btn,
             self.up_btn,
             self.down_btn,
-            self.settings_btn,
-            self.new_chat_btn,
         ):
             b.setEnabled(not busy)
+        # 设置与停止在任务执行期间仍然可用
+        self.settings_btn.setEnabled(True)
+        if hasattr(self, "stop_btn"):
+            self.stop_btn.setEnabled(busy)
         self.input.setEnabled(not busy)
 
     def on_send(self) -> None:
@@ -1023,6 +1054,7 @@ class MainWindow(QMainWindow):
         if not text or self.worker is not None:
             return
 
+        self._cancel = False
         self.conversation.append(("你", text))
         self._append_chat("你", text)
         self._render_memory()
@@ -1062,7 +1094,9 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
         agent.memory.save_tasks(list(tasks))
-        results = agent.run_tasks(tasks, write_memory=False)
+        results = agent.run_tasks(
+            tasks, write_memory=False, should_stop=lambda: self._cancel
+        )
         replies = [r.reply for r in results if r.reply]
         combined = "\n".join(replies) or "没有找到相关图片。"
         images = [img for r in results for img in r.results]
@@ -1108,7 +1142,9 @@ class MainWindow(QMainWindow):
 
     def _run_existing_tasks(self, tasks: list[TaskSpec]):
         agent = self._get_agent()
-        results = agent.run_tasks(tasks, write_memory=False)
+        results = agent.run_tasks(
+            tasks, write_memory=False, should_stop=lambda: self._cancel
+        )
         replies = [r.reply for r in results if r.reply]
         combined = "\n".join(replies) or "没有找到相关图片。"
         images = [img for r in results for img in r.results]
@@ -1119,6 +1155,10 @@ class MainWindow(QMainWindow):
         image_paths = [p for p in image_paths if p]
         agent.memory.add("assistant", combined, images=image_paths)
         return tasks, results, combined, images
+
+    def on_stop(self) -> None:
+        self._cancel = True
+        self.state_label.setText("正在停止，当前这条检索完成后中断…")
 
     def on_worker_failed(self, error: str) -> None:
         self.append_log("!!! 执行失败：" + error)
