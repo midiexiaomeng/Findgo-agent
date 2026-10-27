@@ -26,9 +26,9 @@ class ChatClient:
         self.model = cfg.get("model") or ""
         self.base_url = (cfg.get("base_url") or "").rstrip("/")
         self.api_key = (
-            cfg.get("api_key")
-            or os.environ.get("DEEPSEEK_API_KEY", "")
+            os.environ.get("DEEPSEEK_API_KEY", "")
             or os.environ.get("OPENAI_API_KEY", "")
+            or cfg.get("api_key")
             or "not-needed"
         )
         self.timeout = int(cfg.get("timeout", 120))
