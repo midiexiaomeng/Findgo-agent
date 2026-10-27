@@ -124,6 +124,7 @@ class Searcher:
         recall_k: int | None = None,
         use_rerank: bool = True,
         min_score: float | None = None,
+        scope: str | None = None,
     ) -> SearchResponse:
         query = (query or "").strip()
         started = time.time()
@@ -139,7 +140,7 @@ class Searcher:
         min_score = self.cfg.search.min_score if min_score is None else float(min_score)
 
         query_vec = self.encoder.encode_text(query)
-        hits = self._recall(query_vec, recall_k, min_score)
+        hits = self._recall(query_vec, recall_k, min_score, scope)
 
         candidates, report = self.reranker.rerank(
             query, hits, top_k=top_k, use_llm=use_rerank
@@ -165,6 +166,7 @@ class Searcher:
         use_rerank: bool = True,
         min_score: float | None = None,
         exclude_self: bool = True,
+        scope: str | None = None,
     ) -> SearchResponse:
         image_path = str(image_path)
         started = time.time()
@@ -177,7 +179,7 @@ class Searcher:
 
         # 多取一条，避免排除自身后不够 top_k
         extra = 1 if exclude_self else 0
-        hits = self._recall(query_vec, recall_k + extra, min_score)
+        hits = self._recall(query_vec, recall_k + extra, min_score, scope)
 
         if exclude_self:
             try:
@@ -224,8 +226,29 @@ class Searcher:
 
     # ── 内部 ────────────────────────────────────────────────────────────────
 
-    def _recall(self, query_vec, recall_k: int, min_score: float):
-        hits = self.store.query(query_vec, top_k=max(1, recall_k))
+    def _recall(
+        self,
+        query_vec,
+        recall_k: int,
+        min_score: float,
+        scope: str | None = None,
+    ):
+        # 指定目录时多召回一些，过滤后再截断
+        limit = recall_k * 3 if scope else recall_k
+        hits = self.store.query(query_vec, top_k=max(1, limit))
+
+        if scope:
+            try:
+                scope_norm = str(Path(scope).expanduser().resolve()).lower()
+            except OSError:
+                scope_norm = str(scope).lower()
+            hits = [
+                h
+                for h in hits
+                if str(h.metadata.get("path", "")).lower().startswith(scope_norm)
+            ]
+            hits = hits[:recall_k]
+
         if min_score and min_score > 0:
             hits = [h for h in hits if float(h.score) >= min_score]
         return hits

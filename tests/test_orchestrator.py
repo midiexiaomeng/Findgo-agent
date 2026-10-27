@@ -22,14 +22,20 @@ class FakeResp:
         return "召回 50 条 · 返回 1 张"
 
 
+class FakeSearcher:
+    def __init__(self, pipeline):
+        self.pipeline = pipeline
+
+    def search_text(self, query, top_k=8, scope=None):
+        self.pipeline.calls += 1
+        return FakeResp(self.pipeline.score)
+
+
 class FakePipeline:
     def __init__(self, score=0.9):
         self.score = score
         self.calls = 0
-
-    def search_text(self, query, top_k=8):
-        self.calls += 1
-        return FakeResp(self.score)
+        self.searcher = FakeSearcher(self)
 
 
 class FakeClient:

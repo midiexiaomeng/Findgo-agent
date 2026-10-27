@@ -147,6 +147,7 @@ class ImageSearchAgent:
             args = {
                 "query": task.query,
                 "top_k": task.top_k if task.top_k > 0 else self.config.top_k,
+                "path": task.path or "",
             }
             result, retries = self._execute_with_retry(tool, args)
             reply = self.responder.compose(task.query, result)

@@ -27,7 +27,7 @@ embedding:
   max_text_length: 52
   max_image_side: 1024      # 送入编码器前的最长边；控制显存
   use_fp16: true
-  device: cpu               # CLIP 单独放 CPU，把显存留给 3B 重排；留空则跟随全局
+  device: auto              # LLM 走 API 后 CLIP 可以回到 GPU，加载和编码快很多
 
 # ── 第二级：向量库（改 backend 一行即可切换）─────────────────────────
 vector_store:

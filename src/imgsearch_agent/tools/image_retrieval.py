@@ -6,6 +6,7 @@ Agent 只看到 name / description / args_schema / run，
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -17,6 +18,7 @@ from .base_tool import BaseTool
 class ImageRetrievalArgs(BaseModel):
     query: str = Field(..., description="图片内容描述")
     top_k: int = Field(8, description="返回数量")
+    path: str = Field("", description="限定检索的文件夹路径，空表示全库")
 
 
 class ImageRetrievalTool(BaseTool):
@@ -26,6 +28,7 @@ class ImageRetrievalTool(BaseTool):
 
     def __init__(self, pipeline=None):
         self._pipeline = pipeline
+        self._indexed: set[str] = set()
 
     @property
     def pipeline(self):
@@ -36,8 +39,33 @@ class ImageRetrievalTool(BaseTool):
             self._pipeline = build_pipeline()
         return self._pipeline
 
-    def run(self, query: str, top_k: int = 8) -> dict[str, Any]:
-        resp = self.pipeline.search_text(query, top_k=top_k)
+    def _ensure_indexed(self, folder: Path) -> None:
+        """用户指定新目录时自动建索引；已索引过的目录直接跳过。"""
+        key = str(folder.resolve()).lower()
+        if key in self._indexed:
+            return
+        try:
+            from ..retriever.indexer import Indexer
+
+            pipeline = self.pipeline
+            Indexer(
+                pipeline.cfg, pipeline.encoder, pipeline.store, pipeline.captioner
+            ).index_folder(folder, recursive=True, skip_existing=True)
+        except Exception as e:
+            logger.warning("自动索引 %s 失败: %s", folder, e)
+        self._indexed.add(key)
+
+    def run(self, query: str, top_k: int = 8, path: str = "") -> dict[str, Any]:
+        scope = ""
+        if path:
+            folder = Path(path).expanduser()
+            if folder.exists() and folder.is_dir():
+                self._ensure_indexed(folder)
+                scope = str(folder.resolve())
+
+        resp = self.pipeline.searcher.search_text(
+            query, top_k=top_k, scope=scope or None
+        )
         images = [
             RetrievedImage(
                 rank=r.rank,

@@ -89,7 +89,9 @@ class Planner:
             "- description：一句话说明这次找什么\n"
             "- query：用于检索的简短中文描述\n"
             "- top_k：用户明确要求的图片数量。用户说“两张”就填 2，"
-            "说“几张”或没提数量就填 0（表示用系统默认值）\n\n"
+            "说“几张”或没提数量就填 0（表示用系统默认值）\n"
+            "- path：用户提到的文件夹路径，原样保留（如 D:\\Photos）。"
+            "用户没提路径就填空字符串\n\n"
             '只输出 JSON：{"tasks":[{"id":1,"description":"...","query":"...","top_k":2}]}'
         )
         messages: list[dict[str, str]] = [
@@ -119,12 +121,14 @@ class Planner:
                 top_k = int(item.get("top_k") or 0)
             except (TypeError, ValueError):
                 top_k = 0
+            task_path = str(item.get("path") or "").strip()
             result.append(
                 TaskSpec(
                     id=int(item.get("id", i)),
                     description=str(item.get("description") or q),
                     query=q,
                     top_k=max(0, min(top_k, 50)),
+                    path=task_path,
                 )
             )
         return result or [TaskSpec(id=1, description=query, query=query)]

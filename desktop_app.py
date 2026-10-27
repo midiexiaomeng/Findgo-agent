@@ -14,9 +14,15 @@ from __future__ import annotations
 
 import html
 import logging
+import os
 import sys
 import warnings
 from pathlib import Path
+
+# 避免 transformers 顺带导入 tensorflow（约 15 秒）
+os.environ.setdefault("USE_TF", "0")
+os.environ.setdefault("TRANSFORMERS_NO_TF", "1")
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 warnings.filterwarnings("ignore", message=".*numexpr.*")
 warnings.filterwarnings("ignore", message=".*bottleneck.*")
@@ -118,6 +124,7 @@ class MainWindow(QMainWindow):
         self._refresh_model_button()
         self._adjust_input_height()
         self._restore_history()
+        self._warmup()
 
     # ── 中间上：对话记录 ──────────────────────────────────────────────────
 
@@ -505,6 +512,19 @@ class MainWindow(QMainWindow):
         bar = self.memory_view.verticalScrollBar()
         bar.setValue(bar.maximum())
 
+    def _warmup(self) -> None:
+        """后台加载 CLIP，避免第一次检索时再等。"""
+        import threading
+
+        def run():
+            try:
+                self._get_agent().encoder.load()
+                self.bridge.message.emit(">>> CLIP 预热完成")
+            except Exception as e:
+                self.bridge.message.emit(f">>> CLIP 预热失败: {e}")
+
+        threading.Thread(target=run, daemon=True).start()
+
     # ── 聊天记录 ──────────────────────────────────────────────────────────
 
     def _chat_html(self, role: str, text: str, images: list | None = None) -> str:
@@ -868,7 +888,20 @@ class MainWindow(QMainWindow):
     def _run_turn(self, text: str):
         agent = self._get_agent()
         agent.memory.add("user", text)
+
+        # 用户没在话里指定路径时，用文件区当前打开的目录
+        default_scope = ""
+        try:
+            if self.tree_root and self.tree_root.resolve() != ROOT.resolve():
+                default_scope = str(self.tree_root)
+        except Exception:
+            default_scope = ""
+
         tasks = agent.plan_tasks(text)
+        if default_scope:
+            for t in tasks:
+                if not t.path:
+                    t.path = default_scope
         try:
             worker = self.worker
             if worker is not None:

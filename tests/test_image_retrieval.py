@@ -21,9 +21,14 @@ class FakeResp:
         return "召回 50 条 · 返回 1 张"
 
 
-class FakePipeline:
-    def search_text(self, query, top_k=8):
+class FakeSearcher:
+    def search_text(self, query, top_k=8, scope=None):
         return FakeResp()
+
+
+class FakePipeline:
+    def __init__(self):
+        self.searcher = FakeSearcher()
 
 
 def test_run_returns_structured_result():

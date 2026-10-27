@@ -64,4 +64,5 @@ class TaskSpec(BaseModel):
     description: str = ""
     query: str = ""
     top_k: int = Field(0, description="用户明确要求的数量，0 表示用默认值")
+    path: str = Field("", description="限定检索的文件夹路径，空表示全库")
     status: str = Field("pending", description="pending | done | skipped")
