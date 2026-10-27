@@ -78,7 +78,7 @@ class ImageSearchAgent:
 
         tools_desc = "\n".join(t.signature() for t in self.tools.values())
         action = self.planner.plan(
-            user_input, tools_desc, history=self.memory.recent(n=6)
+            user_input, tools_desc, history=self.memory.recent(n=20)
         )
         self.trace.info(
             "planner", "decide", action_type=action.action_type, thought=action.thought[:80]
@@ -127,7 +127,7 @@ class ImageSearchAgent:
         """让 Planner 拆解任务，供界面展示与人工干预。"""
         tools_desc = "\n".join(t.signature() for t in self.tools.values())
         return self.planner.plan_tasks(
-            user_input, tools_desc, history=self.memory.recent(n=6)
+            user_input, tools_desc, history=self.memory.recent(n=20)
         )
 
     def run_tasks(self, tasks: list[TaskSpec]) -> list[AgentResult]:

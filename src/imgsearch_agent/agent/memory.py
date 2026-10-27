@@ -1,10 +1,12 @@
 """对话记忆与任务状态持久化。
 
-两种模式：
-- 纯内存（默认）：开发调试用，进程退出即丢失
-- SQLite（可选）：保存每轮对话、trace_id、动作与工具返回，便于回溯失败案例
+存储三类数据：
+- sessions：会话元信息（可命名、记录创建与更新时间）
+- messages：自然语言对话内容
+- tasks：Agent 规划出的任务链（结构化，可回溯与二次编辑）
+- traces：工具调用轨迹
 
-记忆只负责"存"和"取"，不做决策。
+产物在 data/agent_sessions.sqlite，按 session_id 隔离。
 """
 
 from __future__ import annotations
@@ -17,9 +19,17 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from ..utils.schemas import TaskSpec
+
 logger = logging.getLogger("imgsearch_agent.memory")
 
 _SCHEMA = """
+CREATE TABLE IF NOT EXISTS sessions (
+    session_id TEXT PRIMARY KEY,
+    title      TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     session_id TEXT NOT NULL,
@@ -37,8 +47,19 @@ CREATE TABLE IF NOT EXISTS traces (
     tool_result TEXT,
     created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL,
+    task_id INTEGER,
+    description TEXT,
+    query TEXT,
+    top_k INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'pending',
+    created_at TEXT NOT NULL
+);
 CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
 CREATE INDEX IF NOT EXISTS idx_traces_session ON traces(session_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_session ON tasks(session_id);
 """
 
 
@@ -62,6 +83,7 @@ class Memory:
                 latest = self._latest_session()
                 if latest:
                     self.session_id = latest
+            self._ensure_session_record()
 
     # ── 初始化 ────────────────────────────────────────────────────────────
 
@@ -70,13 +92,38 @@ class Memory:
         conn = sqlite3.connect(str(path), check_same_thread=False)
         conn.executescript(_SCHEMA)
         conn.commit()
-        logger.info("记忆库已连接: %s (session=%s)", path, self.session_id)
+        self._backfill_sessions(conn)
+        logger.info("记忆库已连接: %s", path)
         return conn
 
-    # ── 写 ────────────────────────────────────────────────────────────────
+    @staticmethod
+    def _backfill_sessions(conn: sqlite3.Connection) -> None:
+        """把旧版本只存在 messages 里的会话补进 sessions 表。"""
+        try:
+            conn.execute(
+                "INSERT OR IGNORE INTO sessions(session_id, title, created_at, updated_at) "
+                "SELECT session_id, '', MIN(created_at), MAX(created_at) "
+                "FROM messages GROUP BY session_id"
+            )
+            conn.commit()
+        except Exception:
+            pass
+
+    def _ensure_session_record(self) -> None:
+        if self._db is None:
+            return
+        now = _now()
+        try:
+            self._db.execute(
+                "INSERT OR IGNORE INTO sessions(session_id, title, created_at, updated_at) "
+                "VALUES (?, '', ?, ?)",
+                (self.session_id, now, now),
+            )
+            self._db.commit()
+        except Exception:
+            pass
 
     def _latest_session(self) -> str | None:
-        """最近一次有消息的会话，用于启动时恢复。"""
         if self._db is None:
             return None
         try:
@@ -87,17 +134,165 @@ class Memory:
         except Exception:
             return None
 
+    # ── 会话管理 ──────────────────────────────────────────────────────────
+
+    def new_session(self) -> str:
+        self.session_id = uuid.uuid4().hex[:12]
+        self._messages = []
+        self._ensure_session_record()
+        return self.session_id
+
+    def switch_session(self, session_id: str) -> None:
+        self.session_id = session_id
+        self._messages = []
+        self._ensure_session_record()
+
+    def rename_session(self, title: str, session_id: str | None = None) -> None:
+        if self._db is None:
+            return
+        sid = session_id or self.session_id
+        try:
+            self._db.execute(
+                "UPDATE sessions SET title = ?, updated_at = ? WHERE session_id = ?",
+                (title.strip(), _now(), sid),
+            )
+            self._db.commit()
+        except Exception as e:
+            logger.warning("重命名会话失败: %s", e)
+
+    def get_title(self, session_id: str | None = None) -> str:
+        if self._db is None:
+            return ""
+        sid = session_id or self.session_id
+        try:
+            row = self._db.execute(
+                "SELECT title FROM sessions WHERE session_id = ?", (sid,)
+            ).fetchone()
+            return str(row[0] or "") if row else ""
+        except Exception:
+            return ""
+
+    def list_sessions(self, limit: int = 50) -> list[dict[str, Any]]:
+        if self._db is None:
+            return []
+        try:
+            rows = self._db.execute(
+                "SELECT s.session_id, COALESCE(s.title, ''), s.updated_at, "
+                "  (SELECT COUNT(*) FROM messages m WHERE m.session_id = s.session_id), "
+                "  (SELECT content FROM messages m WHERE m.session_id = s.session_id "
+                "     AND m.role = 'user' ORDER BY m.id LIMIT 1) "
+                "FROM sessions s ORDER BY s.updated_at DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        except Exception:
+            return []
+
+        out: list[dict[str, Any]] = []
+        for session_id, title, updated_at, count, first_msg in rows:
+            if not title:
+                title = (first_msg or "").strip().replace("\n", " ")[:30] or "(空会话)"
+            out.append(
+                {
+                    "session_id": session_id,
+                    "title": title,
+                    "count": int(count),
+                    "updated_at": updated_at,
+                }
+            )
+        return out
+
+    def load_messages(self, session_id: str, limit: int = 300) -> list[dict[str, str]]:
+        if self._db is None:
+            return []
+        try:
+            rows = self._db.execute(
+                "SELECT role, content FROM messages WHERE session_id = ? "
+                "ORDER BY id LIMIT ?",
+                (session_id, limit),
+            ).fetchall()
+            return [{"role": r[0], "content": r[1]} for r in rows]
+        except Exception:
+            return []
+
+    def prune_sessions(self, keep: int) -> int:
+        if self._db is None or keep < 0:
+            return 0
+        sessions = self.list_sessions(limit=1000)
+        stale = [s["session_id"] for s in sessions[keep:]]
+        if not stale:
+            return 0
+        try:
+            for sid in stale:
+                self._db.execute("DELETE FROM messages WHERE session_id = ?", (sid,))
+                self._db.execute("DELETE FROM traces WHERE session_id = ?", (sid,))
+                self._db.execute("DELETE FROM tasks WHERE session_id = ?", (sid,))
+                self._db.execute("DELETE FROM sessions WHERE session_id = ?", (sid,))
+            self._db.commit()
+        except Exception:
+            return 0
+        return len(stale)
+
+    # ── 任务链持久化 ──────────────────────────────────────────────────────
+
+    def save_tasks(self, tasks: list[TaskSpec], session_id: str | None = None) -> None:
+        if self._db is None:
+            return
+        sid = session_id or self.session_id
+        try:
+            self._db.execute("DELETE FROM tasks WHERE session_id = ?", (sid,))
+            now = _now()
+            for t in tasks:
+                self._db.execute(
+                    "INSERT INTO tasks(session_id, task_id, description, query, top_k, status, created_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (sid, t.id, t.description, t.query, t.top_k, t.status, now),
+                )
+            self._db.commit()
+        except Exception as e:
+            logger.warning("保存任务链失败: %s", e)
+
+    def load_tasks(self, session_id: str | None = None) -> list[TaskSpec]:
+        if self._db is None:
+            return []
+        sid = session_id or self.session_id
+        try:
+            rows = self._db.execute(
+                "SELECT task_id, description, query, top_k, status FROM tasks "
+                "WHERE session_id = ? ORDER BY id",
+                (sid,),
+            ).fetchall()
+        except Exception:
+            return []
+        return [
+            TaskSpec(
+                id=int(r[0] or 0),
+                description=str(r[1] or ""),
+                query=str(r[2] or ""),
+                top_k=int(r[3] or 0),
+                status=str(r[4] or "pending"),
+            )
+            for r in rows
+        ]
+
+    # ── 写 ────────────────────────────────────────────────────────────────
+
     def add(self, role: str, content: str) -> None:
-        """追加一条对话消息。"""
         item = {"role": role, "content": content, "created_at": _now()}
         self._messages.append(item)
         if self._db is not None:
-            self._db.execute(
-                "INSERT INTO messages(session_id, role, content, created_at) "
-                "VALUES (?, ?, ?, ?)",
-                (self.session_id, role, content, item["created_at"]),
-            )
-            self._db.commit()
+            try:
+                self._db.execute(
+                    "INSERT INTO messages(session_id, role, content, created_at) "
+                    "VALUES (?, ?, ?, ?)",
+                    (self.session_id, role, content, item["created_at"]),
+                )
+                self._db.execute(
+                    "UPDATE sessions SET updated_at = ? WHERE session_id = ?",
+                    (item["created_at"], self.session_id),
+                )
+                self._db.commit()
+            except Exception as e:
+                logger.warning("写入消息失败: %s", e)
 
     def add_trace(
         self,
@@ -107,7 +302,6 @@ class Memory:
         tool_args: dict[str, Any] | None = None,
         tool_result: Any = None,
     ) -> None:
-        """记录一次动作与工具返回，便于回溯 bad case。"""
         if self._db is None:
             return
         try:
@@ -130,83 +324,9 @@ class Memory:
         except Exception as e:
             logger.warning("写入 trace 失败: %s", e)
 
-    # ── 会话管理 ──────────────────────────────────────────────────────────
-
-    def new_session(self) -> str:
-        """开始一个新会话，旧会话仍保留在数据库中。"""
-        self.session_id = uuid.uuid4().hex[:12]
-        self._messages = []
-        return self.session_id
-
-    def switch_session(self, session_id: str) -> None:
-        self.session_id = session_id
-        self._messages = []
-
-    def list_sessions(self, limit: int = 50) -> list[dict[str, Any]]:
-        """列出会话：id、标题、消息数、最后更新时间，按最近活跃排序。"""
-        if self._db is None:
-            return []
-        try:
-            rows = self._db.execute(
-                "SELECT session_id, COUNT(*), MAX(created_at), MAX(id) "
-                "FROM messages GROUP BY session_id ORDER BY MAX(id) DESC LIMIT ?",
-                (limit,),
-            ).fetchall()
-        except Exception:
-            return []
-
-        sessions: list[dict[str, Any]] = []
-        for session_id, count, updated_at, _ in rows:
-            first = self._db.execute(
-                "SELECT content FROM messages WHERE session_id = ? AND role = 'user' "
-                "ORDER BY id LIMIT 1",
-                (session_id,),
-            ).fetchone()
-            title = (first[0] if first else "").strip().replace("\n", " ")
-            sessions.append(
-                {
-                    "session_id": session_id,
-                    "title": title[:30] or "(空会话)",
-                    "count": int(count),
-                    "updated_at": updated_at,
-                }
-            )
-        return sessions
-
-    def load_messages(self, session_id: str, limit: int = 300) -> list[dict[str, str]]:
-        if self._db is None:
-            return []
-        try:
-            rows = self._db.execute(
-                "SELECT role, content FROM messages WHERE session_id = ? "
-                "ORDER BY id LIMIT ?",
-                (session_id, limit),
-            ).fetchall()
-            return [{"role": r[0], "content": r[1]} for r in rows]
-        except Exception:
-            return []
-
-    def prune_sessions(self, keep: int) -> int:
-        """只保留最近 keep 个会话，返回删除数量。"""
-        if self._db is None or keep < 0:
-            return 0
-        sessions = self.list_sessions(limit=1000)
-        stale = [s["session_id"] for s in sessions[keep:]]
-        if not stale:
-            return 0
-        try:
-            for sid in stale:
-                self._db.execute("DELETE FROM messages WHERE session_id = ?", (sid,))
-                self._db.execute("DELETE FROM traces WHERE session_id = ?", (sid,))
-            self._db.commit()
-        except Exception:
-            return 0
-        return len(stale)
-
     # ── 读 ────────────────────────────────────────────────────────────────
 
-    def recent(self, n: int = 6) -> list[dict[str, str]]:
-        """返回最近 n 条对话（role/content），供 Planner 使用。"""
+    def recent(self, n: int = 20) -> list[dict[str, str]]:
         if self._messages:
             return [
                 {"role": m["role"], "content": m["content"]}
@@ -225,7 +345,6 @@ class Memory:
         return self.recent(n=10_000)
 
     def traces(self, limit: int = 50) -> list[dict[str, Any]]:
-        """导出本会话的动作轨迹。"""
         if self._db is None:
             return []
         rows = self._db.execute(

@@ -564,6 +564,7 @@ class MainWindow(QMainWindow):
         try:
             agent = self._get_agent()
             agent.memory.new_session()
+            agent.memory.save_tasks([])
             agent.memory.prune_sessions(keep=max(1, int(agent.config.memory_max_sessions)))
             self.conversation = []
             self.last_results = []
@@ -575,6 +576,22 @@ class MainWindow(QMainWindow):
             self.append_log(">>> 已开始新对话 " + agent.memory.session_id)
         except Exception as e:
             self.append_log("新建对话失败: " + str(e))
+
+    def on_rename_session(self, item: QListWidgetItem) -> None:
+        sid = item.data(Qt.UserRole)
+        if not sid or self.agent is None:
+            return
+        current = self.agent.memory.get_title(sid)
+        if not current:
+            current = item.text().lstrip("●○ ").split("  (")[0]
+        title, ok = QInputDialog.getText(
+            self, "重命名会话", "会话名称：", text=current
+        )
+        if not ok:
+            return
+        self.agent.memory.rename_session(title.strip(), sid)
+        self._refresh_sessions()
+        self.append_log(">>> 会话已重命名为「" + title.strip() + "」")
 
     def on_session_clicked(self, item: QListWidgetItem) -> None:
         sid = item.data(Qt.UserRole)
@@ -588,6 +605,9 @@ class MainWindow(QMainWindow):
                 role = "你" if m.get("role") == "user" else "Agent"
                 self.conversation.append((role, m.get("content", "")))
             self._render_memory()
+            self.task_list.clear()
+            for t in agent.memory.load_tasks(sid):
+                self._add_task_item(t)
             self._refresh_sessions()
             self.append_log(">>> 已切换历史会话 " + sid)
         except Exception as e:

@@ -95,7 +95,7 @@ class Planner:
         messages: list[dict[str, str]] = [
             {"role": "system", "content": self.prompts.get("system", "")},
         ]
-        for item in history[-4:]:
+        for item in history[-10:]:
             messages.append(item)
         messages.append({"role": "user", "content": prompt})
 
