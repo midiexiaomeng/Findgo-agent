@@ -175,6 +175,7 @@ class MainWindow(QMainWindow):
         self._load_file_tree()
         self._refresh_model_button()
         self._adjust_input_height()
+        self._restore_history()
 
     # ── 中间上：推理输入 ──────────────────────────────────────────────────
 
@@ -516,6 +517,21 @@ class MainWindow(QMainWindow):
         self.log_view.appendPlainText(text)
         bar = self.log_view.verticalScrollBar()
         bar.setValue(bar.maximum())
+
+    def _restore_history(self) -> None:
+        """启动时从 SQLite 恢复上次会话的对话记录。"""
+        try:
+            agent = self._get_agent()
+            if self.conversation:
+                return
+            for item in agent.memory.history()[-60:]:
+                role = "你" if item.get("role") == "user" else "Agent"
+                self.conversation.append((role, item.get("content", "")))
+            self._render_memory()
+            if self.conversation:
+                self.append_log(f">>> 已恢复 {len(self.conversation)} 条历史记录")
+        except Exception as e:
+            self.append_log(f"加载历史失败: {e}")
 
     def _render_memory(self) -> None:
         rows = []

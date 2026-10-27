@@ -48,6 +48,9 @@ VERSION
 # 旧版本备份
 legacy/
 
+# 项目内自带的第三方包
+_vendor/
+
 # 示例图片保留
 !examples/test_images/*.jpg
 !examples/test_images/*.png

@@ -11,6 +11,14 @@
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+# 项目自带的依赖目录（部分环境没有写权限安装到 site-packages）
+_VENDOR = Path(__file__).resolve().parents[4] / "_vendor"
+if _VENDOR.is_dir() and str(_VENDOR) not in sys.path:
+    sys.path.insert(0, str(_VENDOR))
+
 import logging
 from pathlib import Path
 from typing import Any, Sequence

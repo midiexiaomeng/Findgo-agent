@@ -51,12 +51,17 @@ class Memory:
         self,
         session_id: str | None = None,
         persist_path: str | Path | None = None,
+        resume: bool = False,
     ):
         self.session_id = session_id or uuid.uuid4().hex[:12]
         self._messages: list[dict[str, str]] = []
         self._db: sqlite3.Connection | None = None
         if persist_path:
             self._db = self._connect(Path(persist_path))
+            if resume and session_id is None:
+                latest = self._latest_session()
+                if latest:
+                    self.session_id = latest
 
     # ── 初始化 ────────────────────────────────────────────────────────────
 
@@ -69,6 +74,18 @@ class Memory:
         return conn
 
     # ── 写 ────────────────────────────────────────────────────────────────
+
+    def _latest_session(self) -> str | None:
+        """最近一次有消息的会话，用于启动时恢复。"""
+        if self._db is None:
+            return None
+        try:
+            row = self._db.execute(
+                "SELECT session_id FROM messages ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+            return row[0] if row else None
+        except Exception:
+            return None
 
     def add(self, role: str, content: str) -> None:
         """追加一条对话消息。"""

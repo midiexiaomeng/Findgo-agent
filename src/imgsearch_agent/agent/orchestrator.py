@@ -57,7 +57,7 @@ class ImageSearchAgent:
         self.responder = Responder(self.client, self.config.prompts)
 
         persist = self.config.resolve_db_path() if self.config.memory_persist else None
-        self.memory = Memory(persist_path=persist)
+        self.memory = Memory(persist_path=persist, resume=True)
 
         if tools is not None:
             self.tools = tools
