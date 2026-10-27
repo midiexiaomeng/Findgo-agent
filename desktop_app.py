@@ -14,7 +14,11 @@ from __future__ import annotations
 import html
 import logging
 import sys
+import warnings
 from pathlib import Path
+
+warnings.filterwarnings("ignore", message=".*numexpr.*")
+warnings.filterwarnings("ignore", message=".*bottleneck.*")
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "src"))
@@ -644,9 +648,10 @@ class MainWindow(QMainWindow):
 
     def _get_agent(self):
         if self.agent is None:
-            from imgsearch_agent.app import get_agent
+            from imgsearch_agent.agent import ImageSearchAgent
+            from imgsearch_agent.config import AgentConfig
 
-            self.agent = get_agent()
+            self.agent = ImageSearchAgent(config=AgentConfig())
             entry = ModelStore().get_active()
             if entry:
                 self.agent.set_llm(ModelStore.to_llm_config(entry))
