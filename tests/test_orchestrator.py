@@ -54,12 +54,12 @@ class FakeClient:
                 '{"tasks":[{"id":1,"description":"找猫","query":"猫"},'
                 '{"id":2,"description":"找狗","query":"狗"}]}'
             )
+        if "请决定下一步动作" in content:
+            return self.action
         if "原始查询" in content:
             return "橘猫"
-        if "检索结果" in content or "系统找到了" in content:
+        if "系统找到了" in content or "检索结果" in content and "工具" not in content:
             return "找到了一张猫的图片。"
-        if "可用工具" in content:
-            return self.action
         return "好的。"
 
 

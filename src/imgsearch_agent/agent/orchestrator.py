@@ -17,8 +17,10 @@ from typing import Any
 from ..config import AgentConfig
 from ..llm import ChatClient
 from ..tools import (
+    CountIndexedImagesTool,
     DescribeImageTool,
     ExportResultsTool,
+    FilterResultsTool,
     FindDuplicatesTool,
     FolderScanTool,
     GetIndexStatsTool,
@@ -26,6 +28,7 @@ from ..tools import (
     ImageRetrievalTool,
     IndexFolderTool,
     ListIndexedFoldersTool,
+    PreviewStagedTool,
     RemoveIndexTool,
     SwitchVectorBackendTool,
     TrashManageTool,
@@ -99,6 +102,9 @@ class ImageSearchAgent:
                 "get_index_stats": GetIndexStatsTool(pipeline),
                 "switch_vector_backend": SwitchVectorBackendTool(pipeline),
                 "list_indexed_folders": ListIndexedFoldersTool(pipeline),
+                "count_indexed_images": CountIndexedImagesTool(pipeline, guard=guard),
+                "filter_results": FilterResultsTool(pipeline),
+                "preview_staged": PreviewStagedTool(),
                 "describe_image": DescribeImageTool(pipeline, guard=guard),
                 "export_results": ExportResultsTool(pipeline, guard=guard),
                 "find_duplicates": FindDuplicatesTool(pipeline, guard=guard),

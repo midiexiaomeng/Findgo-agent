@@ -197,3 +197,52 @@ tools:
         type: boolean
         description: 是否包含子目录
         default: true
+
+  - name: filter_results
+    module: imgsearch_agent.tools.filter_results
+    class: FilterResultsTool
+    enabled: true
+    description: 对已有检索结果做二次过滤，排除暂存图、按分数阈值与关键词筛选
+    parameters:
+      paths:
+        type: array
+        description: 上一轮结果的图片路径
+        required: true
+      exclude_staged:
+        type: boolean
+        description: 排除已暂存图片
+        default: true
+      min_similarity:
+        type: number
+        description: 最低相似度，需要配合 scores
+        default: 0
+      must_not_keywords:
+        type: array
+        description: 描述里含这些词则排除
+        required: false
+
+  - name: preview_staged
+    module: imgsearch_agent.tools.preview_staged
+    class: PreviewStagedTool
+    enabled: true
+    description: 只读查看暂存区待删除图片清单
+    parameters:
+      task_id:
+        type: string
+        description: 只看某个任务的记录
+        required: false
+      limit:
+        type: integer
+        description: 最多返回条数
+        default: 100
+
+  - name: count_indexed_images
+    module: imgsearch_agent.tools.count_indexed_images
+    class: CountIndexedImagesTool
+    enabled: true
+    description: 统计索引内图片数量，可对比磁盘数量排查不一致
+    parameters:
+      folder_path:
+        type: string
+        description: 只统计该目录，留空统计全库
+        required: false
