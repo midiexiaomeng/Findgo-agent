@@ -13,6 +13,7 @@ from .index_folder import IndexFolderArgs, IndexFolderTool
 from .list_indexed_folders import ListIndexedFoldersArgs, ListIndexedFoldersTool
 from .remove_index import RemoveIndexArgs, RemoveIndexTool
 from .switch_vector_backend import SwitchBackendArgs, SwitchVectorBackendTool
+from .trash_manage import TrashManageArgs, TrashManageTool
 
 __all__ = [
     "BaseTool",
@@ -37,4 +38,6 @@ __all__ = [
     "RemoveIndexTool",
     "SwitchBackendArgs",
     "SwitchVectorBackendTool",
+    "TrashManageArgs",
+    "TrashManageTool",
 ]

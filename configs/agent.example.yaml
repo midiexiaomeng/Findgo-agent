@@ -39,6 +39,11 @@ security:
   # 系统目录（Windows、Program Files、ProgramData）始终禁止
   allowed_roots: []
 
+trash_staging:
+  max_keep_days: 14        # 暂存超过这么多天自动永久删除
+  max_total_size_gb: 10    # 暂存区总容量上限
+  auto_clean: true         # 允许后台自动清理
+
 memory:
   # false: 纯内存，进程退出即丢失（开发调试）
   # true : SQLite 持久化，保存对话与动作轨迹，便于回溯

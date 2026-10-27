@@ -60,8 +60,9 @@ class SettingsDialog(QDialog):
     PAGE_PARAMS = 1
     PAGE_VECTOR = 2
     PAGE_PATHS = 3
-    PAGE_DIAG = 4
-    PAGE_ABOUT = 5
+    PAGE_TRASH = 4
+    PAGE_DIAG = 5
+    PAGE_ABOUT = 6
 
     def __init__(
         self,
@@ -84,6 +85,7 @@ class SettingsDialog(QDialog):
         self._load_params()
         self._load_vector()
         self._load_paths()
+        self._load_trash()
 
     # ── 界面骨架 ──────────────────────────────────────────────────────────
 
@@ -100,7 +102,7 @@ class SettingsDialog(QDialog):
             "QListWidget::item:selected{background:#e0e7ff;color:#1e40af;}"
         )
         self.nav.addItems(
-            ["添加模型", "检索参数", "向量库", "目录与安全", "环境自检", "关于"]
+            ["添加模型", "检索参数", "向量库", "目录与安全", "暂存区", "环境自检", "关于"]
         )
         self.nav.currentRowChanged.connect(self._on_nav_changed)
 
@@ -109,6 +111,7 @@ class SettingsDialog(QDialog):
         self.stack.addWidget(self._build_params_page())
         self.stack.addWidget(self._build_vector_page())
         self.stack.addWidget(self._build_paths_page())
+        self.stack.addWidget(self._build_trash_page())
         self.stack.addWidget(self._build_diag_page())
         self.stack.addWidget(self._build_about_page())
 
@@ -347,6 +350,92 @@ class SettingsDialog(QDialog):
         self.paths_status.setStyleSheet("color:#6b7280; font-size:12px;")
         layout.addWidget(self.paths_status)
         return page
+
+    # ── 暂存区页 ──────────────────────────────────────────────────────────
+
+    def _build_trash_page(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(16, 14, 16, 14)
+        layout.setSpacing(10)
+
+        tip = QLabel(
+            "待删除的图片先进入暂存区，用硬链接保留，不占额外空间。"
+            "超过留存天数或容量上限后，才会被永久删除。"
+        )
+        tip.setWordWrap(True)
+        tip.setStyleSheet("color:#6b7280; font-size:12px;")
+        layout.addWidget(tip)
+
+        form = QFormLayout()
+        form.setSpacing(10)
+
+        self.trash_days = QSpinBox()
+        self.trash_days.setRange(1, 365)
+        self.trash_days.setSuffix(" 天")
+        form.addRow("留存时间", self.trash_days)
+
+        self.trash_gb = QDoubleSpinBox()
+        self.trash_gb.setRange(0.5, 1000.0)
+        self.trash_gb.setSingleStep(0.5)
+        self.trash_gb.setDecimals(1)
+        self.trash_gb.setSuffix(" GB")
+        form.addRow("容量上限", self.trash_gb)
+
+        self.trash_auto = QCheckBox("超过限制后自动清理最旧的文件")
+        form.addRow("自动清理", self.trash_auto)
+
+        layout.addLayout(form)
+
+        save_btn = QPushButton("保存暂存区设置")
+        save_btn.setStyleSheet(
+            "QPushButton{background:#16a34a;color:white;border:none;"
+            "border-radius:6px;padding:7px 18px;}"
+        )
+        save_btn.clicked.connect(self.on_save_trash)
+        layout.addWidget(save_btn, 0, Qt.AlignLeft)
+
+        self.trash_status = QLabel("")
+        self.trash_status.setStyleSheet("color:#6b7280; font-size:12px;")
+        layout.addWidget(self.trash_status)
+        layout.addStretch(1)
+        return page
+
+    def _load_trash(self) -> None:
+        try:
+            from .config import AgentConfig
+
+            cfg = AgentConfig()
+            self.trash_days.setValue(int(cfg.trash_max_days))
+            self.trash_gb.setValue(float(cfg.trash_max_gb))
+            self.trash_auto.setChecked(bool(cfg.trash_auto_clean))
+        except Exception:
+            self.trash_days.setValue(14)
+            self.trash_gb.setValue(10.0)
+            self.trash_auto.setChecked(True)
+
+    def on_save_trash(self) -> None:
+        import yaml
+
+        from .config import PROJECT_ROOT
+
+        path = PROJECT_ROOT / "configs" / "agent.yaml"
+        try:
+            data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            data.setdefault("trash_staging", {})
+            data["trash_staging"]["max_keep_days"] = self.trash_days.value()
+            data["trash_staging"]["max_total_size_gb"] = round(
+                self.trash_gb.value(), 1
+            )
+            data["trash_staging"]["auto_clean"] = self.trash_auto.isChecked()
+            path.write_text(
+                yaml.safe_dump(data, allow_unicode=True, sort_keys=False),
+                encoding="utf-8",
+            )
+            self.trash_status.setText("已保存，下次清理时生效。")
+            self.config_changed.emit()
+        except Exception as e:
+            self.trash_status.setText(f"保存失败：{e}")
 
     # ── 环境自检页 ────────────────────────────────────────────────────────
 

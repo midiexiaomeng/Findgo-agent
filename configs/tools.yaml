@@ -151,3 +151,34 @@ tools:
         type: integer
         description: 最多分析多少张
         default: 5000
+
+  - name: trash_manage
+    module: imgsearch_agent.tools.trash_manage
+    class: TrashManageTool
+    enabled: true
+    description: 管理暂存区，stage 暂存待删图片、list 查看、restore 恢复、purge 永久删除、cleanup 清理过期
+    parameters:
+      action:
+        type: string
+        description: stage / list / restore / purge / cleanup
+        required: true
+      paths:
+        type: array
+        description: stage 时的图片路径列表
+        required: false
+      task_id:
+        type: string
+        description: 任务 ID
+        required: false
+      ids:
+        type: array
+        description: 指定记录 ID
+        required: false
+      max_days:
+        type: integer
+        description: cleanup 超时天数
+        default: 14
+      max_total_gb:
+        type: number
+        description: cleanup 容量上限 GB
+        default: 10

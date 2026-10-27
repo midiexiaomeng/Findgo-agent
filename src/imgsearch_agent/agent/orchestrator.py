@@ -28,6 +28,7 @@ from ..tools import (
     ListIndexedFoldersTool,
     RemoveIndexTool,
     SwitchVectorBackendTool,
+    TrashManageTool,
 )
 from ..tools.base_tool import BaseTool
 from ..utils.logger import TraceLogger
@@ -100,6 +101,7 @@ class ImageSearchAgent:
                 "export_results": ExportResultsTool(pipeline, guard=guard),
                 "find_duplicates": FindDuplicatesTool(pipeline, guard=guard),
                 "remove_index": RemoveIndexTool(pipeline, guard=guard),
+                "trash_manage": TrashManageTool(pipeline, guard=guard),
                 "folder_scan": FolderScanTool(guard=guard),
             }
 
