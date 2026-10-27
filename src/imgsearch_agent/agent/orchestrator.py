@@ -17,11 +17,13 @@ from typing import Any
 from ..config import AgentConfig
 from ..llm import ChatClient
 from ..tools import (
+    DescribeImageTool,
     FolderScanTool,
     GetIndexStatsTool,
     ImageRetrievalByImageTool,
     ImageRetrievalTool,
     IndexFolderTool,
+    ListIndexedFoldersTool,
     SwitchVectorBackendTool,
 )
 from ..tools.base_tool import BaseTool
@@ -80,6 +82,8 @@ class ImageSearchAgent:
                 "index_folder": IndexFolderTool(pipeline, guard=guard),
                 "get_index_stats": GetIndexStatsTool(pipeline),
                 "switch_vector_backend": SwitchVectorBackendTool(pipeline),
+                "list_indexed_folders": ListIndexedFoldersTool(pipeline),
+                "describe_image": DescribeImageTool(pipeline, guard=guard),
                 "folder_scan": FolderScanTool(guard=guard),
             }
 

@@ -72,3 +72,25 @@ tools:
         type: string
         description: chroma 或 qdrant
         required: true
+
+  - name: list_indexed_folders
+    module: imgsearch_agent.tools.list_indexed_folders
+    class: ListIndexedFoldersTool
+    enabled: true
+    description: 列出当前索引包含的文件夹及各文件夹图片数量
+    parameters:
+      limit:
+        type: integer
+        description: 最多扫描多少条记录
+        default: 20000
+
+  - name: describe_image
+    module: imgsearch_agent.tools.describe_image
+    class: DescribeImageTool
+    enabled: true
+    description: 给一张本地图片生成中文描述
+    parameters:
+      image_path:
+        type: string
+        description: 图片路径
+        required: true
