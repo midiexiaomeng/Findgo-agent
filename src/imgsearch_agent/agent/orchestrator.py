@@ -181,6 +181,7 @@ class ImageSearchAgent:
                     "query": task.query,
                     "top_k": task.top_k if task.top_k > 0 else self.config.top_k,
                     "folder_path": task.path or "",
+                    "all_results": bool(task.all_results),
                 }
 
             result, retries = self._execute_with_retry(tool, args)

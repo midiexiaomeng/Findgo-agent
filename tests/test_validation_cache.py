@@ -30,7 +30,7 @@ class _FakePipeline:
 def test_reject_top_k_out_of_range():
     tool = ImageRetrievalTool(_FakePipeline())
     with pytest.raises(ValidationError):
-        tool.validate({"query": "猫", "top_k": 999})
+        tool.validate({"query": "猫", "top_k": 1001})
 
 
 def test_reject_empty_query():

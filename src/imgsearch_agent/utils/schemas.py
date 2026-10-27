@@ -68,4 +68,5 @@ class TaskSpec(BaseModel):
     action: str = Field(
         "retrieve", description="步骤类型：scan 扫描目录 / retrieve 检索图片"
     )
+    all_results: bool = Field(False, description="是否返回全部匹配结果")
     status: str = Field("pending", description="pending | done | skipped")

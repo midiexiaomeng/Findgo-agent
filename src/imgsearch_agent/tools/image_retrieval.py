@@ -22,8 +22,9 @@ class ImageRetrievalArgs(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     query: str = Field(..., min_length=1, description="图片内容描述")
-    top_k: int = Field(8, ge=1, le=50, description="返回数量")
+    top_k: int = Field(8, ge=1, le=1000, description="返回数量，最大 1000")
     folder_path: str = Field("", description="限定检索的文件夹路径，空表示全库")
+    all_results: bool = Field(False, description="返回全部匹配结果，忽略 top_k")
     path: str = Field("", description="（兼容）同 folder_path")
 
 
@@ -63,6 +64,7 @@ class ImageRetrievalTool(BaseTool):
         top_k: int = 8,
         folder_path: str = "",
         path: str = "",
+        all_results: bool = False,
     ) -> dict[str, Any]:
         target = folder_path or path
         scope = ""
@@ -82,7 +84,10 @@ class ImageRetrievalTool(BaseTool):
                 scope = str(folder)
 
         resp = self.pipeline.searcher.search_text(
-            query, top_k=top_k, scope=scope or None
+            query,
+            top_k=top_k,
+            scope=scope or None,
+            all_results=all_results,
         )
         images = [
             RetrievedImage(

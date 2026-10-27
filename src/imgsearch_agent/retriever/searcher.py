@@ -125,6 +125,7 @@ class Searcher:
         use_rerank: bool = True,
         min_score: float | None = None,
         scope: str | None = None,
+        all_results: bool = False,
     ) -> SearchResponse:
         query = (query or "").strip()
         started = time.time()
@@ -138,6 +139,13 @@ class Searcher:
         top_k = int(top_k or self.cfg.search.top_k)
         recall_k = int(recall_k or self.cfg.search.recall_k)
         min_score = self.cfg.search.min_score if min_score is None else float(min_score)
+
+        if all_results:
+            limit = int(getattr(self.cfg.search, "max_all", 1000))
+            top_k = max(top_k, min(self.store.count(), limit))
+
+        # 要得多就得召回得多，否则后面没有候选可排
+        recall_k = max(recall_k, min(top_k * 2, 5000))
 
         query_vec = self.encoder.encode_text(query)
         hits = self._recall(query_vec, recall_k, min_score, scope)

@@ -107,7 +107,9 @@ class Planner:
             "- top_k：用户明确要求的图片数量。用户说“两张”就填 2，"
             "说“几张”或没提数量就填 0（表示用系统默认值）\n"
             "- path：用户提到的文件夹路径，原样保留（如 D:\\Photos）。"
-            "用户没提路径就填空字符串\n\n"
+            "用户没提路径就填空字符串\n"
+            "- all_results：用户说“所有”“全部”“都要”“都找出来”时填 true，"
+            "表示返回全部匹配结果；否则填 false\n\n"
             '只输出 JSON：{"tasks":[{"id":1,"description":"...","query":"...","top_k":2}]}'
         )
         messages: list[dict[str, str]] = [
@@ -138,6 +140,7 @@ class Planner:
             except (TypeError, ValueError):
                 top_k = 0
             task_path = str(item.get("path") or "").strip()
+            all_results = bool(item.get("all_results", False))
             result.append(
                 TaskSpec(
                     id=int(item.get("id", i)),
@@ -145,6 +148,7 @@ class Planner:
                     query=q,
                     top_k=max(0, min(top_k, 50)),
                     path=task_path or known_path,
+                    all_results=all_results,
                 )
             )
         if not result:

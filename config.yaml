@@ -83,6 +83,7 @@ rerank:
 search:
   recall_k: 50              # ANN 召回数：宁多勿漏
   top_k: 12                 # 最终展示数
+  max_all: 1000             # “全部结果”的上限，防止一次拉爆内存
   min_score: 0.0
   fusion:
     vector_weight: 0.35

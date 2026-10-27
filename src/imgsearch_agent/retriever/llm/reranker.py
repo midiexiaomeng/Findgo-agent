@@ -101,10 +101,25 @@ class LLMReranker:
             report.elapsed = time.time() - started
             return [], report
 
-        # 候选数至少覆盖用户要求的数量，否则要 20 张也只能返回 8 张
-        limit = max(1, max(int(self.cfg.rerank.max_candidates), top_k))
-        candidates = list(hits)[:limit]
+        # LLM 重排的成本按批线性增长，大结果集全量重排不现实。
+        # 头部做语义重排，超出部分保持向量分顺序补在后面。
+        head = max(1, int(self.cfg.rerank.max_candidates))
+        head = min(head, len(hits))
+        candidates = list(hits)[:head]
         report.candidates = len(candidates)
+
+        tail = []
+        if top_k > head:
+            tail = [
+                ScoredCandidate(
+                    hit=h,
+                    vec_score=float(h.score),
+                    vec_norm=0.0,
+                    llm_score=None,
+                    final_score=0.0,
+                )
+                for h in list(hits)[head:top_k]
+            ]
 
         raw_scores = [float(h.score) for h in candidates]
         norms = normalize_scores(raw_scores)
@@ -123,23 +138,23 @@ class LLMReranker:
         if not use_llm:
             report.errors.append("已关闭 LLM 重排，按向量相似度排序")
             report.elapsed = time.time() - started
-            return self._finish(scored, top_k), report
+            return self._finish(scored, top_k, tail), report
 
         if not self.cfg.rerank.enabled or self.client.backend in ("none", ""):
             report.elapsed = time.time() - started
-            return self._finish(scored, top_k), report
+            return self._finish(scored, top_k, tail), report
 
         if not query or not query.strip():
             report.errors.append("查询语义为空，跳过 LLM 重排")
             report.elapsed = time.time() - started
-            return self._finish(scored, top_k), report
+            return self._finish(scored, top_k, tail), report
 
         # 没有任何一条有描述时，LLM 只能看文件名，重排基本是噪声
         with_caption = sum(1 for c in candidates if str(c.metadata.get("caption", "")).strip())
         if with_caption == 0:
             report.errors.append("候选图片没有描述（索引时未启用 BLIP），跳过 LLM 重排")
             report.elapsed = time.time() - started
-            return self._finish(scored, top_k), report
+            return self._finish(scored, top_k, tail), report
 
         # 服务根本没起来时，不要逐批重试。一次探测就能确定，
         # 否则 3 批候选会白等十几秒。
@@ -147,7 +162,7 @@ class LLMReranker:
         if not available:
             report.errors.append(f"LLM 不可用: {reason}")
             report.elapsed = time.time() - started
-            return self._finish(scored, top_k), report
+            return self._finish(scored, top_k, tail), report
 
         # ── 分批打分 ──
         llm_scores, used, errors = self._score_batches(query, candidates)
@@ -166,7 +181,7 @@ class LLMReranker:
         report.elapsed = time.time() - started
         if report.used:
             logger.info(report.summary())
-        return self._finish(scored, top_k), report
+        return self._finish(scored, top_k, tail), report
 
     # ── 打分 ────────────────────────────────────────────────────────────────
 
@@ -365,7 +380,11 @@ class LLMReranker:
         return (wv * vec_norm + wl * llm_score) / total
 
     @staticmethod
-    def _finish(scored: list[ScoredCandidate], top_k: int) -> list[ScoredCandidate]:
+    def _finish(
+        scored: list[ScoredCandidate],
+        top_k: int,
+        tail: list[ScoredCandidate] | None = None,
+    ) -> list[ScoredCandidate]:
         ordered = sorted(
             scored,
             key=lambda c: (
@@ -375,4 +394,7 @@ class LLMReranker:
             ),
             reverse=True,
         )
-        return ordered[:top_k]
+        out = ordered[:top_k]
+        if tail and len(out) < top_k:
+            out.extend(tail[: top_k - len(out)])
+        return out
