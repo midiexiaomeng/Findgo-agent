@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any, Sequence
 
 logger = logging.getLogger("imgsearch_agent.llm")
@@ -24,7 +25,12 @@ class ChatClient:
         self.backend = (cfg.get("backend") or "openai").lower()
         self.model = cfg.get("model") or ""
         self.base_url = (cfg.get("base_url") or "").rstrip("/")
-        self.api_key = cfg.get("api_key") or "not-needed"
+        self.api_key = (
+            cfg.get("api_key")
+            or os.environ.get("DEEPSEEK_API_KEY", "")
+            or os.environ.get("OPENAI_API_KEY", "")
+            or "not-needed"
+        )
         self.timeout = int(cfg.get("timeout", 120))
         # DeepSeek V4 可选 low / high / max，留空则不传
         self.reasoning_effort = cfg.get("reasoning_effort") or ""
