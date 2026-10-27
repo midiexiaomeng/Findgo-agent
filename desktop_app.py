@@ -161,6 +161,8 @@ class MainWindow(QMainWindow):
         self.agent = None
         self.conversation: list[tuple[str, str]] = []
         self.last_results: list[dict] = []
+        self.tree_root: Path = ROOT
+        self.results_node: QTreeWidgetItem | None = None
 
         self._build_ui()
         self._setup_logging()
@@ -396,6 +398,23 @@ class MainWindow(QMainWindow):
         title = QLabel("文件与资源")
         title.setStyleSheet("font-weight:600; color:#374151; font-size:12px;")
         layout.addWidget(title)
+
+        nav_row = QHBoxLayout()
+        nav_row.setSpacing(4)
+        self.up_btn = QPushButton("↑")
+        self.up_btn.setFixedWidth(26)
+        self.up_btn.setToolTip("返回上级目录")
+        self.up_btn.setStyleSheet(
+            "QPushButton{border:1px solid #d1d5db;border-radius:5px;"
+            "padding:3px 0;background:#fff;font-size:12px;}"
+        )
+        self.up_btn.clicked.connect(self._go_up)
+        self.path_label = QLabel(str(ROOT))
+        self.path_label.setStyleSheet("font-size:10.5px;color:#6b7280;")
+        self.path_label.setToolTip(str(ROOT))
+        nav_row.addWidget(self.up_btn)
+        nav_row.addWidget(self.path_label, 1)
+        layout.addLayout(nav_row)
 
         split = QSplitter(Qt.Vertical)
         self.tree = QTreeWidget()
@@ -706,32 +725,34 @@ class MainWindow(QMainWindow):
 
     # ── 文件树 ────────────────────────────────────────────────────────────
 
+    def _go_up(self) -> None:
+        current = self.tree_root.resolve()
+        parent = current.parent
+        if parent == current:
+            return
+        self.tree_root = parent
+        self._load_file_tree()
+
     def _load_file_tree(self) -> None:
+        root = self.tree_root
+        self.path_label.setText(str(root))
+        self.path_label.setToolTip(str(root))
         self.tree.clear()
-        root_item = QTreeWidgetItem([ROOT.name])
-        root_item.setData(0, Qt.UserRole, str(ROOT))
+        self.results_node = None
+
+        root_item = QTreeWidgetItem([root.name or str(root)])
+        root_item.setData(0, Qt.UserRole, str(root))
         root_item.setData(0, LOADED_ROLE, True)
         self.tree.addTopLevelItem(root_item)
 
-        self.results_node = QTreeWidgetItem(["最近检索结果"])
-        root_item.addChild(self.results_node)
+        if root.resolve() == ROOT.resolve():
+            self.results_node = QTreeWidgetItem(["最近检索结果"])
+            root_item.addChild(self.results_node)
 
-        for name in ("models", "data", "configs", "datasets", "docs", "src", "logs"):
-            path = ROOT / name
-            if not path.exists():
-                continue
-            node = QTreeWidgetItem([name])
-            node.setData(0, Qt.UserRole, str(path))
-            node.setData(0, LOADED_ROLE, False)
-            root_item.addChild(node)
-            self._fill_dir(node, path, depth=1, limit=40)
-            node.setData(0, LOADED_ROLE, True)
-
+        self._fill_dir(root_item, root, limit=200)
         root_item.setExpanded(True)
 
-    def _fill_dir(self, parent: QTreeWidgetItem, path: Path, depth: int, limit: int) -> None:
-        if depth <= 0:
-            return
+    def _fill_dir(self, parent: QTreeWidgetItem, path: Path, limit: int) -> None:
         try:
             entries = sorted(path.iterdir(), key=lambda p: (p.is_file(), p.name.lower()))[:limit]
         except OSError:
@@ -743,8 +764,9 @@ class MainWindow(QMainWindow):
             item.setData(0, Qt.UserRole, str(p))
             item.setData(0, LOADED_ROLE, False)
             parent.addChild(item)
-            if p.is_dir() and depth > 1:
-                self._fill_dir(item, p, depth - 1, limit)
+            if p.is_dir():
+                # 占位子项：让 Qt 显示展开箭头，真正展开时再替换
+                QTreeWidgetItem(item, ["…"])
 
     def _on_tree_expand(self, item: QTreeWidgetItem) -> None:
         if item.data(0, LOADED_ROLE):
@@ -753,11 +775,15 @@ class MainWindow(QMainWindow):
         if not path:
             return
         p = Path(path)
-        if p.is_dir():
-            self._fill_dir(item, p, depth=1, limit=200)
-            item.setData(0, LOADED_ROLE, True)
+        if not p.is_dir():
+            return
+        item.takeChildren()
+        self._fill_dir(item, p, limit=200)
+        item.setData(0, LOADED_ROLE, True)
 
     def _refresh_results_node(self) -> None:
+        if self.results_node is None:
+            return
         self.results_node.takeChildren()
         for img in self.last_results:
             path = img.get("path", "") if isinstance(img, dict) else getattr(img, "path", "")
@@ -786,7 +812,27 @@ class MainWindow(QMainWindow):
         self.preview.setPixmap(QPixmap())
 
 
+def _setup_file_logging() -> None:
+    """pythonw 启动时没有控制台，日志落文件便于排查。"""
+    try:
+        log_dir = ROOT / "logs"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        handler = logging.FileHandler(log_dir / "app.log", encoding="utf-8")
+        handler.setFormatter(
+            logging.Formatter(
+                "%(asctime)s | %(levelname)-7s | %(name)s | %(message)s"
+            )
+        )
+        root = logging.getLogger()
+        root.addHandler(handler)
+        if root.level > logging.INFO:
+            root.setLevel(logging.INFO)
+    except Exception:
+        pass
+
+
 def main() -> int:
+    _setup_file_logging()
     QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
     QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
     app = QApplication(sys.argv)
