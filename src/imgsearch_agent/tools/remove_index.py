@@ -20,8 +20,11 @@ logger = logging.getLogger("imgsearch_agent.remove_index")
 class RemoveIndexArgs(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    folder_path: str = Field(..., min_length=1, description="要移除索引的文件夹")
+    folder_path: str = Field("", description="要移除索引的文件夹；留空时需开启 missing_only")
     dry_run: bool = Field(True, description="True 只统计不删除，False 真正删除")
+    missing_only: bool = Field(
+        False, description="只清理原图已不存在的孤儿向量"
+    )
 
 
 class RemoveIndexTool(BaseTool):
@@ -41,25 +44,50 @@ class RemoveIndexTool(BaseTool):
             self._pipeline = build_pipeline()
         return self._pipeline
 
-    def run(self, folder_path: str, dry_run: bool = True) -> dict[str, Any]:
-        try:
-            folder = self.guard.check(folder_path, "read")
-        except PathSecurityError as e:
-            return {"count": 0, "deleted": False, "summary": f"路径不安全，已拒绝：{e}"}
-
-        prefix = str(folder).lower()
+    def run(
+        self,
+        folder_path: str = "",
+        dry_run: bool = True,
+        missing_only: bool = False,
+    ) -> dict[str, Any]:
         hits = self.pipeline.store.get(limit=200000)
-        targets = [
-            hit
-            for hit in hits
-            if str(hit.path).lower().startswith(prefix)
-        ]
+
+        if missing_only:
+            targets = [
+                hit
+                for hit in hits
+                if hit.path and not Path(hit.path).exists()
+            ]
+            label = "原图已不存在的孤儿向量"
+        else:
+            if not folder_path:
+                return {
+                    "count": 0,
+                    "deleted": False,
+                    "summary": "需要指定 folder_path，或开启 missing_only 清理孤儿向量",
+                }
+            try:
+                folder = self.guard.check(folder_path, "read")
+            except PathSecurityError as e:
+                return {
+                    "count": 0,
+                    "deleted": False,
+                    "summary": f"路径不安全，已拒绝：{e}",
+                }
+
+            prefix = str(folder).lower()
+            targets = [
+                hit
+                for hit in hits
+                if str(hit.path).lower().startswith(prefix)
+            ]
+            label = f"{folder} 下的索引"
 
         if not targets:
             return {
                 "count": 0,
                 "deleted": False,
-                "summary": f"{folder} 没有索引记录",
+                "summary": f"{label}：没有需要处理的内容",
             }
 
         if dry_run:
@@ -68,7 +96,7 @@ class RemoveIndexTool(BaseTool):
                 "deleted": False,
                 "dry_run": True,
                 "summary": (
-                    f"将删除 {len(targets)} 条索引（dry_run，未真正删除）。"
+                    f"{label}：将删除 {len(targets)} 条（dry_run，未真正删除）。"
                     "确认后用 dry_run=False 执行。"
                 ),
             }

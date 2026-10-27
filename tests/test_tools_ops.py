@@ -120,4 +120,21 @@ def test_remove_index_empty(tmp_path):
 
     result = tool.run(str(tmp_path / "photos" / "x" / "nested"))
     assert result["count"] == 0
-    assert "没有索引记录" in result["summary"]
+    assert "没有" in result["summary"]
+
+def test_remove_missing_only(tmp_path):
+    guard, folder = _guard(tmp_path)
+    pipeline = _RemovePipeline(folder)
+    tool = RemoveIndexTool(pipeline, guard)
+
+    result = tool.run(missing_only=True)
+    assert result["count"] == 3
+    assert result["deleted"] is False
+
+
+def test_remove_requires_target(tmp_path):
+    guard, _ = _guard(tmp_path)
+    tool = RemoveIndexTool(_RemovePipeline(tmp_path), guard)
+    result = tool.run()
+    assert result["count"] == 0
+    assert "folder_path" in result["summary"]
