@@ -52,8 +52,24 @@ class ImageRetrievalTool(BaseTool):
         key = str(folder.resolve()).lower()
         if key in self._indexed:
             return
+
+        logger.info("新目录，开始增量索引: %s", folder)
+        last = {"pct": -1}
+
+        def progress(done: int, total: int, name: str) -> None:
+            pct = int(done * 100 / max(total, 1))
+            if pct >= last["pct"] + 10 or done == total:
+                last["pct"] = pct
+                logger.info("索引进度 %d/%d (%d%%) %s", done, total, pct, name)
+
         try:
-            self.pipeline.index_folder(folder, recursive=True, skip_existing=True)
+            stats = self.pipeline.index_folder(
+                folder,
+                recursive=True,
+                skip_existing=True,
+                progress=progress,
+            )
+            logger.info("索引完成: %s", stats.summary())
         except Exception as e:
             logger.warning("自动索引 %s 失败: %s", folder, e)
         self._indexed.add(key)
