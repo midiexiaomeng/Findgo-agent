@@ -32,7 +32,7 @@ from collections import defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "src"))
 
 
 def load_indexed_ids(manifest_path: Path) -> set[int]:
@@ -133,8 +133,8 @@ def main() -> int:
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
-    from imgsearch import Config
-    from imgsearch.pipeline import Pipeline
+    from imgsearch_agent.retriever import Config
+    from imgsearch_agent.retriever.pipeline import Pipeline
 
     caps_path = Path(args.captions)
     if not caps_path.exists():

@@ -19,14 +19,14 @@ from pathlib import Path
 
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
-from imgsearch import Config, __version__  # noqa: E402
-from imgsearch.runtime import human_time, setup_logging  # noqa: E402
+from imgsearch_agent.retriever import Config, __version__  # noqa: E402
+from imgsearch_agent.retriever.runtime import human_time, setup_logging  # noqa: E402
 
 
 def _pipeline(args):
-    from imgsearch.pipeline import Pipeline
+    from imgsearch_agent.retriever.pipeline import Pipeline
 
     cfg = Config.from_yaml(args.config)
     return Pipeline(cfg, backend=getattr(args, "backend", None))
@@ -190,7 +190,7 @@ def cmd_doctor(args) -> int:
     cfg = Config.from_yaml(getattr(args, "config", None))
     print("-" * 60)
 
-    from imgsearch.runtime import resolve_model_source
+    from imgsearch_agent.retriever.runtime import resolve_model_source
 
     clip_src = resolve_model_source(
         cfg.embedding.model, cfg.models_dir, cfg.embedding.fallback
@@ -207,7 +207,7 @@ def cmd_doctor(args) -> int:
         print("  ! BLIP 未在本地，首次运行会联网下载")
 
     try:
-        from imgsearch.pipeline import Pipeline
+        from imgsearch_agent.retriever.pipeline import Pipeline
 
         p = Pipeline(cfg)
         print(

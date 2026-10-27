@@ -14,15 +14,15 @@ os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 # 允许直接 python app.py（不用先 pip install -e .）
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "src"))
 
-from imgsearch.runtime import setup_logging, set_windows_safe_env  # noqa: E402
+from imgsearch_agent.retriever.runtime import setup_logging, set_windows_safe_env  # noqa: E402
 
 
 def main() -> None:
     set_windows_safe_env()
 
-    from imgsearch import Config
+    from imgsearch_agent.retriever import Config
 
     cfg = Config.from_yaml()
     setup_logging(cfg.app.log_level)

@@ -12,9 +12,9 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from imgsearch import build_pipeline  # noqa: E402
+from imgsearch_agent.retriever import build_pipeline  # noqa: E402
 
 
 def main() -> int:

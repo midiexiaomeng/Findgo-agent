@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from imgsearch.config import Config
-from imgsearch.runtime import resolve_model_source
+from imgsearch_agent.retriever.config import Config
+from imgsearch_agent.retriever.runtime import resolve_model_source
 
 
 def test_defaults_are_consistent():

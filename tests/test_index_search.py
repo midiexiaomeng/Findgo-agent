@@ -15,13 +15,13 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from imgsearch.captioner import Captioner
-from imgsearch.clip_encoder import ClipEncoder
-from imgsearch.config import Config
-from imgsearch.indexer import Indexer
-from imgsearch.llm.reranker import LLMReranker
-from imgsearch.searcher import Searcher
-from imgsearch.vectorstore import create_vector_store
+from imgsearch_agent.retriever.captioner import Captioner
+from imgsearch_agent.retriever.clip_encoder import ClipEncoder
+from imgsearch_agent.retriever.config import Config
+from imgsearch_agent.retriever.indexer import Indexer
+from imgsearch_agent.retriever.llm.reranker import LLMReranker
+from imgsearch_agent.retriever.searcher import Searcher
+from imgsearch_agent.retriever.vectorstore import create_vector_store
 
 COLORS = {
     "red.png": (255, 0, 0),

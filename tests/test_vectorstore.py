@@ -7,8 +7,8 @@ import uuid
 import numpy as np
 import pytest
 
-from imgsearch.config import Config
-from imgsearch.vectorstore import create_vector_store, l2_normalize
+from imgsearch_agent.retriever.config import Config
+from imgsearch_agent.retriever.vectorstore import create_vector_store, l2_normalize
 
 
 def make_store(tmp_path, backend: str, dim: int = 8):
@@ -72,7 +72,7 @@ def test_delete_and_reset(store):
 
 
 def test_dimension_mismatch_raises(store):
-    from imgsearch.vectorstore import VectorStoreError
+    from imgsearch_agent.retriever.vectorstore import VectorStoreError
 
     with pytest.raises(VectorStoreError):
         store.add(["x"], np.ones((1, 4), dtype=np.float32), [{"path": "x"}])

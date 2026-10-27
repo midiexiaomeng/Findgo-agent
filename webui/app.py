@@ -16,10 +16,10 @@ from typing import Any
 
 import gradio as gr
 
-from imgsearch import __version__
-from imgsearch.config import Config
-from imgsearch.pipeline import Pipeline
-from imgsearch.runtime import describe_device, human_time
+from imgsearch_agent.retriever import __version__
+from imgsearch_agent.retriever.config import Config
+from imgsearch_agent.retriever.pipeline import Pipeline
+from imgsearch_agent.retriever.runtime import describe_device, human_time
 
 logger = logging.getLogger(__name__)
 

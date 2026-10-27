@@ -23,7 +23,7 @@ import webbrowser
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "src"))
 
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
@@ -95,8 +95,8 @@ def redirect_output_when_no_console() -> None:
 
 
 def start_server(host: str, port: int):
-    from imgsearch import Config
-    from imgsearch.runtime import setup_logging
+    from imgsearch_agent.retriever import Config
+    from imgsearch_agent.retriever.runtime import setup_logging
     from webui.app import CSS, build_app
 
     cfg = Config.from_yaml()
@@ -208,7 +208,7 @@ def main() -> int:
     parser.add_argument("--check", action="store_true", help="只检查环境")
     args = parser.parse_args()
 
-    from imgsearch import Config
+    from imgsearch_agent.retriever import Config
 
     cfg = Config.from_yaml()
     host = args.host or cfg.app.host
