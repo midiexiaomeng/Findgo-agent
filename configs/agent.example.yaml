@@ -26,6 +26,12 @@ llm:
   # 其他需要透传给 API 的参数
   extra_body: {}
 
+memory:
+  # false: 纯内存，进程退出即丢失（开发调试）
+  # true : SQLite 持久化，保存对话与动作轨迹，便于回溯
+  persist: true
+  db_path: ./data/agent_sessions.sqlite
+
 prompts:
   system: |
     你是本地图片库的检索助手。你负责理解用户意图，调用检索工具，并校验结果质量。

@@ -40,6 +40,14 @@ class AgentConfig:
         self.llm: dict[str, Any] = raw.get("llm", {}) or {}
         self.prompts: dict[str, str] = raw.get("prompts", {}) or {}
 
+        memory = raw.get("memory", {}) or {}
+        self.memory_persist = bool(memory.get("persist", False))
+        self.memory_db_path = memory.get("db_path", "./data/agent_sessions.sqlite")
+
+    def resolve_db_path(self) -> Path:
+        p = Path(self.memory_db_path)
+        return p if p.is_absolute() else PROJECT_ROOT / p
+
 
 def load_tools_config(path: str | Path | None = None) -> list[dict[str, Any]]:
     """读取工具注册配置。"""
