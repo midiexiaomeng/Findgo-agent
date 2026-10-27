@@ -139,7 +139,10 @@ class ImageSearchAgent:
             tool = self.tools.get("image_retrieval")
             if tool is None:
                 break
-            args = {"query": task.query, "top_k": self.config.top_k}
+            args = {
+                "query": task.query,
+                "top_k": task.top_k if task.top_k > 0 else self.config.top_k,
+            }
             result, retries = self._execute_with_retry(tool, args)
             reply = self.responder.compose(task.query, result)
             self.memory.add("user", task.query)

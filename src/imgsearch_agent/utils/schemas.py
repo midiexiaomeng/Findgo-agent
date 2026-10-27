@@ -63,4 +63,5 @@ class TaskSpec(BaseModel):
     id: int = 0
     description: str = ""
     query: str = ""
+    top_k: int = Field(0, description="用户明确要求的数量，0 表示用默认值")
     status: str = Field("pending", description="pending | done | skipped")

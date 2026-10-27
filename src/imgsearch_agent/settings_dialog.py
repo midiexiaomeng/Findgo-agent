@@ -177,16 +177,12 @@ class SettingsDialog(QDialog):
         layout.setContentsMargins(16, 14, 16, 14)
         layout.setSpacing(10)
 
-        tip = QLabel("修改后写入 configs/agent.yaml，下次启动生效。")
+        tip = QLabel("返回数量由模型根据你的描述自动判断（例如“两张”就是 2 张），这里只调整置信阈值与重试次数。")
         tip.setStyleSheet("color:#6b7280; font-size:12px;")
         layout.addWidget(tip)
 
         form = QFormLayout()
         form.setSpacing(10)
-
-        self.top_k = QSpinBox()
-        self.top_k.setRange(1, 30)
-        form.addRow("返回数量 top_k", self.top_k)
 
         self.threshold = QDoubleSpinBox()
         self.threshold.setRange(0.0, 1.0)
@@ -317,7 +313,6 @@ class SettingsDialog(QDialog):
         from .config import AgentConfig
 
         cfg = AgentConfig()
-        self.top_k.setValue(cfg.top_k)
         self.threshold.setValue(cfg.similarity_threshold)
         self.retries.setValue(cfg.max_retries)
 
@@ -330,7 +325,6 @@ class SettingsDialog(QDialog):
         try:
             data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
             data.setdefault("agent", {})
-            data["agent"]["top_k"] = self.top_k.value()
             data["agent"]["similarity_threshold"] = round(self.threshold.value(), 2)
             data["agent"]["max_retries"] = self.retries.value()
             path.write_text(
