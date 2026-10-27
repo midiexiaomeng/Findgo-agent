@@ -101,7 +101,9 @@ class LLMReranker:
             report.elapsed = time.time() - started
             return [], report
 
-        candidates = list(hits)[: max(1, int(self.cfg.rerank.max_candidates))]
+        # 候选数至少覆盖用户要求的数量，否则要 20 张也只能返回 8 张
+        limit = max(1, max(int(self.cfg.rerank.max_candidates), top_k))
+        candidates = list(hits)[:limit]
         report.candidates = len(candidates)
 
         raw_scores = [float(h.score) for h in candidates]

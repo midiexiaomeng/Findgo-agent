@@ -61,7 +61,7 @@ rerank:
   # 用 API 时 key 走环境变量 DEEPSEEK_API_KEY，不写进文件
   backend: openai
   model: deepseek-flash
-  max_candidates: 8         # 进入 LLM 的候选数（8GB 显存建议 8）
+  max_candidates: 16        # 进入 LLM 的候选数下限；用户要更多时会自动放宽
   batch_size: 4             # 每次请求评估几张
   max_tokens: 256
   temperature: 0.0
