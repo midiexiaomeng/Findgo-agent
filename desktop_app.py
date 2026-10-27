@@ -134,7 +134,7 @@ class ImageGalleryDialog(QDialog):
         self.preview.setAlignment(Qt.AlignCenter)
         self.preview.setMinimumSize(420, 380)
         self.preview.setStyleSheet(
-            "background:#f9fafb;border-radius:8px;color:#9ca3af;font-size:12px;"
+            "background:#F8F7F3;border-radius:8px;color:#A8A8A8;font-size:12px;"
         )
 
         layout.addWidget(self.list)
@@ -174,6 +174,12 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("imgsearch Agent · 多模态图像检索")
         self.resize(1440, 880)
+        self.setStyleSheet(
+            "QMainWindow{background:#FBFAF7;}"
+            "QScrollBar:vertical{background:transparent;width:8px;}"
+            "QScrollBar::handle:vertical{background:#DEDBD3;border-radius:4px;min-height:24px;}"
+            "QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{height:0;}"
+        )
 
         self.worker: Worker | None = None
         self._cancel = False
@@ -203,7 +209,7 @@ class MainWindow(QMainWindow):
 
         header = QHBoxLayout()
         title = QLabel("对话")
-        title.setStyleSheet("font-weight:600; color:#374151; font-size:13px;")
+        title.setStyleSheet("font-weight:600; color:#4A4A4A; font-size:13px;")
         header.addWidget(title)
         header.addStretch(1)
 
@@ -232,8 +238,8 @@ class MainWindow(QMainWindow):
         self.chat_view.setOpenLinks(False)
         self.chat_view.anchorClicked.connect(self.on_chat_link)
         self.chat_view.setStyleSheet(
-            "QTextBrowser{border:1px solid #e5e7eb; border-radius:10px; "
-            "background:#ffffff; padding:10px; font-size:13px;}"
+            "QTextBrowser{border:1px solid #EDEBE6; border-radius:12px; "
+            "background:#FFFFFF; padding:16px; font-size:13px;}"
         )
         layout.addWidget(self.chat_view, 1)
         return panel
@@ -256,7 +262,7 @@ class MainWindow(QMainWindow):
             "描述你想找的图片，支持多行。Ctrl+Enter 发送，例如：\n找两张猫的图片，再找几张海边的日落"
         )
         self.input.setStyleSheet(
-            "QPlainTextEdit{border:1px solid #d1d5db;border-radius:10px;"
+            "QPlainTextEdit{border:1px solid #EDEBE6;border-radius:10px;"
             "padding:10px 12px 46px 12px;font-size:14px;background:#ffffff;}"
         )
         self.input.textChanged.connect(self._adjust_input_height)
@@ -273,15 +279,15 @@ class MainWindow(QMainWindow):
         self.model_btn.setToolButtonStyle(Qt.ToolButtonTextOnly)
         self.model_btn.setStyleSheet(
             "QToolButton{border:1px solid #d1d5db;border-radius:7px;"
-            "padding:6px 12px;background:#f9fafb;font-size:12px;}"
+            "padding:6px 12px;background:#F8F7F3;font-size:12px;}"
         )
         self.model_btn.clicked.connect(self.on_model_menu)
 
         self.send_btn = QPushButton("发送")
         self.send_btn.setStyleSheet(
-            "QPushButton{background:#2563eb;color:white;border:none;"
+            "QPushButton{background:#6F9C86;color:white;border:none;"
             "border-radius:7px;padding:7px 20px;font-size:13px;}"
-            "QPushButton:disabled{background:#93c5fd;}"
+            "QPushButton:disabled{background:#A8C9B8;}"
         )
         self.send_btn.clicked.connect(self.on_send)
 
@@ -292,7 +298,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(container)
 
         self.state_label = QLabel("输入需求后点发送，Agent 会自动规划并检索。")
-        self.state_label.setStyleSheet("font-size:12px; color:#6b7280;")
+        self.state_label.setStyleSheet("font-size:12px; color:#8A8A8A;")
         self.state_label.setWordWrap(True)
         layout.addWidget(self.state_label)
 
@@ -326,13 +332,13 @@ class MainWindow(QMainWindow):
 
         log_header = QHBoxLayout()
         log_title = QLabel("运行日志")
-        log_title.setStyleSheet("font-weight:600; color:#374151; font-size:12px;")
+        log_title.setStyleSheet("font-weight:600; color:#4A4A4A; font-size:12px;")
         self.new_chat_btn = QPushButton("新对话")
         self.new_chat_btn.setFixedHeight(22)
         self.new_chat_btn.setStyleSheet(
             "QPushButton{border:1px solid #d1d5db;border-radius:5px;"
             "padding:2px 8px;background:#fff;font-size:11px;}"
-            "QPushButton:hover{background:#f3f4f6;}"
+            "QPushButton:hover{background:#F2F0EA;}"
         )
         self.new_chat_btn.clicked.connect(self.on_new_chat)
         log_header.addWidget(log_title)
@@ -347,8 +353,8 @@ class MainWindow(QMainWindow):
         font.setPointSize(8)
         self.log_view.setFont(font)
         self.log_view.setStyleSheet(
-            "QPlainTextEdit{border:1px solid #e5e7eb; border-radius:6px; "
-            "background:#0f172a; color:#e2e8f0; padding:4px;}"
+            "QPlainTextEdit{border:1px solid #EDEBE6; border-radius:6px; "
+            "background:#F8F7F3; color:#4A4A4A; padding:6px;}"
         )
         log_layout.addWidget(self.log_view, 1)
         split.addWidget(log_panel)
@@ -359,7 +365,7 @@ class MainWindow(QMainWindow):
         mem_layout.setSpacing(4)
 
         mem_title = QLabel("任务记忆")
-        mem_title.setStyleSheet("font-weight:600; color:#374151; font-size:12px;")
+        mem_title.setStyleSheet("font-weight:600; color:#4A4A4A; font-size:12px;")
         mem_layout.addWidget(mem_title)
 
         mem_split = QSplitter(Qt.Vertical)
@@ -367,10 +373,10 @@ class MainWindow(QMainWindow):
         self.session_list = QListWidget()
         self.session_list.setMaximumHeight(110)
         self.session_list.setStyleSheet(
-            "QListWidget{border:1px solid #e5e7eb;border-radius:6px;"
+            "QListWidget{border:1px solid #EDEBE6;border-radius:6px;"
             "background:#fff;padding:2px;font-size:11px;}"
             "QListWidget::item{padding:3px 4px;}"
-            "QListWidget::item:selected{background:#e0e7ff;color:#1e40af;}"
+            "QListWidget::item:selected{background:#E3EFE7;color:#2E2E2E;}"
         )
         self.session_list.itemClicked.connect(self.on_session_clicked)
         self.session_list.itemDoubleClicked.connect(self.on_rename_session)
@@ -379,7 +385,7 @@ class MainWindow(QMainWindow):
 
         self.memory_view = QTextBrowser()
         self.memory_view.setStyleSheet(
-            "QTextBrowser{border:1px solid #e5e7eb; border-radius:6px; "
+            "QTextBrowser{border:1px solid #EDEBE6; border-radius:6px; "
             "background:#ffffff; padding:6px; font-size:11.5px;}"
         )
 
@@ -401,12 +407,12 @@ class MainWindow(QMainWindow):
         layout.setSpacing(4)
 
         title = QLabel("推理任务链")
-        title.setStyleSheet("font-weight:600; color:#374151; font-size:12px;")
+        title.setStyleSheet("font-weight:600; color:#4A4A4A; font-size:12px;")
         layout.addWidget(title)
 
         self.task_list = QListWidget()
         self.task_list.setStyleSheet(
-            "QListWidget{border:1px solid #e5e7eb; border-radius:6px; "
+            "QListWidget{border:1px solid #EDEBE6; border-radius:6px; "
             "background:#ffffff; padding:3px; font-size:11.5px;}"
         )
         self.task_list.setDragDropMode(QListWidget.InternalMove)
@@ -433,18 +439,18 @@ class MainWindow(QMainWindow):
 
         self.run_btn = QPushButton("重跑")
         self.run_btn.setStyleSheet(
-            "QPushButton{background:#16a34a;color:white;border:none;"
+            "QPushButton{background:#6F9C86;color:white;border:none;"
             "border-radius:5px;padding:4px 10px;font-size:12px;}"
-            "QPushButton:disabled{background:#86efac;}"
+            "QPushButton:disabled{background:#A8C9B8;}"
         )
         self.run_btn.setToolTip("按当前编辑后的任务链重新执行")
         self.run_btn.clicked.connect(self.on_run_tasks)
 
         self.stop_btn = QPushButton("停止")
         self.stop_btn.setStyleSheet(
-            "QPushButton{background:#ef4444;color:white;border:none;"
+            "QPushButton{background:#C97B6E;color:white;border:none;"
             "border-radius:5px;padding:4px 10px;font-size:12px;}"
-            "QPushButton:disabled{background:#fca5a5;}"
+            "QPushButton:disabled{background:#E2BCB3;}"
         )
         self.stop_btn.setToolTip("中断后续任务，当前这一条检索会先跑完")
         self.stop_btn.setEnabled(False)
@@ -463,7 +469,7 @@ class MainWindow(QMainWindow):
         layout.setSpacing(4)
 
         title = QLabel("文件与资源")
-        title.setStyleSheet("font-weight:600; color:#374151; font-size:12px;")
+        title.setStyleSheet("font-weight:600; color:#4A4A4A; font-size:12px;")
         layout.addWidget(title)
 
         nav_row = QHBoxLayout()
@@ -484,7 +490,7 @@ class MainWindow(QMainWindow):
         self.path_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
         self.path_label.setStyleSheet(
             "QLineEdit{background:transparent;border:none;"
-            "font-size:10.5px;color:#6b7280;padding:0;}"
+            "font-size:10.5px;color:#8A8A8A;padding:0;}"
         )
         self.results_btn = QPushButton("结果")
         self.results_btn.setFixedWidth(40)
@@ -504,7 +510,7 @@ class MainWindow(QMainWindow):
         self.tree.setHeaderHidden(True)
         self.tree.setRootIsDecorated(False)
         self.tree.setStyleSheet(
-            "QTreeWidget{border:1px solid #e5e7eb; border-radius:6px; "
+            "QTreeWidget{border:1px solid #EDEBE6; border-radius:6px; "
             "background:#ffffff; font-size:11.5px;}"
         )
         self.tree.itemClicked.connect(self.on_file_clicked)
@@ -514,8 +520,8 @@ class MainWindow(QMainWindow):
         self.preview.setAlignment(Qt.AlignCenter)
         self.preview.setMinimumHeight(110)
         self.preview.setStyleSheet(
-            "QLabel{border:1px solid #e5e7eb; border-radius:6px; "
-            "background:#fafafa; color:#9ca3af; font-size:11px;}"
+            "QLabel{border:1px solid #EDEBE6; border-radius:6px; "
+            "background:#fafafa; color:#A8A8A8; font-size:11px;}"
         )
 
         split.addWidget(self.tree)
@@ -552,7 +558,7 @@ class MainWindow(QMainWindow):
             w.setMinimumWidth(0)
 
         self.setCentralWidget(central)
-        self.setStyleSheet("QMainWindow{background:#f3f4f6;}")
+        self.setStyleSheet("QMainWindow{background:#F2F0EA;}")
 
     # ── 日志 / 记忆 ───────────────────────────────────────────────────────
 
@@ -581,12 +587,12 @@ class MainWindow(QMainWindow):
         rows = []
         for who, text in self.conversation[-80:]:
             safe = html.escape(str(text)).replace("\n", "<br/>")
-            color = "#2563eb" if who == "你" else "#111827"
+            color = "#6F9C86" if who == "你" else "#2E2E2E"
             rows.append(
                 f'<p style="margin:5px 0;color:{color};"><b>{who}：</b>{safe}</p>'
             )
         self.memory_view.setHtml(
-            "".join(rows) or "<p style='color:#9ca3af'>暂无对话</p>"
+            "".join(rows) or "<p style='color:#A8A8A8'>暂无对话</p>"
         )
         bar = self.memory_view.verticalScrollBar()
         bar.setValue(bar.maximum())
@@ -651,12 +657,26 @@ class MainWindow(QMainWindow):
             return ""
         return str(target)
 
+    def _highlight_paths(self, text: str) -> str:
+        """把路径这类技术文本做淡绿高亮，保留可读性。"""
+        import re
+
+        escaped = html.escape(str(text))
+        pattern = r"([A-Za-z]:\\[^\s<>\"']+|(?<![\w])/[\w./-]{3,})"
+        return re.sub(
+            pattern,
+            '<span style="color:#4E7A63;background:#EAF3EE;'
+            'padding:1px 4px;border-radius:3px;">'
+            + chr(92) + "1</span>",
+            escaped,
+        )
+
     def _chat_html(self, role: str, text: str, images: list | None = None) -> str:
-        safe = html.escape(str(text)).replace("\n", "<br/>")
+        safe = self._highlight_paths(text).replace("\n", "<br/>")
         if role == "你":
             return (
                 '<div style="margin:10px 0;text-align:right;">'
-                '<span style="display:inline-block;background:#2563eb;color:#ffffff;'
+                '<span style="display:inline-block;background:#E3EFE7;color:#2E2E2E;'
                 'padding:9px 14px;border-radius:14px;max-width:78%;'
                 'text-align:left;font-size:13px;">' + safe + "</span></div>"
             )
@@ -707,7 +727,7 @@ class MainWindow(QMainWindow):
 
         return (
             '<div style="margin:10px 0;text-align:left;">'
-            '<span style="display:inline-block;background:#f3f4f6;color:#111827;'
+            '<span style="display:inline-block;background:#F5F3EE;color:#2E2E2E;'
             'padding:9px 14px;border-radius:14px;max-width:78%;font-size:13px;">'
             + safe + thumbs + "</span></div>"
         )
