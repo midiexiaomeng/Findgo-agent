@@ -214,6 +214,19 @@ class Memory:
         except Exception:
             return []
 
+    def delete_session(self, session_id: str) -> None:
+        """彻底删除一个会话及其消息、任务、轨迹。"""
+        if self._db is None:
+            return
+        try:
+            for table in ("messages", "traces", "tasks", "sessions"):
+                self._db.execute(
+                    f"DELETE FROM {table} WHERE session_id = ?", (session_id,)
+                )
+            self._db.commit()
+        except Exception as e:
+            logger.warning("删除会话失败: %s", e)
+
     def prune_sessions(self, keep: int) -> int:
         if self._db is None or keep < 0:
             return 0

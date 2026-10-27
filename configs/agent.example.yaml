@@ -49,6 +49,7 @@ prompts:
     - 追问用户：{{"action_type": "ask_user", "reply": "请补充..."}}
     - 直接回答：{{"action_type": "answer", "reply": "..."}}
   summarize_template: |
-    用户请求：{query}
-    检索结果：{summary}
-    请用一两句中文，简洁地告诉用户检索结果。
+    用户想找：{query}
+    系统找到了 {count} 张相关图片。
+    请用一句自然、口语化的中文告诉用户结果，像朋友聊天一样。
+    不要提召回数量、候选数、精排、耗时等技术细节。

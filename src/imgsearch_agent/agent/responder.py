@@ -28,19 +28,20 @@ class Responder:
         if self.client is None:
             return self._fallback(images, summary)
 
-        template = self.prompts.get("summarize_template", "")
-        if template:
-            try:
-                prompt = template.format(
-                    query=query, summary=summary or f"{len(images)} 张图片"
-                )
-            except (KeyError, IndexError):
-                prompt = f"用户请求：{query}\n检索结果：{summary}"
+        count = len(images)
+        if count == 0:
+            prompt = (
+                f"用户想找：{query}\n"
+                "系统没有找到相关图片。\n"
+                "请用一句自然、口语化的中文告诉用户，并建议换个说法再试。"
+                "不要提召回数量、耗时等技术细节。"
+            )
         else:
             prompt = (
-                f"用户请求：{query}\n"
-                f"检索结果：{summary or f'{len(images)} 张图片'}\n"
-                "请用一两句中文总结。"
+                f"用户想找：{query}\n"
+                f"系统找到了 {count} 张相关图片。\n"
+                "请用一句自然、口语化的中文告诉用户结果，像朋友聊天一样。"
+                "不要提召回数量、候选数、精排、耗时等技术细节。"
             )
 
         try:

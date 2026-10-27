@@ -82,6 +82,7 @@ class QtLogHandler(logging.Handler):
 class Worker(QThread):
     done = pyqtSignal(object)
     failed = pyqtSignal(str)
+    progress = pyqtSignal(object)
 
     def __init__(self, fn, *args):
         super().__init__()
@@ -154,6 +155,8 @@ class MainWindow(QMainWindow):
 
         self.chat_view = QTextBrowser()
         self.chat_view.setOpenExternalLinks(False)
+        self.chat_view.setOpenLinks(False)
+        self.chat_view.anchorClicked.connect(self.on_chat_link)
         self.chat_view.setStyleSheet(
             "QTextBrowser{border:1px solid #e5e7eb; border-radius:10px; "
             "background:#ffffff; padding:10px; font-size:13px;}"
@@ -297,6 +300,8 @@ class MainWindow(QMainWindow):
         )
         self.session_list.itemClicked.connect(self.on_session_clicked)
         self.session_list.itemDoubleClicked.connect(self.on_rename_session)
+        self.session_list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.session_list.customContextMenuRequested.connect(self._session_menu)
 
         self.memory_view = QTextBrowser()
         self.memory_view.setStyleSheet(
@@ -506,10 +511,10 @@ class MainWindow(QMainWindow):
         safe = html.escape(str(text)).replace("\n", "<br/>")
         if role == "你":
             return (
-                '<div style="text-align:right;margin:8px 0;">'
-                '<span style="display:inline-block;background:#2563eb;color:#fff;'
-                'padding:8px 12px;border-radius:10px;max-width:82%;'
-                'text-align:left;">' + safe + "</span></div>"
+                '<div style="margin:10px 0;text-align:right;">'
+                '<span style="display:inline-block;background:#2563eb;color:#ffffff;'
+                'padding:9px 14px;border-radius:14px;max-width:78%;'
+                'text-align:left;font-size:13px;">' + safe + "</span></div>"
             )
 
         thumbs = ""
@@ -523,15 +528,17 @@ class MainWindow(QMainWindow):
                     except ValueError:
                         continue
                     parts.append(
-                        f'<img src="{uri}" width="104" style="margin:2px;border-radius:4px;">'
+                        '<a href="' + uri + '">'
+                        '<img src="' + uri + '" width="112" '
+                        'style="margin:3px;border-radius:6px;"></a>'
                     )
             if parts:
-                thumbs = '<div style="margin-top:6px;">' + "".join(parts) + "</div>"
+                thumbs = '<div style="margin-top:8px;">' + "".join(parts) + "</div>"
 
         return (
-            '<div style="text-align:left;margin:8px 0;">'
+            '<div style="margin:10px 0;text-align:left;">'
             '<span style="display:inline-block;background:#f3f4f6;color:#111827;'
-            'padding:8px 12px;border-radius:10px;max-width:82%;">'
+            'padding:9px 14px;border-radius:14px;max-width:78%;font-size:13px;">'
             + safe + thumbs + "</span></div>"
         )
 
@@ -539,6 +546,58 @@ class MainWindow(QMainWindow):
         self.chat_view.append(self._chat_html(role, text, images))
         bar = self.chat_view.verticalScrollBar()
         bar.setValue(bar.maximum())
+
+    def on_chat_link(self, url) -> None:
+        path = url.toLocalFile()
+        if path and Path(path).suffix.lower() in IMAGE_EXTS and Path(path).exists():
+            self._open_image_dialog(path)
+
+    def _open_image_dialog(self, path: str) -> None:
+        from PyQt5.QtWidgets import QDialog, QLabel, QVBoxLayout
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle(Path(path).name)
+        dialog.resize(960, 720)
+        layout = QVBoxLayout(dialog)
+        label = QLabel()
+        label.setAlignment(Qt.AlignCenter)
+        pixmap = QPixmap(path)
+        if not pixmap.isNull():
+            label.setPixmap(
+                pixmap.scaled(920, 680, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            )
+        layout.addWidget(label)
+        dialog.exec_()
+
+    def _session_menu(self, pos) -> None:
+        item = self.session_list.itemAt(pos)
+        if item is None:
+            return
+        menu = QMenu(self)
+        rename = menu.addAction("重命名")
+        rename.triggered.connect(lambda: self.on_rename_session(item))
+        delete = menu.addAction("删除此会话")
+        delete.triggered.connect(lambda: self._delete_session(item))
+        menu.exec_(self.session_list.mapToGlobal(pos))
+
+    def _delete_session(self, item: QListWidgetItem) -> None:
+        sid = item.data(Qt.UserRole)
+        if not sid or self.agent is None:
+            return
+        self.agent.memory.delete_session(sid)
+        if sid == self.agent.memory.session_id:
+            self.on_new_chat()
+        else:
+            self._refresh_sessions()
+        self.append_log(">>> 已删除会话 " + sid)
+
+    def on_tasks_ready(self, tasks) -> None:
+        self.task_list.clear()
+        for t in tasks:
+            self._add_task_item(t)
+        self.state_label.setText(
+            f"已规划 {len(tasks)} 条任务，正在检索…"
+        )
 
     def _load_chat(self, session_id: str) -> None:
         self.chat_view.clear()
@@ -795,6 +854,7 @@ class MainWindow(QMainWindow):
         self.append_log(">>> 用户：" + text.replace("\n", " ")[:60])
 
         self.worker = Worker(self._run_turn, text)
+        self.worker.progress.connect(self.on_tasks_ready)
         self.worker.done.connect(self.on_turn_done)
         self.worker.failed.connect(self.on_worker_failed)
         self.worker.finished.connect(self._finish_worker)
@@ -804,6 +864,12 @@ class MainWindow(QMainWindow):
         agent = self._get_agent()
         agent.memory.add("user", text)
         tasks = agent.plan_tasks(text)
+        try:
+            worker = self.worker
+            if worker is not None:
+                worker.progress.emit(tasks)
+        except Exception:
+            pass
         agent.memory.save_tasks(list(tasks))
         results = agent.run_tasks(tasks, write_memory=False)
         replies = [r.reply for r in results if r.reply]
