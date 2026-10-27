@@ -1,0 +1,167 @@
+"""Agent 编排器：把 planner、memory、critic、responder 与工具串起来。
+
+流程：
+    用户输入 → Planner 决策 → 调工具 → Critic 校验 → 低置信则改写重试
+    → Responder 合成 → 写入 Memory → 返回
+
+这是唯一知道"全流程"的模块，其余模块各自独立、可单独测试。
+"""
+
+from __future__ import annotations
+
+import logging
+import uuid
+from dataclasses import dataclass, field
+from typing import Any
+
+from ..config import AgentConfig
+from ..llm import ChatClient
+from ..tools import ImageRetrievalTool
+from ..tools.base_tool import BaseTool
+from ..utils.logger import TraceLogger
+from ..utils.schemas import AgentAction
+from .critic import Critic
+from .memory import Memory
+from .planner import Planner
+from .responder import Responder
+
+logger = logging.getLogger("imgsearch_agent.orchestrator")
+
+
+@dataclass
+class AgentResult:
+    reply: str
+    results: list = field(default_factory=list)
+    tool: str = ""
+    confidence: float = 0.0
+    trace_id: str = ""
+    retries: int = 0
+
+
+class ImageSearchAgent:
+    def __init__(
+        self,
+        config: AgentConfig | None = None,
+        client=None,
+        pipeline=None,
+        tools: dict[str, BaseTool] | None = None,
+    ):
+        self.config = config or AgentConfig()
+        self.client = client or ChatClient(self.config.llm)
+        self.planner = Planner(
+            self.client, self.config.prompts, self.config.max_iterations
+        )
+        self.critic = Critic(
+            self.client, self.config.similarity_threshold, self.config.max_retries
+        )
+        self.responder = Responder(self.client, self.config.prompts)
+
+        persist = self.config.resolve_db_path() if self.config.memory_persist else None
+        self.memory = Memory(persist_path=persist)
+
+        if tools is not None:
+            self.tools = tools
+        else:
+            self.tools = {"image_retrieval": ImageRetrievalTool(pipeline)}
+
+        self.trace = TraceLogger()
+
+    # ── 对外 ──────────────────────────────────────────────────────────────
+
+    def run(self, user_input: str) -> AgentResult:
+        user_input = (user_input or "").strip()
+        if not user_input:
+            return AgentResult(reply="请告诉我你想找什么图片。")
+
+        self.memory.add("user", user_input)
+        trace_id = uuid.uuid4().hex[:8]
+
+        tools_desc = "\n".join(t.signature() for t in self.tools.values())
+        action = self.planner.plan(
+            user_input, tools_desc, history=self.memory.recent(n=6)
+        )
+        self.trace.info(
+            "planner", "decide", action_type=action.action_type, thought=action.thought[:80]
+        )
+
+        if action.action_type in ("answer", "ask_user"):
+            reply = action.reply or "请补充一下你想找的图片内容。"
+            self.memory.add("assistant", reply)
+            return AgentResult(reply=reply, trace_id=trace_id)
+
+        if action.action_type != "tool_call":
+            reply = "抱歉，我没能理解这个请求。"
+            self.memory.add("assistant", reply)
+            return AgentResult(reply=reply, trace_id=trace_id)
+
+        tool_name = action.tool_name or "image_retrieval"
+        tool = self.tools.get(tool_name)
+        if tool is None:
+            reply = f"没有找到可用的工具：{tool_name}"
+            self.memory.add("assistant", reply)
+            return AgentResult(reply=reply, trace_id=trace_id)
+
+        args = action.tool_args or {}
+        if not args.get("query"):
+            args["query"] = user_input
+        args.setdefault("top_k", self.config.top_k)
+
+        result, retries = self._execute_with_retry(tool, args)
+        reply = self.responder.compose(user_input, result)
+        self.memory.add("assistant", reply)
+
+        return AgentResult(
+            reply=reply,
+            results=result.get("images", []),
+            tool=tool_name,
+            confidence=float(result.get("confidence", 0.0)),
+            trace_id=trace_id,
+            retries=retries,
+        )
+
+    # ── 内部 ──────────────────────────────────────────────────────────────
+
+    def _execute_with_retry(
+        self, tool: BaseTool, args: dict[str, Any]
+    ) -> tuple[dict[str, Any], int]:
+        query = str(args.get("query", ""))
+        attempt = 0
+        result: dict[str, Any] = {}
+
+        while True:
+            try:
+                result = tool.run(**args)
+            except Exception as e:
+                self.trace.error("tool", "run_failed", tool=tool.name, error=str(e))
+                logger.warning("工具执行失败: %s", e)
+                result = {"images": [], "confidence": 0.0, "summary": f"工具执行失败: {e}"}
+
+            critique = self.critic.check(result)
+            self.trace.info(
+                "critic",
+                "check",
+                passed=critique.passed,
+                confidence=round(critique.confidence, 3),
+                reason=critique.reason[:80],
+            )
+            self.memory.add_trace(
+                f"{self.memory.session_id}-{attempt}",
+                "tool_call" if attempt == 0 else "retry",
+                tool.name,
+                args,
+                {"images": len(result.get("images", [])), "confidence": critique.confidence},
+            )
+
+            if critique.passed or attempt >= self.critic.max_retries:
+                return result, attempt
+
+            attempt += 1
+            new_query = self.critic.rewrite(query, critique.reason)
+            if new_query == query:
+                return result, attempt
+            query = new_query
+            args = dict(args)
+            args["query"] = new_query
+
+    def close(self) -> None:
+        self.memory.close()
