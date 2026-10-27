@@ -84,8 +84,14 @@ class Sandbox:
             raise SandboxError(f"未知操作类型: {mode}")
 
         text = str(raw_path).strip().strip('"').strip("'")
+        candidate = Path(text).expanduser()
+
+        # 符号链接一律拒绝，避免链接指向白名单外的位置绕过边界
+        if self._has_symlink(candidate):
+            raise SandboxError(f"拒绝访问符号链接: {candidate}")
+
         try:
-            resolved = Path(text).expanduser().resolve(strict=False)
+            resolved = candidate.resolve(strict=False)
         except OSError as e:
             raise SandboxError(f"路径无法解析: {e}") from e
 
@@ -110,6 +116,22 @@ class Sandbox:
                 return resolved
 
         raise SandboxError(f"路径超出允许范围: {resolved}")
+
+    @staticmethod
+    def _has_symlink(path: Path) -> bool:
+        """检查路径本身或任意一级父目录是否为符号链接。"""
+        try:
+            current = path
+            while True:
+                if current.is_symlink():
+                    return True
+                parent = current.parent
+                if parent == current:
+                    break
+                current = parent
+        except OSError:
+            return False
+        return False
 
     @staticmethod
     def _within(path: Path, root: Path) -> bool:

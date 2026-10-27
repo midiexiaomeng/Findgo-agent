@@ -178,15 +178,20 @@ class ImageSearchAgent:
         tasks: list[TaskSpec],
         write_memory: bool = True,
         should_stop=None,
+        max_steps: int = 10,
     ) -> list[AgentResult]:
         """按任务列表逐条执行，跳过 skipped。
 
         write_memory=False 时由调用方统一写入对话记忆，避免一轮多任务产生重复消息。
         """
         results: list[AgentResult] = []
+        steps = 0
         for task in tasks:
             if task.status == "skipped":
                 continue
+            if steps >= max_steps:
+                logger.warning("达到最大执行步数 %d，终止剩余任务", max_steps)
+                break
             if should_stop is not None and should_stop():
                 logger.info("收到停止信号，剩余任务跳过")
                 break
@@ -224,6 +229,7 @@ class ImageSearchAgent:
                 self.memory.add("user", task.query or task.description)
                 self.memory.add("assistant", reply)
 
+            steps += 1
             results.append(
                 AgentResult(
                     reply=reply,

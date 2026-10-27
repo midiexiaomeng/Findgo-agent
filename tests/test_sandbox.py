@@ -77,3 +77,17 @@ def test_describe_lists_roots(tmp_path):
     text = sandbox.describe()
     assert "只读目录" in text
     assert "可写目录" in text
+
+def test_symlink_rejected(tmp_path):
+    sandbox, images, _ = make(tmp_path)
+    target = images / "a.txt"
+    target.write_text("x", encoding="utf-8")
+    link = images / "link.txt"
+
+    try:
+        link.symlink_to(target)
+    except (OSError, NotImplementedError):
+        pytest.skip("当前环境不支持创建符号链接")
+
+    with pytest.raises(SandboxError):
+        sandbox.check(link, "read")
