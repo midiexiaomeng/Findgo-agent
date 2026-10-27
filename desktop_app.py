@@ -26,6 +26,7 @@ from PyQt5.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QListWidget,
     QListWidgetItem,
     QMainWindow,
@@ -34,6 +35,7 @@ from PyQt5.QtWidgets import (
     QPushButton,
     QScrollArea,
     QShortcut,
+    QSizePolicy,
     QSplitter,
     QTextBrowser,
     QToolButton,
@@ -409,8 +411,16 @@ class MainWindow(QMainWindow):
             "padding:3px 0;background:#fff;font-size:12px;}"
         )
         self.up_btn.clicked.connect(self._go_up)
-        self.path_label = QLabel(str(ROOT))
-        self.path_label.setStyleSheet("font-size:10.5px;color:#6b7280;")
+        self.path_label = QLineEdit(str(ROOT))
+        self.path_label.setReadOnly(True)
+        self.path_label.setFrame(False)
+        self.path_label.setFocusPolicy(Qt.NoFocus)
+        self.path_label.setMinimumWidth(0)
+        self.path_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
+        self.path_label.setStyleSheet(
+            "QLineEdit{background:transparent;border:none;"
+            "font-size:10.5px;color:#6b7280;padding:0;}"
+        )
         self.path_label.setToolTip(str(ROOT))
         self.results_btn = QPushButton("结果")
         self.results_btn.setFixedWidth(40)
