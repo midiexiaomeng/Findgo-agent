@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -43,6 +44,7 @@ class IndexStats:
     captioned: int = 0
     pruned: int = 0
     elapsed: float = 0.0
+    locked: bool = False  # 同一目录已有索引任务在跑，本次被跳过
     errors: list[str] = field(default_factory=list)
 
     def summary(self) -> str:
@@ -77,7 +79,20 @@ class Indexer:
         self.store = store
         self.captioner = captioner
 
+        # 按文件夹加锁：同一目录同一时间只允许一个索引任务，不同目录互不影响
+        self._folder_locks: dict[str, threading.Lock] = {}
+        self._locks_guard = threading.Lock()
+
     # ── 对外 ────────────────────────────────────────────────────────────────
+
+    def _folder_lock(self, folder: Path) -> threading.Lock:
+        key = str(folder.resolve()).lower()
+        with self._locks_guard:
+            lock = self._folder_locks.get(key)
+            if lock is None:
+                lock = threading.Lock()
+                self._folder_locks[key] = lock
+            return lock
 
     def index_folder(
         self,
@@ -90,6 +105,35 @@ class Indexer:
         prune_missing: bool = False,
     ) -> IndexStats:
         folder = Path(folder).expanduser()
+        lock = self._folder_lock(folder)
+
+        if not lock.acquire(blocking=False):
+            logger.info("目录 %s 正在索引中，跳过本次请求", folder)
+            return IndexStats(locked=True)
+
+        try:
+            return self._index_folder_locked(
+                folder,
+                recursive=recursive,
+                reset=reset,
+                skip_existing=skip_existing,
+                with_caption=with_caption,
+                progress=progress,
+                prune_missing=prune_missing,
+            )
+        finally:
+            lock.release()
+
+    def _index_folder_locked(
+        self,
+        folder: Path,
+        recursive: bool = True,
+        reset: bool = False,
+        skip_existing: bool = True,
+        with_caption: bool | None = None,
+        progress: ProgressFn | None = None,
+        prune_missing: bool = False,
+    ) -> IndexStats:
         if not folder.exists() or not folder.is_dir():
             raise FileNotFoundError(f"文件夹不存在: {folder}")
 

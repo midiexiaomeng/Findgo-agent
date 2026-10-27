@@ -69,6 +69,10 @@ class ImageRetrievalTool(BaseTool):
                 skip_existing=True,
                 progress=progress,
             )
+            if stats.locked:
+                # 另一个任务正在索引同一个目录，本次不标记已完成
+                logger.info("目录正在索引中，本次自动索引跳过")
+                return
             logger.info("索引完成: %s", stats.summary())
         except Exception as e:
             logger.warning("自动索引 %s 失败: %s", folder, e)
