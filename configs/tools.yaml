@@ -132,3 +132,22 @@ tools:
         type: boolean
         description: True 只统计，False 真正删除
         default: true
+
+  - name: find_duplicates
+    module: imgsearch_agent.tools.find_duplicates
+    class: FindDuplicatesTool
+    enabled: true
+    description: 在索引里找出视觉重复的图片，按相似度分组
+    parameters:
+      folder_path:
+        type: string
+        description: 只在该文件夹内查找
+        required: false
+      threshold:
+        type: number
+        description: 相似度阈值
+        default: 0.97
+      max_items:
+        type: integer
+        description: 最多分析多少张
+        default: 5000

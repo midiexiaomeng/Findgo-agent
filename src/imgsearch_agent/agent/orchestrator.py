@@ -19,6 +19,7 @@ from ..llm import ChatClient
 from ..tools import (
     DescribeImageTool,
     ExportResultsTool,
+    FindDuplicatesTool,
     FolderScanTool,
     GetIndexStatsTool,
     ImageSearchByImageTool,
@@ -97,6 +98,7 @@ class ImageSearchAgent:
                 "list_indexed_folders": ListIndexedFoldersTool(pipeline),
                 "describe_image": DescribeImageTool(pipeline, guard=guard),
                 "export_results": ExportResultsTool(pipeline, guard=guard),
+                "find_duplicates": FindDuplicatesTool(pipeline, guard=guard),
                 "remove_index": RemoveIndexTool(pipeline, guard=guard),
                 "folder_scan": FolderScanTool(guard=guard),
             }

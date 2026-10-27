@@ -1,6 +1,7 @@
 from .base_tool import BaseTool
 from .describe_image import DescribeImageArgs, DescribeImageTool
 from .export_results import ExportResultsArgs, ExportResultsTool
+from .find_duplicates import FindDuplicatesArgs, FindDuplicatesTool
 from .folder_scan import FolderScanArgs, FolderScanTool
 from .get_index_stats import GetIndexStatsTool
 from .image_retrieval import ImageRetrievalArgs, ImageRetrievalTool
@@ -19,6 +20,8 @@ __all__ = [
     "DescribeImageTool",
     "ExportResultsArgs",
     "ExportResultsTool",
+    "FindDuplicatesArgs",
+    "FindDuplicatesTool",
     "FolderScanArgs",
     "FolderScanTool",
     "GetIndexStatsTool",

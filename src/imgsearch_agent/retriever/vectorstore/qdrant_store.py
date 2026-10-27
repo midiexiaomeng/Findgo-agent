@@ -306,6 +306,34 @@ class QdrantVectorStore(VectorStore):
         except Exception:
             return 0
 
+    def get_vectors(
+        self, limit: int | None = None
+    ) -> list[tuple[str, np.ndarray, dict]]:
+        out: list[tuple[str, np.ndarray, dict]] = []
+        offset = None
+        remaining = int(limit or 100000)
+
+        while remaining > 0:
+            batch, offset = self._client.scroll(
+                collection_name=self.collection,
+                limit=min(1000, remaining),
+                offset=offset,
+                with_payload=True,
+                with_vectors=True,
+            )
+            for point in batch:
+                out.append(
+                    (
+                        str(point.id),
+                        np.asarray(point.vector, dtype=np.float32),
+                        dict(point.payload or {}),
+                    )
+                )
+            remaining -= len(batch)
+            if not batch or offset is None:
+                break
+        return out
+
     def get_all_ids(self) -> list[str]:
         ids: list[str] = []
         offset = None
