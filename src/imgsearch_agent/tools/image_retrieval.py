@@ -6,13 +6,18 @@ Agent 只看到 name / description / args_schema / run，
 
 from __future__ import annotations
 
+import logging
+
 from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
 
+from ..utils.path_guard import PathGuard, PathSecurityError
 from ..utils.schemas import RetrievalResult, RetrievedImage
 from .base_tool import BaseTool
+
+logger = logging.getLogger("imgsearch_agent.image_retrieval")
 
 
 class ImageRetrievalArgs(BaseModel):
@@ -26,9 +31,10 @@ class ImageRetrievalTool(BaseTool):
     description = "用自然语言描述搜索本地图片库，返回图片路径、描述与相似度"
     args_schema = ImageRetrievalArgs
 
-    def __init__(self, pipeline=None):
+    def __init__(self, pipeline=None, guard: PathGuard | None = None):
         self._pipeline = pipeline
         self._indexed: set[str] = set()
+        self.guard = guard or PathGuard()
 
     @property
     def pipeline(self):
@@ -58,10 +64,20 @@ class ImageRetrievalTool(BaseTool):
     def run(self, query: str, top_k: int = 8, path: str = "") -> dict[str, Any]:
         scope = ""
         if path:
-            folder = Path(path).expanduser()
-            if folder.exists() and folder.is_dir():
+            try:
+                folder = self.guard.check(path)
+            except PathSecurityError as e:
+                # 越界路径直接拒绝，不做任何索引动作
+                logger.warning("路径校验拒绝: %s", e)
+                return RetrievalResult(
+                    query=query,
+                    images=[],
+                    confidence=0.0,
+                    summary=f"路径不安全，已拒绝：{e}",
+                ).model_dump()
+            if folder.is_dir():
                 self._ensure_indexed(folder)
-                scope = str(folder.resolve())
+                scope = str(folder)
 
         resp = self.pipeline.searcher.search_text(
             query, top_k=top_k, scope=scope or None

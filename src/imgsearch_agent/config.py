@@ -40,6 +40,11 @@ class AgentConfig:
         self.llm: dict[str, Any] = raw.get("llm", {}) or {}
         self.prompts: dict[str, str] = raw.get("prompts", {}) or {}
 
+        security = raw.get("security", {}) or {}
+        self.allowed_roots = [
+            str(r) for r in (security.get("allowed_roots") or []) if r
+        ]
+
         memory = raw.get("memory", {}) or {}
         self.memory_persist = bool(memory.get("persist", False))
         self.memory_db_path = memory.get("db_path", "./data/agent_sessions.sqlite")

@@ -16,7 +16,7 @@ from typing import Any
 
 from ..config import AgentConfig
 from ..llm import ChatClient
-from ..tools import ImageRetrievalTool
+from ..tools import FolderScanTool, ImageRetrievalTool
 from ..tools.base_tool import BaseTool
 from ..utils.logger import TraceLogger
 from ..utils.schemas import AgentAction, TaskSpec
@@ -62,7 +62,13 @@ class ImageSearchAgent:
         if tools is not None:
             self.tools = tools
         else:
-            self.tools = {"image_retrieval": ImageRetrievalTool(pipeline)}
+            from ..utils.path_guard import PathGuard
+
+            guard = PathGuard(self.config.allowed_roots or None)
+            self.tools = {
+                "image_retrieval": ImageRetrievalTool(pipeline, guard=guard),
+                "folder_scan": FolderScanTool(guard=guard),
+            }
 
         self.trace = TraceLogger()
 
