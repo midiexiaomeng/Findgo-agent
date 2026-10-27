@@ -70,8 +70,8 @@ rerank:
     base_url: http://localhost:11434
     timeout: 120
   openai:                   # vLLM / LM Studio / llama.cpp server / 云端
-    base_url: http://localhost:8000/v1
-    api_key: not-needed
+    base_url: https://api.deepseek.com/v1
+    api_key: ""            # 留空，用环境变量 DEEPSEEK_API_KEY
     timeout: 120
   transformers:             # 直接用 transformers 加载本地权重，不需要任何服务
     model_path: ./models/Qwen2.5-3B-Instruct

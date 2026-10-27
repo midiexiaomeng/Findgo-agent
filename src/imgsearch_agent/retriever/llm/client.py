@@ -38,6 +38,16 @@ class LLMClient:
         self._avail_cache: tuple[float, tuple[bool, str]] = (0.0, (False, "未检查"))
         self._hf = None
 
+    @property
+    def api_key(self) -> str:
+        """统一取 Key：环境变量优先于配置文件。"""
+        return (
+            os.environ.get("DEEPSEEK_API_KEY")
+            or os.environ.get("OPENAI_API_KEY")
+            or self.cfg.openai.api_key
+            or "x"
+        )
+
     # ── 对外 ────────────────────────────────────────────────────────────────
 
     def chat(
@@ -101,7 +111,7 @@ class LLMClient:
                 return True, f"Ollama 就绪，模型 {want}"
 
             base = self.cfg.openai.base_url.rstrip("/")
-            headers = {"Authorization": f"Bearer {os.environ.get('DEEPSEEK_API_KEY') or os.environ.get('OPENAI_API_KEY') or self.cfg.openai.api_key or 'x'}"}
+            headers = {"Authorization": f"Bearer {self.api_key}"}
             resp = requests.get(f"{base}/models", headers=headers, timeout=5)
             if resp.status_code >= 400:
                 return False, f"OpenAI 兼容端点返回 {resp.status_code}"
@@ -176,7 +186,7 @@ class LLMClient:
             payload["response_format"] = {"type": "json_object"}
 
         headers = {
-            "Authorization": f"Bearer {os.environ.get('DEEPSEEK_API_KEY') or os.environ.get('OPENAI_API_KEY') or self.cfg.openai.api_key or 'x'}",
+            "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
 
