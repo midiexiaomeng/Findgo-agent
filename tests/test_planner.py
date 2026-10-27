@@ -62,3 +62,25 @@ def test_plan_llm_error_falls_back():
     action = planner.plan("x", "y")
     assert action.action_type == "answer"
     assert "无法完成" in action.reply
+
+
+def test_plan_tasks_parses_multiple():
+    class TaskClient:
+        def chat(self, messages, json_mode=False, max_tokens=512):
+            return (
+                '{"tasks":[{"id":1,"description":"找猫","query":"猫"},'
+                '{"id":2,"description":"找狗","query":"狗"}]}'
+            )
+
+    planner = Planner(TaskClient(), {"system": "s"}, max_iterations=5)
+    tasks = planner.plan_tasks("找猫和狗", "image_retrieval — 搜索")
+    assert len(tasks) == 2
+    assert tasks[0].query == "猫"
+    assert tasks[1].description == "找狗"
+
+
+def test_plan_tasks_falls_back_on_bad_json():
+    planner = make_planner("这不是 JSON")
+    tasks = planner.plan_tasks("找猫", "tools")
+    assert len(tasks) == 1
+    assert tasks[0].query == "找猫"

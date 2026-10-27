@@ -43,6 +43,11 @@ class FakeClient:
     def chat(self, messages, json_mode=False, max_tokens=512):
         content = messages[-1]["content"]
         self.calls.append(content)
+        if "拆解" in content:
+            return (
+                '{"tasks":[{"id":1,"description":"找猫","query":"猫"},'
+                '{"id":2,"description":"找狗","query":"狗"}]}'
+            )
         if "原始查询" in content:
             return "橘猫"
         if "检索结果" in content:
@@ -101,3 +106,23 @@ def test_unknown_tool_handled():
     agent = make_agent(client, FakePipeline())
     result = agent.run("随便")
     assert "没有找到可用的工具" in result.reply
+
+
+def test_plan_tasks():
+    agent = make_agent(FakeClient(), FakePipeline())
+    tasks = agent.plan_tasks("找猫和狗")
+    assert len(tasks) == 2
+    assert [t.query for t in tasks] == ["猫", "狗"]
+
+
+def test_run_tasks_skips_skipped():
+    from imgsearch_agent.utils.schemas import TaskSpec
+
+    agent = make_agent(FakeClient(), FakePipeline())
+    tasks = [
+        TaskSpec(id=1, description="找猫", query="猫"),
+        TaskSpec(id=2, description="找狗", query="狗", status="skipped"),
+    ]
+    results = agent.run_tasks(tasks)
+    assert len(results) == 1
+    assert results[0].tool == "image_retrieval"

@@ -19,7 +19,7 @@ from ..llm import ChatClient
 from ..tools import ImageRetrievalTool
 from ..tools.base_tool import BaseTool
 from ..utils.logger import TraceLogger
-from ..utils.schemas import AgentAction
+from ..utils.schemas import AgentAction, TaskSpec
 from .critic import Critic
 from .memory import Memory
 from .planner import Planner
@@ -118,6 +118,43 @@ class ImageSearchAgent:
             trace_id=trace_id,
             retries=retries,
         )
+
+
+
+    # ── 任务规划与分步执行 ────────────────────────────────────────────────
+
+    def plan_tasks(self, user_input: str) -> list[TaskSpec]:
+        """让 Planner 拆解任务，供界面展示与人工干预。"""
+        tools_desc = "\n".join(t.signature() for t in self.tools.values())
+        return self.planner.plan_tasks(
+            user_input, tools_desc, history=self.memory.recent(n=6)
+        )
+
+    def run_tasks(self, tasks: list[TaskSpec]) -> list[AgentResult]:
+        """按任务列表逐条执行，跳过 skipped。"""
+        results: list[AgentResult] = []
+        for task in tasks:
+            if task.status == "skipped" or not task.query.strip():
+                continue
+            tool = self.tools.get("image_retrieval")
+            if tool is None:
+                break
+            args = {"query": task.query, "top_k": self.config.top_k}
+            result, retries = self._execute_with_retry(tool, args)
+            reply = self.responder.compose(task.query, result)
+            self.memory.add("user", task.query)
+            self.memory.add("assistant", reply)
+            results.append(
+                AgentResult(
+                    reply=reply,
+                    results=result.get("images", []),
+                    tool="image_retrieval",
+                    confidence=float(result.get("confidence", 0.0)),
+                    trace_id=uuid.uuid4().hex[:8],
+                    retries=retries,
+                )
+            )
+        return results
 
     # ── 内部 ──────────────────────────────────────────────────────────────
 

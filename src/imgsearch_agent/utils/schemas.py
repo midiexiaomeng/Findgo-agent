@@ -55,3 +55,12 @@ class AgentState(BaseModel):
     iterations: int = 0
     retries: int = 0
     final_answer: str = ""
+
+
+class TaskSpec(BaseModel):
+    """一条可分步执行的任务。"""
+
+    id: int = 0
+    description: str = ""
+    query: str = ""
+    status: str = Field("pending", description="pending | done | skipped")

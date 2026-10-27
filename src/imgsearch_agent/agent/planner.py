@@ -11,7 +11,7 @@ import logging
 import re
 from typing import Sequence
 
-from ..utils.schemas import AgentAction
+from ..utils.schemas import AgentAction, TaskSpec
 
 logger = logging.getLogger("imgsearch_agent.planner")
 
@@ -69,6 +69,56 @@ class Planner:
                 reply="抱歉，我没能理解这个请求。",
             )
 
+
+
+    # ── 任务拆解 ──────────────────────────────────────────────────────────
+
+    def plan_tasks(
+        self,
+        query: str,
+        tools_desc: str,
+        history: Sequence[dict[str, str]] = (),
+    ) -> list[TaskSpec]:
+        """把复杂需求拆成 1-3 个检索任务。"""
+        prompt = (
+            f"可用工具：\n{tools_desc}\n\n"
+            f"用户需求：{query}\n\n"
+            "请把需求拆解为 1 到 3 个可在本地图片库执行的检索任务。"
+            "每个任务给出 description（一句话说明）和 query（简短检索词）。"
+            '只输出 JSON：{"tasks":[{"id":1,"description":"...","query":"..."}]}'
+        )
+        messages: list[dict[str, str]] = [
+            {"role": "system", "content": self.prompts.get("system", "")},
+        ]
+        for item in history[-4:]:
+            messages.append(item)
+        messages.append({"role": "user", "content": prompt})
+
+        try:
+            raw = self.client.chat(messages, json_mode=True, max_tokens=384)
+        except Exception as e:
+            logger.warning("任务拆解调用失败: %s", e)
+            return [TaskSpec(id=1, description=query, query=query)]
+
+        data = self._parse(raw)
+        tasks = data.get("tasks") if isinstance(data, dict) else None
+        if not isinstance(tasks, list) or not tasks:
+            return [TaskSpec(id=1, description=query, query=query)]
+
+        result: list[TaskSpec] = []
+        for i, item in enumerate(tasks[:3], 1):
+            if not isinstance(item, dict):
+                continue
+            q = str(item.get("query") or item.get("description") or query)
+            result.append(
+                TaskSpec(
+                    id=int(item.get("id", i)),
+                    description=str(item.get("description") or q),
+                    query=q,
+                )
+            )
+        return result or [TaskSpec(id=1, description=query, query=query)]
+
     # ── 解析 ──────────────────────────────────────────────────────────────
 
     @staticmethod
@@ -80,7 +130,7 @@ class Planner:
         if m:
             try:
                 data = json.loads(m.group(0))
-                if isinstance(data, dict) and "action_type" in data:
+                if isinstance(data, dict):
                     return data
             except json.JSONDecodeError:
                 pass
