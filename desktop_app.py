@@ -521,7 +521,12 @@ class MainWindow(QMainWindow):
         if images:
             parts = []
             for img in images[:4]:
-                path = img.get("path", "") if isinstance(img, dict) else getattr(img, "path", "")
+                if isinstance(img, str):
+                    path = img
+                elif isinstance(img, dict):
+                    path = img.get("path", "")
+                else:
+                    path = getattr(img, "path", "")
                 if path and Path(path).exists():
                     try:
                         uri = Path(path).as_uri()
@@ -608,7 +613,7 @@ class MainWindow(QMainWindow):
             role = "你" if m.get("role") == "user" else "Agent"
             content = m.get("content", "")
             self.conversation.append((role, content))
-            self._append_chat(role, content)
+            self._append_chat(role, content, m.get("images") or [])
         self._render_memory()
 
     def on_clear_chat(self) -> None:
@@ -875,7 +880,12 @@ class MainWindow(QMainWindow):
         replies = [r.reply for r in results if r.reply]
         combined = "\n".join(replies) or "没有找到相关图片。"
         images = [img for r in results for img in r.results]
-        agent.memory.add("assistant", combined)
+        image_paths = [
+            (img.get("path", "") if isinstance(img, dict) else getattr(img, "path", ""))
+            for img in images
+        ]
+        image_paths = [p for p in image_paths if p]
+        agent.memory.add("assistant", combined, images=image_paths)
         return tasks, results, combined, images
 
     def on_turn_done(self, payload) -> None:
@@ -916,7 +926,12 @@ class MainWindow(QMainWindow):
         replies = [r.reply for r in results if r.reply]
         combined = "\n".join(replies) or "没有找到相关图片。"
         images = [img for r in results for img in r.results]
-        agent.memory.add("assistant", combined)
+        image_paths = [
+            (img.get("path", "") if isinstance(img, dict) else getattr(img, "path", ""))
+            for img in images
+        ]
+        image_paths = [p for p in image_paths if p]
+        agent.memory.add("assistant", combined, images=image_paths)
         return tasks, results, combined, images
 
     def on_worker_failed(self, error: str) -> None:

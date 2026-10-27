@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS messages (
     session_id TEXT NOT NULL,
     role TEXT NOT NULL,
     content TEXT,
+    images TEXT,
     created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS traces (
@@ -92,9 +93,21 @@ class Memory:
         conn = sqlite3.connect(str(path), check_same_thread=False)
         conn.executescript(_SCHEMA)
         conn.commit()
+        self._migrate(conn)
         self._backfill_sessions(conn)
         logger.info("记忆库已连接: %s", path)
         return conn
+
+    @staticmethod
+    def _migrate(conn: sqlite3.Connection) -> None:
+        """旧版本 messages 表没有 images 字段，这里补上。"""
+        try:
+            cols = [r[1] for r in conn.execute("PRAGMA table_info(messages)").fetchall()]
+            if "images" not in cols:
+                conn.execute("ALTER TABLE messages ADD COLUMN images TEXT")
+                conn.commit()
+        except Exception:
+            pass
 
     @staticmethod
     def _backfill_sessions(conn: sqlite3.Connection) -> None:
@@ -206,11 +219,18 @@ class Memory:
             return []
         try:
             rows = self._db.execute(
-                "SELECT role, content FROM messages WHERE session_id = ? "
+                "SELECT role, content, images FROM messages WHERE session_id = ? "
                 "ORDER BY id LIMIT ?",
                 (session_id, limit),
             ).fetchall()
-            return [{"role": r[0], "content": r[1]} for r in rows]
+            out = []
+            for r in rows:
+                try:
+                    images = json.loads(r[2]) if r[2] else []
+                except Exception:
+                    images = []
+                out.append({"role": r[0], "content": r[1], "images": images})
+            return out
         except Exception:
             return []
 
@@ -289,15 +309,23 @@ class Memory:
 
     # ── 写 ────────────────────────────────────────────────────────────────
 
-    def add(self, role: str, content: str) -> None:
+    def add(
+        self,
+        role: str,
+        content: str,
+        images: list[str] | None = None,
+    ) -> None:
         item = {"role": role, "content": content, "created_at": _now()}
         self._messages.append(item)
         if self._db is not None:
             try:
+                images_json = (
+                    json.dumps(images, ensure_ascii=False) if images else None
+                )
                 self._db.execute(
-                    "INSERT INTO messages(session_id, role, content, created_at) "
-                    "VALUES (?, ?, ?, ?)",
-                    (self.session_id, role, content, item["created_at"]),
+                    "INSERT INTO messages(session_id, role, content, images, created_at) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (self.session_id, role, content, images_json, item["created_at"]),
                 )
                 self._db.execute(
                     "UPDATE sessions SET updated_at = ? WHERE session_id = ?",
