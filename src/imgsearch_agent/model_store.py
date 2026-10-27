@@ -18,27 +18,27 @@ PROVIDERS: dict[str, dict[str, Any]] = {
     "deepseek": {
         "name": "DeepSeek",
         "base_url": "https://api.deepseek.com/v1",
-        "models": ["deepseek-flash", "deepseek-chat"],
+        "models": ["deepseek-flash", "deepseek-chat", "deepseek-reasoner"],
     },
     "dashscope": {
         "name": "阿里百炼",
         "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        "models": ["qwen-plus", "qwen-turbo", "qwen-max"],
+        "models": ["qwen-plus", "qwen-turbo", "qwen-max", "qwen-long"],
     },
     "moonshot": {
         "name": "月之暗面",
         "base_url": "https://api.moonshot.cn/v1",
-        "models": ["moonshot-v1-8k", "moonshot-v1-32k"],
+        "models": ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"],
     },
     "zhipu": {
         "name": "智谱",
         "base_url": "https://open.bigmodel.cn/api/paas/v4",
-        "models": ["glm-4-flash", "glm-4-plus"],
+        "models": ["glm-4-flash", "glm-4-air", "glm-4-plus", "glm-4-long"],
     },
     "openai": {
         "name": "OpenAI",
         "base_url": "https://api.openai.com/v1",
-        "models": ["gpt-4o-mini", "gpt-4o"],
+        "models": ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "o4-mini"],
     },
     "custom": {
         "name": "自定义 / 本地服务",

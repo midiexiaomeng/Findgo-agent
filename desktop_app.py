@@ -502,8 +502,8 @@ class MainWindow(QMainWindow):
         store = ModelStore()
         menu = QMenu(self)
         if not store.models:
-            act = menu.addAction("尚未添加模型，去设置…")
-            act.triggered.connect(self.on_settings)
+            act = menu.addAction("尚未添加模型，点击添加…")
+            act.triggered.connect(self.on_add_model)
         else:
             for entry in store.models:
                 label = entry.get("label", entry.get("model", ""))
@@ -513,7 +513,7 @@ class MainWindow(QMainWindow):
                     lambda checked=False, mid=entry.get("id"): self.on_select_model(mid)
                 )
             menu.addSeparator()
-            menu.addAction("设置…").triggered.connect(self.on_settings)
+            menu.addAction("添加模型…").triggered.connect(self.on_add_model)
 
         # 贴近按钮向上弹出，避免跳到屏幕中央
         pos = self.model_btn.mapToGlobal(QPoint(0, self.model_btn.height()))
@@ -532,8 +532,14 @@ class MainWindow(QMainWindow):
         self.append_log(f">>> 切换模型：{entry.get('label')}")
 
     def on_settings(self) -> None:
-        store = ModelStore()
-        dialog = SettingsDialog(store, self)
+        self._open_settings(SettingsDialog.PAGE_MODELS)
+
+    def on_add_model(self) -> None:
+        """从模型菜单直接跳到「添加模型」页。"""
+        self._open_settings(SettingsDialog.PAGE_MODELS)
+
+    def _open_settings(self, page: int) -> None:
+        dialog = SettingsDialog(ModelStore(), self, page=page)
         dialog.models_changed.connect(self._on_models_changed)
         dialog.exec_()
         self._on_models_changed()
