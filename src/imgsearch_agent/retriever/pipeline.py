@@ -62,20 +62,46 @@ class Pipeline:
     def switch_backend(self, backend: str) -> str:
         """切换向量库。
 
+        顺序是「先建新连接 → 自检 → 再关旧连接」，任何一步失败都保留原后端，
+        避免出现旧库已关闭、新库又不可用的空档。
+
         注意：两个库的数据是各自独立的，切换后需要重新索引。
-        这里只换连接，不搬数据；搬数据应该由用户显式决定。
         """
         with self._lock:
             if backend == self.store.backend_name:
                 return f"当前已经是 {backend}"
 
             old = self.store
+
+            # 1. 创建新连接（旧连接保持不动）
+            try:
+                new_store = create_vector_store(self.cfg, backend)
+            except Exception as e:
+                logger.warning("切换 %s 失败，保留原后端: %s", backend, e)
+                raise RuntimeError(
+                    f"目标后端 {backend} 初始化失败，仍使用 {old.backend_name}：{e}"
+                ) from e
+
+            # 2. 写入 + 查询 + 删除，确认真能读写
+            try:
+                self._probe_backend(new_store)
+            except Exception as e:
+                try:
+                    new_store.close()
+                except Exception:
+                    pass
+                logger.warning("目标后端 %s 自检失败，保留原后端: %s", backend, e)
+                raise RuntimeError(
+                    f"目标后端 {backend} 自检失败，仍使用 {old.backend_name}：{e}"
+                ) from e
+
+            # 3. 自检通过，关掉旧连接再切换
             try:
                 old.close()
             except Exception:
                 pass
 
-            self.store = create_vector_store(self.cfg, backend)
+            self.store = new_store
             self._bind()
             self.cfg.vector_store.backend = backend
             logger.info("向量库已切换: %s", backend)
@@ -83,6 +109,33 @@ class Pipeline:
                 f"已切换到 {backend}（collection={self.store.collection}，"
                 f"现有 {self.store.count()} 条）。两个后端的数据不共享，需要重新索引。"
             )
+
+    @staticmethod
+    def _probe_backend(store) -> None:
+        """写入一条探测记录，确认能查能删。"""
+        import uuid
+
+        import numpy as np
+
+        probe_id = f"__probe__{uuid.uuid4().hex}"
+        dim = int(getattr(store, "embedding_dim", 512) or 512)
+        vector = np.random.rand(dim).astype(np.float32)
+        vector /= max(float(np.linalg.norm(vector)), 1e-8)
+
+        store.add(
+            [probe_id],
+            vector.reshape(1, -1),
+            [{"path": "__probe__", "filename": "__probe__"}],
+        )
+
+        hits = store.query(vector, top_k=1)
+        if not hits:
+            raise RuntimeError("写入成功但查询不到记录")
+
+        store.delete([probe_id])
+        leftover = [h for h in store.query(vector, top_k=1) if h.id == probe_id]
+        if leftover:
+            raise RuntimeError("删除后仍能查到探测记录")
 
     # ── 状态 ────────────────────────────────────────────────────────────────
 
