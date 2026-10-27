@@ -10,8 +10,10 @@ from __future__ import annotations
 
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDialog,
+    QFileDialog,
     QDoubleSpinBox,
     QFormLayout,
     QHBoxLayout,
@@ -54,11 +56,20 @@ class SettingsDialog(QDialog):
 
     PAGE_MODELS = 0
     PAGE_PARAMS = 1
-    PAGE_ABOUT = 2
+    PAGE_VECTOR = 2
+    PAGE_PATHS = 3
+    PAGE_ABOUT = 4
 
-    def __init__(self, store: ModelStore, parent=None, page: int = PAGE_MODELS):
+    def __init__(
+        self,
+        store: ModelStore,
+        parent=None,
+        page: int = PAGE_MODELS,
+        agent=None,
+    ):
         super().__init__(parent)
         self.store = store
+        self.agent = agent
         self.worker: TestWorker | None = None
 
         self.setWindowTitle("设置")
@@ -68,6 +79,8 @@ class SettingsDialog(QDialog):
         self._on_provider_changed()
         self._refresh_list()
         self._load_params()
+        self._load_vector()
+        self._load_paths()
 
     # ── 界面骨架 ──────────────────────────────────────────────────────────
 
@@ -83,12 +96,14 @@ class SettingsDialog(QDialog):
             "QListWidget::item{padding:9px 12px;border-radius:6px;margin:2px 6px;}"
             "QListWidget::item:selected{background:#e0e7ff;color:#1e40af;}"
         )
-        self.nav.addItems(["添加模型", "检索参数", "关于"])
+        self.nav.addItems(["添加模型", "检索参数", "向量库", "目录与安全", "关于"])
         self.nav.currentRowChanged.connect(self._on_nav_changed)
 
         self.stack = QStackedWidget()
         self.stack.addWidget(self._build_models_page())
         self.stack.addWidget(self._build_params_page())
+        self.stack.addWidget(self._build_vector_page())
+        self.stack.addWidget(self._build_paths_page())
         self.stack.addWidget(self._build_about_page())
 
         root.addWidget(self.nav)
@@ -200,6 +215,22 @@ class SettingsDialog(QDialog):
         self.max_sessions.setToolTip("超过这个数量后，新建对话会删除最旧的会话")
         form.addRow("保留会话数", self.max_sessions)
 
+        self.top_k = QSpinBox()
+        self.top_k.setRange(1, 50)
+        self.top_k.setToolTip("用户没明确说数量时，默认返回几张")
+        form.addRow("默认返回数", self.top_k)
+
+        self.recall_k = QSpinBox()
+        self.recall_k.setRange(10, 300)
+        self.recall_k.setToolTip("向量库先召回多少候选，越多越不容易漏")
+        form.addRow("召回候选数", self.recall_k)
+
+        self.rerank_enabled = QCheckBox("用大模型对候选做语义重排")
+        form.addRow("LLM 重排", self.rerank_enabled)
+
+        self.caption_enabled = QCheckBox("索引时生成图像描述，参与重排")
+        form.addRow("图像描述", self.caption_enabled)
+
         layout.addLayout(form)
 
         save_btn = QPushButton("保存参数")
@@ -214,6 +245,98 @@ class SettingsDialog(QDialog):
         self.params_status.setStyleSheet("color:#6b7280; font-size:12px;")
         layout.addWidget(self.params_status)
         layout.addStretch(1)
+        return page
+
+    # ── 向量库页 ──────────────────────────────────────────────────────────
+
+    def _build_vector_page(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(16, 14, 16, 14)
+        layout.setSpacing(10)
+
+        tip = QLabel(
+            "切换向量库只更换连接，两个后端的数据不共享，切换后需要重新建索引。"
+        )
+        tip.setWordWrap(True)
+        tip.setStyleSheet("color:#6b7280; font-size:12px;")
+        layout.addWidget(tip)
+
+        form = QFormLayout()
+        form.setSpacing(10)
+
+        self.backend_box = QComboBox()
+        self.backend_box.addItems(["qdrant", "chroma"])
+        form.addRow("向量库", self.backend_box)
+
+        self.collection_edit = QLineEdit()
+        form.addRow("集合名", self.collection_edit)
+
+        self.vector_info = QLabel("")
+        self.vector_info.setStyleSheet("color:#374151; font-size:12px;")
+        self.vector_info.setWordWrap(True)
+        form.addRow("当前状态", self.vector_info)
+
+        layout.addLayout(form)
+
+        apply_btn = QPushButton("应用后端")
+        apply_btn.setStyleSheet(
+            "QPushButton{background:#2563eb;color:white;border:none;"
+            "border-radius:6px;padding:7px 18px;}"
+        )
+        apply_btn.clicked.connect(self.on_apply_vector)
+        layout.addWidget(apply_btn, 0, Qt.AlignLeft)
+
+        self.vector_status = QLabel("")
+        self.vector_status.setStyleSheet("color:#6b7280; font-size:12px;")
+        self.vector_status.setWordWrap(True)
+        layout.addWidget(self.vector_status)
+        layout.addStretch(1)
+        return page
+
+    # ── 目录与安全页 ──────────────────────────────────────────────────────
+
+    def _build_paths_page(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(16, 14, 16, 14)
+        layout.setSpacing(10)
+
+        tip = QLabel(
+            "Agent 只能访问这里列出的目录；系统目录（Windows、Program Files）始终禁止。"
+            "留空表示使用默认范围：项目目录 + 用户主目录。"
+        )
+        tip.setWordWrap(True)
+        tip.setStyleSheet("color:#6b7280; font-size:12px;")
+        layout.addWidget(tip)
+
+        self.roots_list = QListWidget()
+        self.roots_list.setStyleSheet(
+            "QListWidget{border:1px solid #e5e7eb;border-radius:6px;"
+            "background:#fff;padding:4px;font-size:12.5px;}"
+        )
+        layout.addWidget(self.roots_list, 1)
+
+        buttons = QHBoxLayout()
+        add_btn = QPushButton("添加目录")
+        add_btn.clicked.connect(self.on_add_root)
+        del_btn = QPushButton("移除选中")
+        del_btn.clicked.connect(self.on_del_root)
+        save_btn = QPushButton("保存")
+        save_btn.setStyleSheet(
+            "QPushButton{background:#16a34a;color:white;border:none;"
+            "border-radius:6px;padding:7px 18px;}"
+        )
+        save_btn.clicked.connect(self.on_save_paths)
+        buttons.addWidget(add_btn)
+        buttons.addWidget(del_btn)
+        buttons.addStretch(1)
+        buttons.addWidget(save_btn)
+        layout.addLayout(buttons)
+
+        self.paths_status = QLabel("")
+        self.paths_status.setStyleSheet("color:#6b7280; font-size:12px;")
+        layout.addWidget(self.paths_status)
         return page
 
     # ── 关于页 ────────────────────────────────────────────────────────────
@@ -323,6 +446,20 @@ class SettingsDialog(QDialog):
         self.max_sessions.setValue(cfg.memory_max_sessions)
         self.retries.setValue(cfg.max_retries)
 
+        try:
+            from .retriever import Config
+
+            rcfg = Config.from_yaml()
+            self.top_k.setValue(int(rcfg.search.top_k))
+            self.recall_k.setValue(int(rcfg.search.recall_k))
+            self.rerank_enabled.setChecked(bool(rcfg.rerank.enabled))
+            self.caption_enabled.setChecked(bool(rcfg.caption.enabled))
+        except Exception:
+            self.top_k.setValue(12)
+            self.recall_k.setValue(50)
+            self.rerank_enabled.setChecked(True)
+            self.caption_enabled.setChecked(True)
+
     def on_save_params(self) -> None:
         import yaml
 
@@ -340,7 +477,121 @@ class SettingsDialog(QDialog):
                 yaml.safe_dump(data, allow_unicode=True, sort_keys=False),
                 encoding="utf-8",
             )
+
+            cpath = PROJECT_ROOT / "config.yaml"
+            cdata = yaml.safe_load(cpath.read_text(encoding="utf-8")) or {}
+            cdata.setdefault("search", {})
+            cdata["search"]["top_k"] = self.top_k.value()
+            cdata["search"]["recall_k"] = self.recall_k.value()
+            cdata.setdefault("rerank", {})
+            cdata["rerank"]["enabled"] = self.rerank_enabled.isChecked()
+            cdata.setdefault("caption", {})
+            cdata["caption"]["enabled"] = self.caption_enabled.isChecked()
+            cpath.write_text(
+                yaml.safe_dump(cdata, allow_unicode=True, sort_keys=False),
+                encoding="utf-8",
+            )
+
             self.params_status.setText("已保存并即时生效。")
             self.config_changed.emit()
         except Exception as e:
             self.params_status.setText(f"保存失败：{e}")
+
+    # ── 向量库 ────────────────────────────────────────────────────────────
+
+    def _load_vector(self) -> None:
+        try:
+            from .retriever import Config
+
+            cfg = Config.from_yaml()
+            self.collection_edit.setText(str(cfg.vector_store.collection))
+            backend = str(cfg.vector_store.backend).lower()
+            if backend in ("chroma", "chromadb"):
+                self.backend_box.setCurrentText("chroma")
+            else:
+                self.backend_box.setCurrentText("qdrant")
+            self.vector_info.setText(f"配置文件：{cfg.vector_store.backend}")
+        except Exception as e:
+            self.vector_info.setText(f"读取失败：{e}")
+
+    def on_apply_vector(self) -> None:
+        import yaml
+
+        from .config import PROJECT_ROOT
+
+        backend = self.backend_box.currentText()
+        collection = self.collection_edit.text().strip() or "images"
+        try:
+            path = PROJECT_ROOT / "config.yaml"
+            data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            data.setdefault("vector_store", {})
+            data["vector_store"]["backend"] = backend
+            data["vector_store"]["collection"] = collection
+            path.write_text(
+                yaml.safe_dump(data, allow_unicode=True, sort_keys=False),
+                encoding="utf-8",
+            )
+        except Exception as e:
+            self.vector_status.setText(f"写入配置失败：{e}")
+            return
+
+        if self.agent is None:
+            self.vector_status.setText("已保存，重启应用后生效。")
+            return
+
+        tool = self.agent.tools.get("switch_vector_backend")
+        if tool is None:
+            self.vector_status.setText("已保存，重启应用后生效。")
+            return
+
+        try:
+            result = tool.run(backend)
+            self.vector_status.setText(str(result.get("summary", "已切换")))
+        except Exception as e:
+            self.vector_status.setText(f"切换失败：{e}")
+
+    # ── 目录与安全 ────────────────────────────────────────────────────────
+
+    def _load_paths(self) -> None:
+        try:
+            from .config import AgentConfig
+
+            cfg = AgentConfig()
+            for root in cfg.allowed_roots:
+                self.roots_list.addItem(str(root))
+        except Exception:
+            pass
+
+    def on_add_root(self) -> None:
+        folder = QFileDialog.getExistingDirectory(self, "选择允许访问的目录")
+        if folder:
+            self.roots_list.addItem(folder)
+
+    def on_del_root(self) -> None:
+        row = self.roots_list.currentRow()
+        if row >= 0:
+            self.roots_list.takeItem(row)
+
+    def on_save_paths(self) -> None:
+        import yaml
+
+        from .config import PROJECT_ROOT
+
+        roots = [
+            self.roots_list.item(i).text().strip()
+            for i in range(self.roots_list.count())
+            if self.roots_list.item(i).text().strip()
+        ]
+        try:
+            path = PROJECT_ROOT / "configs" / "agent.yaml"
+            data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            data.setdefault("security", {})
+            data["security"]["allowed_roots"] = roots
+            path.write_text(
+                yaml.safe_dump(data, allow_unicode=True, sort_keys=False),
+                encoding="utf-8",
+            )
+            self.paths_status.setText("已保存并即时生效。")
+            self.config_changed.emit()
+        except Exception as e:
+            self.paths_status.setText(f"保存失败：{e}")

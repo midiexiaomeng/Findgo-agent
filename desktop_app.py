@@ -756,7 +756,7 @@ class MainWindow(QMainWindow):
         self._open_settings(SettingsDialog.PAGE_MODELS)
 
     def _open_settings(self, page: int) -> None:
-        dialog = SettingsDialog(ModelStore(), self, page=page)
+        dialog = SettingsDialog(ModelStore(), self, page=page, agent=self.agent)
         dialog.models_changed.connect(self._on_models_changed)
         dialog.config_changed.connect(self._on_config_changed)
         dialog.exec_()
@@ -776,16 +776,41 @@ class MainWindow(QMainWindow):
             return
         try:
             from imgsearch_agent.config import AgentConfig
+            from imgsearch_agent.utils.path_guard import PathGuard
 
             cfg = AgentConfig()
             self.agent.config.memory_max_sessions = cfg.memory_max_sessions
             self.agent.config.similarity_threshold = cfg.similarity_threshold
             self.agent.config.max_retries = cfg.max_retries
+            self.agent.config.allowed_roots = list(cfg.allowed_roots)
             self.agent.critic.threshold = cfg.similarity_threshold
             self.agent.critic.max_retries = cfg.max_retries
+
+            # 安全根目录热更新：所有带 guard 的工具换成同一份新规则
+            guard = PathGuard(cfg.allowed_roots or None)
+            for tool in self.agent.tools.values():
+                if hasattr(tool, "guard"):
+                    tool.guard = guard
+
+            # 检索参数热更新：只改已创建的 Pipeline，未创建的等首次检索读新配置
+            try:
+                from imgsearch_agent.retriever import Config as RetrieverConfig
+
+                rcfg = RetrieverConfig.from_yaml()
+                tool = self.agent.tools.get("image_retrieval")
+                pipeline = getattr(tool, "_pipeline", None) if tool else None
+                if pipeline is not None:
+                    pipeline.cfg.search.top_k = rcfg.search.top_k
+                    pipeline.cfg.search.recall_k = rcfg.search.recall_k
+                    pipeline.cfg.rerank.enabled = rcfg.rerank.enabled
+                    pipeline.cfg.caption.enabled = rcfg.caption.enabled
+            except Exception:
+                pass
+
             self._refresh_sessions()
             self.append_log(
-                f">>> 设置已更新：保留会话 {cfg.memory_max_sessions} 个"
+                f">>> 设置已更新：保留会话 {cfg.memory_max_sessions} 个，"
+                f"允许目录 {len(cfg.allowed_roots) or '默认'} 个"
             )
         except Exception as e:
             self.append_log("应用设置失败: " + str(e))
