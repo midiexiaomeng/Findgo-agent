@@ -1,0 +1,22 @@
+# 生产依赖：部署脚本只装这一份
+# 开发用的 pytest 等放在 requirements-dev.txt
+
+numpy>=1.24,<3
+Pillow>=9.5
+PyYAML>=6.0
+requests>=2.28
+tqdm>=4.65
+
+# 模型推理
+torch>=2.0
+torchvision>=0.15
+transformers>=4.35
+sentencepiece>=0.1.99
+huggingface_hub>=0.20
+
+# 向量库：两个都装，切换才真正无缝
+chromadb>=0.4.22
+qdrant-client>=1.7
+
+# 界面
+gradio>=4.0

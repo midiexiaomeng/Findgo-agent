@@ -1,0 +1,87 @@
+# imgsearch 配置
+# 修改后重启程序生效；所有相对路径都相对本文件所在目录。
+
+# 运行设备：auto | cpu | cuda | cuda:0 | mps
+device: auto
+
+app:
+  title: 多模态图像检索
+  host: 127.0.0.1
+  port: 7860
+  open_browser: true
+  share: false
+  log_level: INFO
+
+paths:
+  models_dir: ./models      # 模型权重目录（不入包，由下载脚本填充）
+  data_dir: ./data          # 向量库与缓存
+
+# ── 第一级：跨模态嵌入 ────────────────────────────────────────────────
+embedding:
+  # 短名：优先 models/<短名>，找不到才回退 HuggingFace
+  model: chinese-clip-vit-base-patch16
+  fallback: OFA-Sys/chinese-clip-vit-base-patch16
+  embedding_dim: 512
+  normalize: true
+  batch_size: 32
+  max_text_length: 52
+  max_image_side: 1024      # 送入编码器前的最长边；控制显存
+  use_fp16: true
+  device: cpu               # CLIP 单独放 CPU，把显存留给 3B 重排；留空则跟随全局
+
+# ── 第二级：向量库（改 backend 一行即可切换）─────────────────────────
+vector_store:
+  backend: qdrant           # chromadb | qdrant
+  collection: images
+  chromadb:
+    path: ./data/chromadb
+  qdrant:
+    mode: local             # local 嵌入式（无需服务）| server
+    path: ./data/qdrant
+    url: http://localhost:6333
+    api_key: ""
+    timeout: 30
+
+# ── 图像描述（BLIP）──────────────────────────────────────────────────
+caption:
+  enabled: true
+  model: blip-image-captioning-base
+  fallback: Salesforce/blip-image-captioning-base
+  batch_size: 8
+  max_new_tokens: 40
+  beam_size: 3
+  cache_db: ./data/captions.sqlite
+  use_fp16: false           # BLIP 在 fp16 下偶尔生成不稳定，默认 fp32
+  unload_after_index: true  # 索引完释放显存，给 7B 模型让路
+
+# ── 第三级：LLM 语义重排 ─────────────────────────────────────────────
+rerank:
+  enabled: true
+  backend: transformers     # ollama | openai | transformers | none
+  model: Qwen2.5-3B-Instruct
+  max_candidates: 8         # 进入 LLM 的候选数（8GB 显存建议 8）
+  batch_size: 4             # 每次请求评估几张
+  max_tokens: 256
+  temperature: 0.0
+  retries: 1
+  ollama:
+    base_url: http://localhost:11434
+    timeout: 120
+  openai:                   # vLLM / LM Studio / llama.cpp server / 云端
+    base_url: http://localhost:8000/v1
+    api_key: not-needed
+    timeout: 120
+  transformers:             # 直接用 transformers 加载本地权重，不需要任何服务
+    model_path: ./models/Qwen2.5-3B-Instruct
+    device: auto
+    dtype: float16
+    max_input_tokens: 1536
+
+# ── 检索参数 ─────────────────────────────────────────────────────────
+search:
+  recall_k: 50              # ANN 召回数：宁多勿漏
+  top_k: 12                 # 最终展示数
+  min_score: 0.0
+  fusion:
+    vector_weight: 0.35
+    llm_weight: 0.65

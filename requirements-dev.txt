@@ -1,0 +1,4 @@
+-r requirements-core.txt
+
+# 仅开发/测试需要
+pytest>=7.0

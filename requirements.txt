@@ -1,0 +1,25 @@
+# 多模态图像检索 · 核心依赖
+# torch 请按显卡情况单独安装（见 README），这里不锁死版本避免覆盖已有环境。
+
+numpy>=1.24,<3
+Pillow>=9.5
+PyYAML>=6.0
+requests>=2.28
+tqdm>=4.65
+
+# 模型
+torch>=2.0
+torchvision>=0.15
+transformers>=4.35
+sentencepiece>=0.1.99
+huggingface_hub>=0.20
+
+# 向量库（两个都装，切换才真正"无缝"）
+chromadb>=0.4.22
+qdrant-client>=1.7
+
+# 界面
+gradio>=4.0
+
+# 打包/开发
+pytest>=7.0

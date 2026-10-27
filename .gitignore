@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+
+# 环境
+.env
+.venv/
+venv/
+env/
+.venv-local/
+.venv-api/
+
+# 部署生成的配置（可能含 API Key，绝不入库/入包）
+config.local.yaml
+config.api.yaml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 模型权重：不进仓库，由 scripts/download_models.py 拉取
+models/
+!models/README.txt
+
+# 便携版 Ollama（程序 + 模型）
+ollama/
+
+# 向量库、描述缓存、日志
+data/
+datasets/
+*.sqlite
+*.sqlite3
+*.log
+
+# 打包产物
+dist/
+*.zip
+VERSION
+
+# 旧版本备份
+legacy/
+
+# 示例图片保留
+!examples/test_images/*.jpg
+!examples/test_images/*.png
+
+# 系统
+.DS_Store
+Thumbs.db
