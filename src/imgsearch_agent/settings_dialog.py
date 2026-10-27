@@ -9,7 +9,9 @@
 from __future__ import annotations
 
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import (
+    QApplication,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -58,7 +60,8 @@ class SettingsDialog(QDialog):
     PAGE_PARAMS = 1
     PAGE_VECTOR = 2
     PAGE_PATHS = 3
-    PAGE_ABOUT = 4
+    PAGE_DIAG = 4
+    PAGE_ABOUT = 5
 
     def __init__(
         self,
@@ -96,7 +99,9 @@ class SettingsDialog(QDialog):
             "QListWidget::item{padding:9px 12px;border-radius:6px;margin:2px 6px;}"
             "QListWidget::item:selected{background:#e0e7ff;color:#1e40af;}"
         )
-        self.nav.addItems(["添加模型", "检索参数", "向量库", "目录与安全", "关于"])
+        self.nav.addItems(
+            ["添加模型", "检索参数", "向量库", "目录与安全", "环境自检", "关于"]
+        )
         self.nav.currentRowChanged.connect(self._on_nav_changed)
 
         self.stack = QStackedWidget()
@@ -104,6 +109,7 @@ class SettingsDialog(QDialog):
         self.stack.addWidget(self._build_params_page())
         self.stack.addWidget(self._build_vector_page())
         self.stack.addWidget(self._build_paths_page())
+        self.stack.addWidget(self._build_diag_page())
         self.stack.addWidget(self._build_about_page())
 
         root.addWidget(self.nav)
@@ -112,6 +118,8 @@ class SettingsDialog(QDialog):
     def _on_nav_changed(self, index: int) -> None:
         if 0 <= index < self.stack.count():
             self.stack.setCurrentIndex(index)
+        if index == self.PAGE_DIAG and hasattr(self, "diag_list"):
+            self.run_diagnostics()
 
     # ── 添加模型页 ────────────────────────────────────────────────────────
 
@@ -339,6 +347,61 @@ class SettingsDialog(QDialog):
         self.paths_status.setStyleSheet("color:#6b7280; font-size:12px;")
         layout.addWidget(self.paths_status)
         return page
+
+    # ── 环境自检页 ────────────────────────────────────────────────────────
+
+    def _build_diag_page(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(16, 14, 16, 14)
+        layout.setSpacing(10)
+
+        tip = QLabel(
+            "只读探测：不加载模型、不连接向量库，检查依赖、显卡、模型文件与配置。"
+        )
+        tip.setWordWrap(True)
+        tip.setStyleSheet("color:#6b7280; font-size:12px;")
+        layout.addWidget(tip)
+
+        self.diag_list = QListWidget()
+        self.diag_list.setStyleSheet(
+            "QListWidget{border:1px solid #e5e7eb;border-radius:6px;"
+            "background:#fff;padding:6px;font-size:12.5px;}"
+        )
+        layout.addWidget(self.diag_list, 1)
+
+        row = QHBoxLayout()
+        self.diag_btn = QPushButton("重新检测")
+        self.diag_btn.clicked.connect(self.run_diagnostics)
+        self.diag_status = QLabel("")
+        self.diag_status.setStyleSheet("color:#6b7280; font-size:12px;")
+        row.addWidget(self.diag_btn)
+        row.addWidget(self.diag_status, 1)
+        layout.addLayout(row)
+        return page
+
+    def run_diagnostics(self) -> None:
+        from .diagnostics import run_checks, summarize
+
+        self.diag_btn.setEnabled(False)
+        self.diag_status.setText("检测中…")
+        QApplication.processEvents()
+
+        try:
+            checks = run_checks()
+            self.diag_list.clear()
+            for check in checks:
+                mark = "✓" if check["ok"] else "✗"
+                item = QListWidgetItem(
+                    f"{mark}  {check['name']}：{check['detail']}"
+                )
+                item.setForeground(QColor("#16a34a" if check["ok"] else "#dc2626"))
+                self.diag_list.addItem(item)
+            self.diag_status.setText(summarize(checks))
+        except Exception as e:
+            self.diag_status.setText(f"检测失败：{e}")
+        finally:
+            self.diag_btn.setEnabled(True)
 
     # ── 关于页 ────────────────────────────────────────────────────────────
 
