@@ -34,6 +34,7 @@ from PyQt5.QtCore import QObject, QPoint, QRect, Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QFont, QKeySequence, QPixmap
 from PyQt5.QtWidgets import (
     QApplication,
+    QDialog,
     QGridLayout,
     QHBoxLayout,
     QInputDialog,
@@ -105,6 +106,69 @@ class Worker(QThread):
 # ── 主窗口 ────────────────────────────────────────────────────────────────────
 
 
+class ImageGalleryDialog(QDialog):
+    """全部图片：左侧文件名列表，悬停预览，双击放大。"""
+
+    def __init__(self, paths, parent=None):
+        super().__init__(parent)
+        self.paths = [str(p) for p in paths if p]
+        self.setWindowTitle(f"全部图片（{len(self.paths)} 张）")
+        self.resize(720, 480)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(10)
+
+        self.list = QListWidget()
+        self.list.setFixedWidth(240)
+        self.list.setMouseTracking(True)
+        for path in self.paths:
+            item = QListWidgetItem(Path(path).name)
+            item.setData(Qt.UserRole, path)
+            item.setToolTip(path)
+            self.list.addItem(item)
+        self.list.itemEntered.connect(self._show_preview)
+        self.list.itemDoubleClicked.connect(self._open_large)
+
+        self.preview = QLabel("把鼠标移到文件名上预览")
+        self.preview.setAlignment(Qt.AlignCenter)
+        self.preview.setMinimumSize(420, 380)
+        self.preview.setStyleSheet(
+            "background:#f9fafb;border-radius:8px;color:#9ca3af;font-size:12px;"
+        )
+
+        layout.addWidget(self.list)
+        layout.addWidget(self.preview, 1)
+
+    def _show_preview(self, item) -> None:
+        path = item.data(Qt.UserRole)
+        pixmap = QPixmap(path)
+        if pixmap.isNull():
+            self.preview.setText("无法预览")
+            return
+        self.preview.setPixmap(
+            pixmap.scaled(
+                self.preview.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation
+            )
+        )
+
+    def _open_large(self, item) -> None:
+        path = item.data(Qt.UserRole)
+        dialog = QDialog(self)
+        dialog.setWindowTitle(Path(path).name)
+        dialog.resize(960, 720)
+        layout = QVBoxLayout(dialog)
+        label = QLabel()
+        label.setAlignment(Qt.AlignCenter)
+        pixmap = QPixmap(path)
+        if not pixmap.isNull():
+            label.setPixmap(
+                pixmap.scaled(920, 680, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            )
+        layout.addWidget(label)
+        dialog.exec_()
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -115,6 +179,7 @@ class MainWindow(QMainWindow):
         self.agent = None
         self.conversation: list[tuple[str, str]] = []
         self.last_results: list[dict] = []
+        self._galleries: dict[str, list] = {}
         self.tree_root: Path = ROOT
         self.results_mode = False
 
@@ -571,7 +636,7 @@ class MainWindow(QMainWindow):
         if images:
             parts = []
             shown = 0
-            for img in images[:60]:
+            for img in images[:20]:
                 if isinstance(img, str):
                     path = img
                 elif isinstance(img, dict):
@@ -584,8 +649,8 @@ class MainWindow(QMainWindow):
                 if not thumb:
                     continue
                 try:
-                    full_uri = Path(path).as_uri()
-                    thumb_uri = Path(thumb).as_uri()
+                    full_uri = Path(path).resolve().as_uri()
+                    thumb_uri = Path(thumb).resolve().as_uri()
                 except ValueError:
                     continue
                 parts.append(
@@ -596,19 +661,20 @@ class MainWindow(QMainWindow):
                 shown += 1
 
             if parts:
-                rest = len(images) - shown
-                extra = ""
-                if rest > 0:
-                    extra = (
-                        '<div style="color:#6b7280;font-size:12px;'
-                        'margin-top:6px;">还有 ' + str(rest) + " 张未显示</div>"
-                    )
                 thumbs = (
                     '<div style="margin-top:8px;line-height:0;">'
                     + "".join(parts)
                     + "</div>"
-                    + extra
                 )
+                rest = len(images) - shown
+                if rest > 0:
+                    gid = f"g{len(self._galleries)}"
+                    self._galleries[gid] = list(images)
+                    thumbs += (
+                        '<div style="margin-top:8px;font-size:12px;">'
+                        '<a href="gallery:' + gid + '">'
+                        "查看全部 " + str(len(images)) + " 张</a></div>"
+                    )
 
         return (
             '<div style="margin:10px 0;text-align:left;">'
@@ -623,6 +689,12 @@ class MainWindow(QMainWindow):
         bar.setValue(bar.maximum())
 
     def on_chat_link(self, url) -> None:
+        if url.scheme() == "gallery":
+            paths = self._galleries.get(url.path(), [])
+            if paths:
+                ImageGalleryDialog(paths, self).exec_()
+            return
+
         path = url.toLocalFile()
         if path and Path(path).suffix.lower() in IMAGE_EXTS and Path(path).exists():
             self._open_image_dialog(path)
@@ -676,6 +748,7 @@ class MainWindow(QMainWindow):
 
     def _load_chat(self, session_id: str) -> None:
         self.chat_view.clear()
+        self._galleries.clear()
         self.conversation = []
         if self.agent is None:
             return
