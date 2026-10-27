@@ -9,13 +9,18 @@ agent:
 
 llm:
   # 与 retriever 的重排模型相互独立，Agent 决策/总结可单独指定后端
-  # openai: 任意 OpenAI 兼容 API（DeepSeek、通义、月之暗面、OpenAI 等）
+  # openai: 任意 OpenAI 兼容 API（DeepSeek V4 Flash、通义、月之暗面、OpenAI 等）
   # ollama: 本地 Ollama
   backend: openai
-  model: deepseek-chat
+  # DeepSeek V4.1 Flash 官方模型名为 deepseek-flash；旧版可用 deepseek-v4-flash
+  model: deepseek-flash
   base_url: https://api.deepseek.com/v1
   api_key: ""          # 填入你的 API Key
   timeout: 120
+  # DeepSeek V4 可选推理强度：low / high / max，留空则不传
+  reasoning_effort: ""
+  # 其他需要透传给 API 的参数
+  extra_body: {}
 
 prompts:
   system: |

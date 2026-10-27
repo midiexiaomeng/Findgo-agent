@@ -1,6 +1,14 @@
-"""Agent 层聊天客户端：支持 OpenAI 兼容 API 与 Ollama。
+"""Agent 层聊天客户端。
 
-只做一件事：把 messages 发出去，拿回文本。不关心检索。
+支持：
+- OpenAI 兼容 API（DeepSeek V4 Flash、通义、月之暗面、OpenAI 等）
+- Ollama 本地服务
+
+针对 DeepSeek V4 系列的兼容处理：
+- 模型名可配：deepseek-flash（V4.1 Flash）或 deepseek-v4-flash
+- 推理模型可能返回 reasoning_content，content 为空时回退取它
+- 部分版本不支持 response_format，JSON mode 被拒时自动降级重试
+- 可选透传 reasoning_effort / extra_body
 """
 
 from __future__ import annotations
@@ -18,6 +26,10 @@ class ChatClient:
         self.base_url = (cfg.get("base_url") or "").rstrip("/")
         self.api_key = cfg.get("api_key") or "not-needed"
         self.timeout = int(cfg.get("timeout", 120))
+        # DeepSeek V4 可选 low / high / max，留空则不传
+        self.reasoning_effort = cfg.get("reasoning_effort") or ""
+        # 其他透传参数（例如某些平台的 custom 字段）
+        self.extra_body: dict[str, Any] = cfg.get("extra_body") or {}
 
     # ── 对外 ──────────────────────────────────────────────────────────────
 
@@ -76,25 +88,51 @@ class ChatClient:
             "temperature": 0,
             "max_tokens": int(max_tokens),
         }
+        if self.reasoning_effort:
+            payload["reasoning_effort"] = self.reasoning_effort
+        if self.extra_body:
+            payload.update(self.extra_body)
         if json_mode:
             payload["response_format"] = {"type": "json_object"}
 
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+
         resp = requests.post(
-            self._openai_url(),
-            json=payload,
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-            },
-            timeout=self.timeout,
+            self._openai_url(), json=payload, headers=headers, timeout=self.timeout
         )
+
+        # 部分 DeepSeek 版本不接受 response_format，去掉后重试一次
+        if json_mode and resp.status_code in (400, 422):
+            body = (resp.text or "").lower()
+            if "response_format" in body or "json" in body:
+                logger.info("JSON mode 被拒绝，降级为普通请求重试")
+                payload.pop("response_format", None)
+                resp = requests.post(
+                    self._openai_url(),
+                    json=payload,
+                    headers=headers,
+                    timeout=self.timeout,
+                )
+
         if resp.status_code >= 400:
             raise RuntimeError(f"API 返回 {resp.status_code}: {resp.text[:300]}")
+
         data = resp.json()
         try:
-            return str(data["choices"][0]["message"]["content"])
+            message = data["choices"][0]["message"]
         except (KeyError, IndexError, TypeError) as e:
             raise RuntimeError(f"无法解析 API 响应: {str(data)[:300]}") from e
+
+        content = message.get("content")
+        if not content:
+            # 推理模型（DeepSeek V4 / R1 系列）content 可能为空
+            content = message.get("reasoning_content") or ""
+        if not content:
+            raise RuntimeError(f"模型返回空内容: {str(data)[:300]}")
+        return str(content)
 
     # ── Ollama ────────────────────────────────────────────────────────────
 
