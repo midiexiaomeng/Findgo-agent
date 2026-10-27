@@ -57,8 +57,10 @@ caption:
 # ── 第三级：LLM 语义重排 ─────────────────────────────────────────────
 rerank:
   enabled: true
-  backend: transformers     # ollama | openai | transformers | none
-  model: Qwen2.5-3B-Instruct
+  # 三种后端任选：openai（云端 API，快）/ ollama（本地服务）/ transformers（直接加载本地权重）
+  # 用 API 时 key 走环境变量 DEEPSEEK_API_KEY，不写进文件
+  backend: openai
+  model: deepseek-flash
   max_candidates: 8         # 进入 LLM 的候选数（8GB 显存建议 8）
   batch_size: 4             # 每次请求评估几张
   max_tokens: 256

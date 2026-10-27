@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import time
 from typing import Any, Sequence
 
@@ -100,7 +101,7 @@ class LLMClient:
                 return True, f"Ollama 就绪，模型 {want}"
 
             base = self.cfg.openai.base_url.rstrip("/")
-            headers = {"Authorization": f"Bearer {self.cfg.openai.api_key or 'x'}"}
+            headers = {"Authorization": f"Bearer {os.environ.get('DEEPSEEK_API_KEY') or os.environ.get('OPENAI_API_KEY') or self.cfg.openai.api_key or 'x'}"}
             resp = requests.get(f"{base}/models", headers=headers, timeout=5)
             if resp.status_code >= 400:
                 return False, f"OpenAI 兼容端点返回 {resp.status_code}"
@@ -175,7 +176,7 @@ class LLMClient:
             payload["response_format"] = {"type": "json_object"}
 
         headers = {
-            "Authorization": f"Bearer {self.cfg.openai.api_key or 'x'}",
+            "Authorization": f"Bearer {os.environ.get('DEEPSEEK_API_KEY') or os.environ.get('OPENAI_API_KEY') or self.cfg.openai.api_key or 'x'}",
             "Content-Type": "application/json",
         }
 
