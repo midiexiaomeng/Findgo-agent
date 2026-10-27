@@ -12,6 +12,7 @@ import re
 from typing import Sequence
 
 from ..utils.schemas import AgentAction, TaskSpec
+from .path_extractor import PathExtractor
 
 logger = logging.getLogger("imgsearch_agent.planner")
 
@@ -80,9 +81,23 @@ class Planner:
         history: Sequence[dict[str, str]] = (),
     ) -> list[TaskSpec]:
         """把复杂需求拆成 1-3 个检索任务。"""
+        # 正则优先提取路径，LLM 只做确认与语义拆解
+        extractor = PathExtractor()
+        candidates = extractor.candidates(query)
+        known_path = extractor.resolve_with_llm(query, candidates, self.client)
+        clean_query = extractor.strip_paths(query, candidates) if candidates else query
+
+        if known_path:
+            path_hint = f"已识别路径：{known_path}（请直接使用）"
+        elif candidates:
+            path_hint = f"候选路径（未能确认）：{candidates}"
+        else:
+            path_hint = "用户没有提到文件夹路径"
+
         prompt = (
             f"可用工具：\n{tools_desc}\n\n"
-            f"用户需求：{query}\n\n"
+            f"用户需求：{query}\n"
+            f"路径信息：{path_hint}\n\n"
             "请先理解用户的语言，提取其中的明确约束（数量、场景、颜色、时间等），"
             "再拆解为 1 到 3 个可在本地图片库执行的检索任务。\n"
             "每个任务包含：\n"
@@ -116,7 +131,7 @@ class Planner:
         for i, item in enumerate(tasks[:3], 1):
             if not isinstance(item, dict):
                 continue
-            q = str(item.get("query") or item.get("description") or query)
+            q = str(item.get("query") or item.get("description") or clean_query)
             try:
                 top_k = int(item.get("top_k") or 0)
             except (TypeError, ValueError):
@@ -128,7 +143,7 @@ class Planner:
                     description=str(item.get("description") or q),
                     query=q,
                     top_k=max(0, min(top_k, 50)),
-                    path=task_path,
+                    path=task_path or known_path,
                 )
             )
         return result or [TaskSpec(id=1, description=query, query=query)]
