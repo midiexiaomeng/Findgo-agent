@@ -50,7 +50,7 @@ class FakeClient:
             )
         if "原始查询" in content:
             return "橘猫"
-        if "检索结果" in content:
+        if "检索结果" in content or "系统找到了" in content:
             return "找到了一张猫的图片。"
         if "可用工具" in content:
             return self.action
