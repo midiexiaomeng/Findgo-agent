@@ -36,6 +36,7 @@ from PyQt5.QtCore import (
     QPoint,
     QRect,
     QSettings,
+    QTimer,
     Qt,
     QThread,
     pyqtSignal,
@@ -882,11 +883,17 @@ class MainWindow(QMainWindow):
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
-        self._adjust_input_height()
         self._apply_round_mask()
         self._layout_handles()
-        # 只在侧栏收起（中间宽度锁定）时重算填充块，正常缩放交给布局自适应，
-        # 否则每次 resize 都改分割器会让窗口高度抖动
+
+        # 输入框高度重算会改布局，用定时器防抖，否则拖窗口时来回抖动
+        if not hasattr(self, "_input_resize_timer"):
+            self._input_resize_timer = QTimer(self)
+            self._input_resize_timer.setSingleShot(True)
+            self._input_resize_timer.timeout.connect(self._adjust_input_height)
+        self._input_resize_timer.start(60)
+
+        # 只在侧栏收起（中间宽度锁定）时重算填充块，正常缩放交给布局自适应
         if getattr(self, "_locked_center", None):
             self._balance_spacer()
 
