@@ -844,10 +844,11 @@ class MainWindow(QMainWindow):
         rect = self.input.fontMetrics().boundingRect(
             QRect(0, 0, width, 10000), Qt.TextWordWrap, text
         )
-        content = rect.height() + 46 + 16
+        content = rect.height() + 48 + 20
         window_h = self.height() or 880
-        max_h = max(110, int(window_h * 0.25))
-        target = int(min(max(content, 56), max_h))
+        max_h = max(150, int(window_h * 0.25))
+        # 最小高度抬到 88，保证两行提示语完整可见
+        target = int(min(max(content, 88), max_h))
 
         if target != self.input.height():
             self.input.setFixedHeight(target)
