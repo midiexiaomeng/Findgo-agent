@@ -81,6 +81,7 @@ class ImageSearchAgent:
         self.executor = ToolExecutor()
         # 上一轮返回过的图片，下一轮默认排除，避免重复推荐
         self._last_paths: set[str] = set()
+        self._last_images: list[dict] = []
 
         if tools is not None:
             self.tools = tools
@@ -203,6 +204,7 @@ class ImageSearchAgent:
         """
         results: list[AgentResult] = []
         previous_paths = set(self._last_paths)
+        previous_images = list(self._last_images)
         this_round_paths: set[str] = set()
         steps = 0
         for task in tasks:
@@ -214,6 +216,22 @@ class ImageSearchAgent:
             if should_stop is not None and should_stop():
                 logger.info("收到停止信号，剩余任务跳过")
                 break
+
+            if task.reuse_last:
+                if previous_images:
+                    results.append(
+                        AgentResult(
+                            reply=f"这是上一次找的 {len(previous_images)} 张。",
+                            results=list(previous_images),
+                            tool="image_retrieval",
+                            confidence=1.0,
+                            trace_id=uuid.uuid4().hex[:8],
+                        )
+                    )
+                    logger.info("复用上一轮结果 %d 张", len(previous_images))
+                    continue
+                # 没有可复用的结果，退回正常检索
+                logger.info("用户要求重发但上一轮没有结果，改为重新检索")
 
             if task.is_dynamic:
                 name = str((task.dynamic_spec or {}).get("name", ""))
@@ -240,16 +258,28 @@ class ImageSearchAgent:
                 tool = self.tools.get("image_retrieval")
                 if tool is None:
                     break
-                if task.is_dynamic:
-                    args = task.dynamic_args or {}
-                else:
-                    args = {
-                        "query": task.query,
-                        "top_k": task.top_k if task.top_k > 0 else self.config.top_k,
-                        "folder_path": task.path or "",
-                        "all_results": bool(task.all_results),
-                        "exclude_paths": list(previous_paths),
-                    }
+                if task.reuse_last:
+                    if previous_images:
+                        results.append(
+                            AgentResult(
+                                reply=f"这是上一次找的 {len(previous_images)} 张。",
+                                results=list(previous_images),
+                                tool="image_retrieval",
+                                confidence=1.0,
+                                trace_id=uuid.uuid4().hex[:8],
+                            )
+                        )
+                        logger.info("复用上一轮结果 %d 张", len(previous_images))
+                        continue
+                    logger.info("用户要求重发但上一轮没有结果，改为重新检索")
+
+                args = {
+                    "query": task.query,
+                    "top_k": task.top_k if task.top_k > 0 else self.config.top_k,
+                    "folder_path": task.path or "",
+                    "all_results": bool(task.all_results),
+                    "exclude_paths": list(previous_paths),
+                }
 
             result, retries = self._execute_with_retry(
                 tool, args, should_stop=should_stop
@@ -261,6 +291,22 @@ class ImageSearchAgent:
                     result.get("summary", ""),
                 )
                 break
+
+            if task.reuse_last:
+                if previous_images:
+                    results.append(
+                        AgentResult(
+                            reply=f"这是上一次找的 {len(previous_images)} 张。",
+                            results=list(previous_images),
+                            tool="image_retrieval",
+                            confidence=1.0,
+                            trace_id=uuid.uuid4().hex[:8],
+                        )
+                    )
+                    logger.info("复用上一轮结果 %d 张", len(previous_images))
+                    continue
+                # 没有可复用的结果，退回正常检索
+                logger.info("用户要求重发但上一轮没有结果，改为重新检索")
 
             if task.is_dynamic:
                 name = str((task.dynamic_spec or {}).get("name", ""))
@@ -305,6 +351,13 @@ class ImageSearchAgent:
             )
 
         self._last_paths = this_round_paths
+        if this_round_paths:
+            self._last_images = [
+                item
+                for result in results
+                for item in result.results
+                if isinstance(item, dict)
+            ]
         return results
 
     # ── 动态工具 ──────────────────────────────────────────────────────────

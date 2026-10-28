@@ -19,6 +19,24 @@ logger = logging.getLogger("imgsearch_agent.planner")
 
 RISK_KEYWORDS = ("删除", "删掉", "清理", "移除", "清空", "purge", "trash")
 
+REUSE_KEYWORDS = (
+    "刚才",
+    "上次",
+    "上一次",
+    "再发",
+    "重新发",
+    "重复",
+    "还是那",
+    "同样那",
+    "刚找的",
+)
+
+
+def detect_reuse(query: str) -> bool:
+    """用户是否在要求复用上一轮的图片，而不是重新检索。"""
+    text = (query or "").lower()
+    return any(word in text for word in REUSE_KEYWORDS)
+
 
 def assess_risk(query: str) -> str:
     """在规划阶段就标出高风险意图，供 UI 提前确认。"""
@@ -187,8 +205,10 @@ class Planner:
                 )
             )
         risk = assess_risk(query)
+        reuse = detect_reuse(query)
         for task in result:
             task.risk = "high" if task.is_dynamic else risk
+            task.reuse_last = reuse
 
         if not result:
             return [TaskSpec(id=1, description=query, query=query, risk=risk)]

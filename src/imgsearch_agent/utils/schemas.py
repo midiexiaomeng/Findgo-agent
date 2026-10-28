@@ -70,6 +70,7 @@ class TaskSpec(BaseModel):
     )
     all_results: bool = Field(False, description="是否返回全部匹配结果")
     risk: str = Field("normal", description="风险等级：normal / high")
+    reuse_last: bool = Field(False, description="直接复用上一轮的图片结果")
     is_dynamic: bool = Field(False, description="是否由动态工具执行")
     dynamic_spec: dict | None = Field(
         None, description="动态工具定义，需用户审核后才加载"
@@ -77,6 +78,7 @@ class TaskSpec(BaseModel):
     dynamic_args: dict = Field(
         default_factory=dict, description="动态工具的实际入参"
     )
+    reuse_last: bool = Field(False, description="直接复用上一轮的图片结果")
     is_dynamic: bool = Field(False, description="是否由动态工具执行")
     dynamic_spec: dict | None = Field(
         None, description="动态工具定义，需用户审核后才加载"
