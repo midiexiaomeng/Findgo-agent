@@ -209,6 +209,72 @@ class ImageGalleryDialog(QDialog):
         dialog.exec_()
 
 
+class ResizeHandle(QWidget):
+    """贴在窗口四边四角的透明手柄，负责拉伸。"""
+
+    THICK = 6
+    CORNER = 16
+
+    CURSORS = {
+        "left": Qt.SizeHorCursor,
+        "right": Qt.SizeHorCursor,
+        "top": Qt.SizeVerCursor,
+        "bottom": Qt.SizeVerCursor,
+        "topleft": Qt.SizeFDiagCursor,
+        "bottomright": Qt.SizeFDiagCursor,
+        "topright": Qt.SizeBDiagCursor,
+        "bottomleft": Qt.SizeBDiagCursor,
+    }
+
+    def __init__(self, window, edge: str):
+        super().__init__(window)
+        self.window = window
+        self.edge = edge
+        self.setCursor(self.CURSORS[edge])
+        self.setStyleSheet("background: transparent;")
+        self._start = None
+        self._geometry = None
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.LeftButton:
+            self._start = event.globalPos()
+            self._geometry = self.window.geometry()
+            event.accept()
+
+    def mouseMoveEvent(self, event) -> None:
+        if self._start is None or not (event.buttons() & Qt.LeftButton):
+            return
+
+        delta = event.globalPos() - self._start
+        geo = self._geometry
+        x, y, w, h = geo.x(), geo.y(), geo.width(), geo.height()
+
+        min_w = max(self.window.minimumWidth(), 400)
+        min_h = max(self.window.minimumHeight(), 300)
+
+        if "left" in self.edge:
+            new_w = w - delta.x()
+            if new_w >= min_w:
+                x += delta.x()
+                w = new_w
+        if "right" in self.edge:
+            w = max(min_w, w + delta.x())
+        if "top" in self.edge:
+            new_h = h - delta.y()
+            if new_h >= min_h:
+                y += delta.y()
+                h = new_h
+        if "bottom" in self.edge:
+            h = max(min_h, h + delta.y())
+
+        self.window.setGeometry(x, y, w, h)
+        event.accept()
+
+    def mouseReleaseEvent(self, event) -> None:
+        self._start = None
+        event.accept()
+
+
 class TitleBar(QWidget):
     """无边框窗口的自定义标题栏：拖拽移动、双击最大化。"""
 
@@ -765,6 +831,27 @@ class MainWindow(QMainWindow):
         if target < max_h:
             self.input.verticalScrollBar().setValue(0)
 
+    def _layout_handles(self) -> None:
+        if not hasattr(self, "_resize_handles"):
+            return
+
+        w, h = self.width(), self.height()
+        t = ResizeHandle.THICK
+        c = ResizeHandle.CORNER
+
+        self._resize_handles["left"].setGeometry(0, c, t, max(0, h - 2 * c))
+        self._resize_handles["right"].setGeometry(w - t, c, t, max(0, h - 2 * c))
+        self._resize_handles["top"].setGeometry(c, 0, max(0, w - 2 * c), t)
+        self._resize_handles["bottom"].setGeometry(c, h - t, max(0, w - 2 * c), t)
+
+        self._resize_handles["topleft"].setGeometry(0, 0, c, c)
+        self._resize_handles["topright"].setGeometry(w - c, 0, c, c)
+        self._resize_handles["bottomleft"].setGeometry(0, h - c, c, c)
+        self._resize_handles["bottomright"].setGeometry(w - c, h - c, c, c)
+
+        for handle in self._resize_handles.values():
+            handle.raise_()
+
     def _apply_round_mask(self) -> None:
         """保留接口；圆角由容器的 border-radius 实现。
 
@@ -777,15 +864,13 @@ class MainWindow(QMainWindow):
     def showEvent(self, event) -> None:
         super().showEvent(event)
         self._apply_round_mask()
+        self._layout_handles()
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         self._adjust_input_height()
         self._apply_round_mask()
-        if hasattr(self, "size_grip") and hasattr(self, "_container"):
-            c = self._container
-            self.size_grip.move(c.width() - 18, c.height() - 18)
-            self.size_grip.raise_()
+        self._layout_handles()
 
     # ── 左侧 ──────────────────────────────────────────────────────────────
 
@@ -1066,9 +1151,20 @@ class MainWindow(QMainWindow):
         vbox.addWidget(main, 1)
 
         self._container = container
-        self.size_grip = QSizeGrip(container)
-        self.size_grip.setFixedSize(16, 16)
-        self.size_grip.raise_()
+        self._resize_handles = {}
+        for edge in (
+            "left",
+            "right",
+            "top",
+            "bottom",
+            "topleft",
+            "topright",
+            "bottomleft",
+            "bottomright",
+        ):
+            handle = ResizeHandle(self, edge)
+            handle.raise_()
+            self._resize_handles[edge] = handle
 
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         container.setObjectName("rootFrame")
