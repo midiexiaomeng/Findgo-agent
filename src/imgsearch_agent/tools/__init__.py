@@ -17,6 +17,7 @@ from .preview_staged import PreviewStagedArgs, PreviewStagedTool
 from .remove_index import RemoveIndexArgs, RemoveIndexTool
 from .switch_vector_backend import SwitchBackendArgs, SwitchVectorBackendTool
 from .trash_manage import TrashManageArgs, TrashManageTool
+from .web_image_search import WebImageSearchArgs, WebImageSearchTool
 
 __all__ = [
     "BaseTool",
@@ -49,4 +50,6 @@ __all__ = [
     "SwitchVectorBackendTool",
     "TrashManageArgs",
     "TrashManageTool",
+    "WebImageSearchArgs",
+    "WebImageSearchTool",
 ]

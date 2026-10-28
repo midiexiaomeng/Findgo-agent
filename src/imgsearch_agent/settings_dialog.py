@@ -416,6 +416,31 @@ class SettingsDialog(QDialog):
 
         layout.addLayout(form)
 
+        dl_title = QLabel("联网下载缓存")
+        dl_title.setStyleSheet("font-weight:600; color:#2E2E2E; font-size:12px;")
+        layout.addWidget(dl_title)
+
+        self.dl_path_edit = QLineEdit()
+        self.dl_path_edit.setReadOnly(True)
+        self.dl_path_edit.setPlaceholderText("默认 ./data/downloads")
+        dl_browse = QPushButton("选择目录")
+        dl_browse.clicked.connect(self.on_pick_download_path)
+
+        dl_row = QWidget()
+        dl_layout = QHBoxLayout(dl_row)
+        dl_layout.setContentsMargins(0, 0, 0, 0)
+        dl_layout.setSpacing(6)
+        dl_layout.addWidget(self.dl_path_edit, 1)
+        dl_layout.addWidget(dl_browse)
+        form.addRow("下载位置", dl_row)
+
+        self.dl_gb = QDoubleSpinBox()
+        self.dl_gb.setRange(0.5, 500.0)
+        self.dl_gb.setSingleStep(0.5)
+        self.dl_gb.setDecimals(1)
+        self.dl_gb.setSuffix(" GB")
+        form.addRow("下载容量上限", self.dl_gb)
+
         self.trash_info = QLabel("")
         self.trash_info.setStyleSheet("color:#4A4A4A; font-size:12px;")
         layout.addWidget(self.trash_info)
@@ -496,6 +521,11 @@ class SettingsDialog(QDialog):
         self.trash_status.setText(f"已永久删除 {total} 张")
         self._refresh_trash_info()
 
+    def on_pick_download_path(self) -> None:
+        folder = QFileDialog.getExistingDirectory(self, "选择下载缓存目录")
+        if folder:
+            self.dl_path_edit.setText(folder)
+
     def on_pick_trash_path(self) -> None:
         folder = QFileDialog.getExistingDirectory(self, "选择暂存区目录")
         if folder:
@@ -506,6 +536,8 @@ class SettingsDialog(QDialog):
             from .config import AgentConfig
 
             cfg = AgentConfig()
+            self.dl_path_edit.setText(str(cfg.download_path))
+            self.dl_gb.setValue(float(cfg.download_max_gb))
             self.trash_path_edit.setText(str(cfg.trash_path))
             self.trash_days.setValue(int(cfg.trash_max_days))
             self.trash_gb.setValue(float(cfg.trash_max_gb))
@@ -525,6 +557,10 @@ class SettingsDialog(QDialog):
         path = PROJECT_ROOT / "configs" / "agent.yaml"
         try:
             data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            data.setdefault("download_cache", {})
+            data["download_cache"]["path"] = self.dl_path_edit.text().strip()
+            data["download_cache"]["max_total_size_gb"] = round(self.dl_gb.value(), 1)
+
             data.setdefault("trash_staging", {})
             data["trash_staging"]["path"] = self.trash_path_edit.text().strip()
             data["trash_staging"]["max_keep_days"] = self.trash_days.value()

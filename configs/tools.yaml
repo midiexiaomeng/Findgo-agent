@@ -246,3 +246,22 @@ tools:
         type: string
         description: 只统计该目录，留空统计全库
         required: false
+
+  - name: web_image_search
+    module: imgsearch_agent.tools.web_image_search
+    class: WebImageSearchTool
+    enabled: true
+    description: 联网搜索图片并下载到本地缓存，可选自动建索引，用于本地图库不够时补充
+    parameters:
+      query:
+        type: string
+        description: 要搜索的图片内容
+        required: true
+      top_k:
+        type: integer
+        description: 下载数量
+        default: 20
+      index:
+        type: boolean
+        description: 下载后是否立即建索引
+        default: true

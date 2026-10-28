@@ -55,6 +55,10 @@ class AgentConfig:
         # 旧字段保留，供界面与日志读取
         self.allowed_roots = list(self.image_roots)
 
+        downloads = raw.get("download_cache", {}) or {}
+        self.download_path = str(downloads.get("path") or "./data/downloads")
+        self.download_max_gb = float(downloads.get("max_total_size_gb", 5.0))
+
         trash = raw.get("trash_staging", {}) or {}
         self.trash_path = str(trash.get("path") or "./data/trash_staging")
         self.trash_max_days = int(trash.get("max_keep_days", 14))

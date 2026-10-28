@@ -666,6 +666,17 @@ class MainWindow(QMainWindow):
         btn_row.setContentsMargins(0, 0, 8, 8)
         btn_row.setSpacing(6)
 
+        self._search_mode = "local"
+        self.mode_btn = QToolButton()
+        self.mode_btn.setFixedSize(34, 28)
+        self.mode_btn.setStyleSheet(
+            "QToolButton{border:1px solid #EDEBE6;border-radius:7px;"
+            "background:#F8F7F3;font-size:13px;}"
+            "QToolButton:hover{background:#F2F0EA;}"
+        )
+        self.mode_btn.clicked.connect(self._cycle_mode)
+        self._refresh_mode_btn()
+
         self.model_btn = QToolButton()
         self.model_btn.setText("选择模型")
         self.model_btn.setToolButtonStyle(Qt.ToolButtonTextOnly)
@@ -683,6 +694,7 @@ class MainWindow(QMainWindow):
         )
         self.send_btn.clicked.connect(self.on_send)
 
+        btn_row.addWidget(self.mode_btn)
         btn_row.addWidget(self.model_btn)
         btn_row.addWidget(self.send_btn)
         grid.addWidget(overlay, 0, 0, Qt.AlignBottom | Qt.AlignRight)
@@ -1683,6 +1695,26 @@ class MainWindow(QMainWindow):
         agent.memory.add("assistant", reply, images=image_paths)
         return [], [], reply, images
 
+    # ── 联网模式 ──────────────────────────────────────────────────────────
+
+    _MODE_LABELS = {
+        "local": ("💻", "仅本地图库"),
+        "hybrid": ("🌐💻", "先搜本地，不够再联网"),
+        "online": ("🌐", "仅联网下载"),
+    }
+    _MODE_ORDER = ("local", "hybrid", "online")
+
+    def _refresh_mode_btn(self) -> None:
+        text, tip = self._MODE_LABELS[self._search_mode]
+        self.mode_btn.setText(text)
+        self.mode_btn.setToolTip(f"当前：{tip}（点击切换）")
+
+    def _cycle_mode(self) -> None:
+        index = self._MODE_ORDER.index(self._search_mode)
+        self._search_mode = self._MODE_ORDER[(index + 1) % len(self._MODE_ORDER)]
+        self._refresh_mode_btn()
+        self.append_log(f">>> 检索模式切换为：{self._MODE_LABELS[self._search_mode][1]}")
+
     def on_send(self) -> None:
         text = self.input.toPlainText().strip()
         has_attachment = bool(self._attachment)
@@ -1752,6 +1784,20 @@ class MainWindow(QMainWindow):
         results = agent.run_tasks(
             tasks, write_memory=False, should_stop=lambda: self._cancel
         )
+
+        # 本地不够时按所选模式联网补充
+        if self._search_mode in ("hybrid", "online") and not self._cancel:
+            found = sum(len(r.results) for r in results)
+            need = sum(t.top_k for t in tasks if t.top_k > 0) or 0
+            short = need - found
+
+            if self._search_mode == "online" or (need > 0 and short > 0):
+                tool = agent.tools.get("web_image_search")
+                if tool is not None:
+                    query = tasks[0].query if tasks else text
+                    count = max(short, 10) if self._search_mode == "hybrid" else max(need, 20)
+                    web = tool.run(query=query, top_k=min(count, 100))
+                    self.append_log(f">>> 联网补充：{web.get('summary', '')}")
         replies = [r.reply for r in results if r.reply]
         combined = "\n".join(replies) or "没有找到相关图片。"
         images = [img for r in results for img in r.results]
@@ -1845,6 +1891,20 @@ class MainWindow(QMainWindow):
         results = agent.run_tasks(
             tasks, write_memory=False, should_stop=lambda: self._cancel
         )
+
+        # 本地不够时按所选模式联网补充
+        if self._search_mode in ("hybrid", "online") and not self._cancel:
+            found = sum(len(r.results) for r in results)
+            need = sum(t.top_k for t in tasks if t.top_k > 0) or 0
+            short = need - found
+
+            if self._search_mode == "online" or (need > 0 and short > 0):
+                tool = agent.tools.get("web_image_search")
+                if tool is not None:
+                    query = tasks[0].query if tasks else text
+                    count = max(short, 10) if self._search_mode == "hybrid" else max(need, 20)
+                    web = tool.run(query=query, top_k=min(count, 100))
+                    self.append_log(f">>> 联网补充：{web.get('summary', '')}")
         replies = [r.reply for r in results if r.reply]
         combined = "\n".join(replies) or "没有找到相关图片。"
         images = [img for r in results for img in r.results]

@@ -32,6 +32,7 @@ from ..tools import (
     RemoveIndexTool,
     SwitchVectorBackendTool,
     TrashManageTool,
+    WebImageSearchTool,
 )
 from ..tools.base_tool import BaseTool
 from ..utils.logger import TraceLogger
@@ -112,6 +113,7 @@ class ImageSearchAgent:
                 "find_duplicates": FindDuplicatesTool(pipeline, guard=guard),
                 "remove_index": RemoveIndexTool(pipeline, guard=guard),
                 "trash_manage": TrashManageTool(pipeline, guard=guard),
+                "web_image_search": WebImageSearchTool(pipeline),
                 "folder_scan": FolderScanTool(guard=guard),
             }
 

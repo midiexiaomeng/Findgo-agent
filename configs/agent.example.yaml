@@ -39,6 +39,10 @@ security:
   # 系统目录（Windows、Program Files、ProgramData）始终禁止
   allowed_roots: []
 
+download_cache:
+  path: ./data/downloads         # 联网下载的图片
+  max_total_size_gb: 5           # 下载缓存容量上限
+
 trash_staging:
   path: ./data/trash_staging   # 暂存区位置，可改到其他磁盘
   max_keep_days: 14        # 暂存超过这么多天自动永久删除
