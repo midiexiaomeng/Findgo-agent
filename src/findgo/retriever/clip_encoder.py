@@ -40,11 +40,18 @@ class ClipEncoder:
         self._dim = int(cfg.embedding.embedding_dim)
         self._source: str | None = None
         self._torch_dtype = None
+        # api = 远端多模态 embedding 服务，不加载本地模型
+        self._api = (cfg.embedding.backend or "local").lower() == "api"
+        if self._api:
+            self._source = cfg.embedding.api_base_url or "远端 API"
 
     # ── 加载 ────────────────────────────────────────────────────────────────
 
     @property
     def loaded(self) -> bool:
+        # 远端模式没有本地权重可加载，视为始终就绪
+        if self._api:
+            return True
         return self._model is not None
 
     @property
@@ -56,6 +63,8 @@ class ClipEncoder:
         return self._source or ""
 
     def load(self) -> None:
+        if self._api:
+            return
         if self._model is not None:
             return
         with self._lock:
@@ -115,6 +124,9 @@ class ClipEncoder:
         texts = [str(t) for t in texts if str(t).strip()]
         if not texts:
             return np.zeros((0, self._dim), dtype=np.float32)
+
+        if self._api:
+            return self._encode_api([{"text": t} for t in texts])
 
         self.load()
         import torch
@@ -193,6 +205,9 @@ class ClipEncoder:
         if not pil_images:
             return np.zeros((0, self._dim), dtype=np.float32)
 
+        if self._api:
+            return self._encode_api([{"image": img} for img in pil_images])
+
         self.load()
         import torch
 
@@ -217,6 +232,64 @@ class ClipEncoder:
         if out.shape[0] == 0:
             return np.zeros(self._dim, dtype=np.float32)
         return out[0]
+
+    # ── 远端 API ────────────────────────────────────────────────────────────
+
+    def _encode_api(self, items: list[dict]) -> np.ndarray:
+        """调用兼容 Jina CLIP 格式的多模态 embedding 服务。
+
+        请求体::
+
+            {"model": "...", "input": [{"text": "海边"}, {"image": "<base64>"}]}
+
+        响应取 ``data[*].embedding``，按输入顺序返回。
+        """
+        import base64
+        import io
+
+        import requests
+
+        cfg = self.cfg.embedding
+        base = (cfg.api_base_url or "").rstrip("/")
+        if not base:
+            raise RuntimeError("CLIP 远端模式未配置接口地址")
+
+        payload_input = []
+        for item in items:
+            if "image" in item:
+                buf = io.BytesIO()
+                item["image"].convert("RGB").save(buf, format="JPEG", quality=92)
+                payload_input.append(
+                    {"image": base64.b64encode(buf.getvalue()).decode("ascii")}
+                )
+            else:
+                payload_input.append({"text": str(item["text"])})
+
+        headers = {"Content-Type": "application/json"}
+        if cfg.api_key:
+            headers["Authorization"] = f"Bearer {cfg.api_key}"
+
+        body = {"input": payload_input}
+        if cfg.api_model:
+            body["model"] = cfg.api_model
+
+        resp = requests.post(
+            f"{base}/embeddings",
+            json=body,
+            headers=headers,
+            timeout=int(cfg.api_timeout or 30),
+        )
+        resp.raise_for_status()
+        data = resp.json().get("data", [])
+        if len(data) != len(payload_input):
+            raise RuntimeError(
+                f"CLIP 服务返回 {len(data)} 条向量，期望 {len(payload_input)} 条"
+            )
+
+        feats = np.array([row["embedding"] for row in data], dtype=np.float32)
+        if self.cfg.embedding.normalize:
+            feats = l2_normalize(feats)
+        return feats
 
     @property
     def max_image_side(self) -> int:

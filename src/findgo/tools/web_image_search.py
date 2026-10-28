@@ -65,6 +65,13 @@ class WebImageSearchTool(BaseTool):
         return self._cache
 
     def run(self, query: str, top_k: int = 20, index: bool = True) -> dict[str, Any]:
+        if self._offline():
+            return {
+                "downloaded": 0,
+                "paths": [],
+                "summary": "离线模式已开启，跳过联网搜图",
+            }
+
         urls = self._search_urls(query, top_k)
         if not urls:
             return {
@@ -113,6 +120,16 @@ class WebImageSearchTool(BaseTool):
         }
 
     # ── 内部 ────────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _offline() -> bool:
+        """读全局配置里的离线开关，配置缺失时按联网处理。"""
+        try:
+            from ..retriever.config import Config
+
+            return bool(Config.from_yaml().offline)
+        except Exception:
+            return False
 
     @staticmethod
     def _search_urls(query: str, count: int) -> list[str]:

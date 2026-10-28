@@ -37,6 +37,8 @@ class Captioner:
     def __init__(self, cfg: Config):
         self.cfg = cfg
         self.enabled = bool(cfg.caption.enabled)
+        # api = 远端视觉模型，不加载本地 BLIP
+        self._api = (cfg.caption.backend or "local").lower() == "api"
         self.device = "cpu"
         self._model = None
         self._processor = None
@@ -157,6 +159,8 @@ class Captioner:
     def _load(self) -> bool:
         if not self.enabled:
             return False
+        if self._api:
+            return True
         if self._model is not None:
             return True
         if self._load_error is not None:
@@ -251,6 +255,9 @@ class Captioner:
 
     def _generate_batch(self, records: Sequence[dict]) -> list[str]:
         """返回与输入等长的描述列表，失败的为空字符串。"""
+        if self._api:
+            return self._generate_api(records)
+
         import torch
         from PIL import Image, ImageOps
 
@@ -296,7 +303,88 @@ class Captioner:
             results[slot] = str(text).strip()
         return results
 
-    # ── 生命周期 ────────────────────────────────────────────────────────────
+    def _generate_api(self, records: Sequence[dict]) -> list[str]:
+        """调用兼容 OpenAI 的视觉模型生成中文描述。
+
+        每张图单独一次请求，失败只影响它自己。
+        """
+        import base64
+        import io
+
+        import requests
+
+        cfg = self.cfg.caption
+        base = (cfg.api_base_url or "").rstrip("/")
+        if not base:
+            logger.warning("BLIP 远端模式未配置接口地址，跳过描述")
+            return ["" for _ in records]
+
+        headers = {"Content-Type": "application/json"}
+        if cfg.api_key:
+            headers["Authorization"] = f"Bearer {cfg.api_key}"
+
+        results: list[str] = []
+        for rec in records:
+            path = rec.get("path")
+            if not path:
+                results.append("")
+                continue
+            try:
+                from PIL import Image, ImageOps
+
+                img = Image.open(str(path))
+                img = ImageOps.exif_transpose(img).convert("RGB")
+                side = self.cfg.embedding.max_image_side
+                if side and max(img.size) > side:
+                    img.thumbnail((side, side), Image.LANCZOS)
+
+                buf = io.BytesIO()
+                img.save(buf, format="JPEG", quality=90)
+                b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+
+                body = {
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": (
+                                        "用一句中文简短描述这张图片的主要内容，"
+                                        "不超过 30 字，只输出描述本身。"
+                                    ),
+                                },
+                                {
+                                    "type": "image_url",
+                                    "image_url": {"url": f"data:image/jpeg;base64,{b64}"},
+                                },
+                            ],
+                        }
+                    ],
+                    "max_tokens": int(cfg.max_new_tokens or 40),
+                    "temperature": 0.0,
+                }
+                if cfg.api_model:
+                    body["model"] = cfg.api_model
+
+                resp = requests.post(
+                    f"{base}/chat/completions",
+                    json=body,
+                    headers=headers,
+                    timeout=int(cfg.api_timeout or 60),
+                )
+                resp.raise_for_status()
+                content = (
+                    resp.json().get("choices", [{}])[0].get("message", {}).get("content", "")
+                )
+                results.append(str(content).strip())
+            except Exception as e:
+                logger.debug("视觉 API 描述失败 %s: %s", path, e)
+                results.append("")
+
+        return results
+
+    # ── 生命周期 ────────────────────────────────────────────────────────────────
 
     def unload(self) -> None:
         self._model = None

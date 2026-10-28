@@ -4,6 +4,12 @@
 # 运行设备：auto | cpu | cuda | cuda:0 | mps
 device: auto
 
+# 离线模式：开启后不调云端 LLM、不联网搜图、不下载模型
+offline: false
+
+# 启动时后台加载 CLIP；不常用检索或显存紧张可关掉
+warmup_on_start: true
+
 app:
   title: 多模态图像检索
   host: 127.0.0.1
@@ -15,6 +21,7 @@ app:
 paths:
   models_dir: ./models      # 模型权重目录（不入包，由下载脚本填充）
   data_dir: ./data          # 向量库与缓存
+  export_dir: ./data/exports  # 检索结果导出目录
 
 # ── 第一级：跨模态嵌入 ────────────────────────────────────────────────
 embedding:
@@ -28,6 +35,13 @@ embedding:
   max_image_side: 1024      # 送入编码器前的最长边；控制显存
   use_fp16: true
   device: auto              # LLM 走 API 后 CLIP 可以回到 GPU，加载和编码快很多
+  # local = 本地 Chinese-CLIP；api = 远端多模态 embedding 服务
+  # api 模式需兼容 Jina CLIP 格式：POST /embeddings，input 为 [{"text":..},{"image":base64}]
+  backend: local
+  api_base_url: ""
+  api_key: ""
+  api_model: ""
+  api_timeout: 30
 
 # ── 第二级：向量库（改 backend 一行即可切换）─────────────────────────
 vector_store:
@@ -54,6 +68,12 @@ caption:
   max_cache_rows: 50000     # 描述缓存条数上限，超出按写入顺序淘汰
   use_fp16: false           # BLIP 在 fp16 下偶尔生成不稳定，默认 fp32
   unload_after_index: true  # 索引完释放显存，给 7B 模型让路
+  # local = 本地 BLIP（英文描述）；api = 兼容 OpenAI 的视觉模型（可直接出中文）
+  backend: local
+  api_base_url: ""
+  api_key: ""
+  api_model: ""
+  api_timeout: 60
 
 # ── 第三级：LLM 语义重排 ─────────────────────────────────────────────
 rerank:

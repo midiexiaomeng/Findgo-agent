@@ -43,6 +43,19 @@ class AgentRunnerMixin:
         """后台加载 CLIP，避免第一次检索时再等。"""
         import threading
 
+        try:
+            from findgo.retriever import Config
+
+            cfg = Config.from_yaml()
+            if not cfg.warmup_on_start:
+                self.bridge.message.emit(">>> 预热已在设置中关闭")
+                return
+            # 远端编码不占本地显存，也没有权重可加载
+            if (cfg.embedding.backend or "local").lower() == "api":
+                return
+        except Exception:
+            pass
+
         def run():
             try:
                 agent = self._get_agent()

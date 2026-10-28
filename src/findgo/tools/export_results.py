@@ -78,6 +78,16 @@ class ExportResultsTool(BaseTool):
         from ..retriever.runtime import PROJECT_ROOT
 
         out_dir = Path(PROJECT_ROOT) / "data" / "exports"
+        try:
+            from ..retriever.config import Config
+
+            configured = Config.from_yaml().paths.export_dir
+            if configured:
+                candidate = Path(configured).expanduser()
+                out_dir = candidate if candidate.is_absolute() else Path(PROJECT_ROOT) / candidate
+        except Exception:
+            pass
+
         out_dir.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         suffix = "csv" if output_format.lower() == "csv" else "txt"

@@ -35,6 +35,8 @@ class AppConfig:
 class PathsConfig:
     models_dir: str = "./models"
     data_dir: str = "./data"
+    # 结果导出的默认落点
+    export_dir: str = "./data/exports"
 
 
 @dataclass
@@ -52,6 +54,12 @@ class EmbeddingConfig:
     # 空 = 跟随全局 device。显存紧张时给 CLIP 单独指定 cpu，
     # 查询文本的编码在 CPU 上只要几十毫秒，把显存留给重排模型。
     device: str = ""
+    # local = 本地 Chinese-CLIP；api = 兼容 OpenAI /v1/embeddings 的远端服务
+    backend: str = "local"
+    api_base_url: str = ""
+    api_key: str = ""
+    api_model: str = ""
+    api_timeout: int = 30
 
 
 @dataclass
@@ -90,6 +98,12 @@ class CaptionConfig:
     use_fp16: bool = False
     # 索引完成后立刻释放 BLIP 显存
     unload_after_index: bool = True
+    # local = 本地 BLIP；api = 兼容 OpenAI /v1/chat/completions 的视觉模型
+    backend: str = "local"
+    api_base_url: str = ""
+    api_key: str = ""
+    api_model: str = ""
+    api_timeout: int = 60
 
 
 @dataclass
@@ -149,6 +163,10 @@ class SearchConfig:
 @dataclass
 class Config:
     device: str = "auto"  # auto | cpu | cuda | cuda:0 | mps
+    # 离线模式：禁止一切外网调用（LLM API、联网搜图、模型下载）
+    offline: bool = False
+    # 启动时后台预热 CLIP；不常用检索或显存紧张时可以关掉
+    warmup_on_start: bool = True
     app: AppConfig = field(default_factory=AppConfig)
     paths: PathsConfig = field(default_factory=PathsConfig)
     embedding: EmbeddingConfig = field(default_factory=EmbeddingConfig)

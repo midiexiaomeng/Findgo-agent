@@ -27,7 +27,12 @@ class LLMClient:
     def __init__(self, cfg: Config):
         self.full_cfg = cfg
         self.cfg = cfg.rerank
+        self.offline = bool(getattr(cfg, "offline", False))
         self.backend = (cfg.rerank.backend or "none").lower()
+        # 离线模式下只允许完全本地的后端，其余一律关掉
+        if self.offline and self.backend not in ("none", "", "transformers"):
+            logger.info("离线模式已开启，停用 %s 后端", self.backend)
+            self.backend = "none"
         self.model = cfg.rerank.model
         self._timeout = int(
             cfg.rerank.ollama.timeout if self.backend == "ollama" else cfg.rerank.openai.timeout
@@ -86,6 +91,8 @@ class LLMClient:
 
     def _probe(self) -> tuple[bool, str]:
         if self.backend in ("none", ""):
+            if self.offline:
+                return False, "离线模式已开启，跳过重排"
             return False, "已在配置中关闭"
 
         if self.backend == "transformers":
