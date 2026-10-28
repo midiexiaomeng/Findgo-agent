@@ -27,7 +27,7 @@ def test_bubble_has_larger_padding():
     agent_html = win._chat_html("Agent", "找到了")
 
     for html in (user_html, agent_html):
-        assert "padding:14px 18px" in html
+        assert "padding:18px 24px" in html
         assert "min-width:120px" in html
         assert "border-radius:16px" in html
 

@@ -1347,9 +1347,9 @@ class MainWindow(QMainWindow):
         safe = self._highlight_paths(text).replace("\n", "<br/>")
         if role == "你":
             return (
-                '<div style="margin:10px 0;text-align:right;">'
+                '<div style="margin:18px 0;text-align:right;">'
                 '<span style="display:inline-block;background:#E3EFE7;color:#2E2E2E;'
-                'padding:14px 18px;border-radius:16px;max-width:520px;min-width:120px;'
+                'padding:18px 24px;border-radius:16px;max-width:640px;min-width:120px;'
                 'text-align:left;font-size:13px;line-height:1.65;">'
                 + safe + "</span></div>"
             )
@@ -1402,19 +1402,19 @@ class MainWindow(QMainWindow):
         if thumbs:
             # 有图片时用 table 布局：Qt 对 inline-block 内嵌块级元素的高度计算不可靠
             return (
-                '<div style="margin:10px 0;text-align:left;">'
+                '<div style="margin:18px 0;text-align:left;">'
                 '<table cellspacing="0" cellpadding="0">'
                 '<tr><td style="background:#F5F3EE;color:#2E2E2E;'
-                'padding:14px 18px;border-radius:16px;'
+                'padding:18px 24px;border-radius:16px;'
                 'font-size:13px;line-height:1.65;">'
                 + safe + thumbs
                 + "</td></tr></table></div>"
             )
 
         return (
-            '<div style="margin:10px 0;text-align:left;">'
+            '<div style="margin:18px 0;text-align:left;">'
             '<span style="display:inline-block;background:#F5F3EE;color:#2E2E2E;'
-            'padding:14px 18px;border-radius:16px;max-width:520px;min-width:120px;'
+            'padding:18px 24px;border-radius:16px;max-width:640px;min-width:120px;'
             'font-size:13px;line-height:1.65;">'
             + safe + "</span></div>"
         )
