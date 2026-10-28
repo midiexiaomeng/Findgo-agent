@@ -62,6 +62,7 @@ from PyQt5.QtWidgets import (
     QShortcut,
     QSizeGrip,
     QSizePolicy,
+    QScrollArea,
     QSplitter,
     QTextBrowser,
     QToolButton,
@@ -296,6 +297,32 @@ class ResizeHandle(QWidget):
         self._start = None
         self.window._resizing = False
         event.accept()
+
+
+class BubbleLabel(QLabel):
+    """圆角气泡：QLabel 支持 border-radius，QTextBrowser 的富文本不支持。"""
+
+    def __init__(self, role: str, text: str, images: list | None, host, parent=None):
+        super().__init__(parent)
+        self.host = host
+        self.setWordWrap(True)
+        self.setTextFormat(Qt.RichText)
+        self.setOpenExternalLinks(False)
+        self.linkActivated.connect(host.on_chat_link)
+        self.setTextInteractionFlags(
+            Qt.TextSelectableByMouse | Qt.LinksAccessibleByMouse
+        )
+
+        body = host._message_html(text, images)
+        self.setText(body)
+
+        bg = "#E3EFE7" if role == "你" else "#F5F3EE"
+        self.setStyleSheet(
+            f"QLabel{{background:{bg};color:#2E2E2E;border-radius:16px;"
+            "padding:18px 24px;font-size:13px;}"
+        )
+        self.setMaximumWidth(640)
+        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
 
 
 class TitleBar(QWidget):
@@ -699,14 +726,21 @@ class MainWindow(QMainWindow):
         header.addWidget(self.settings_btn)
         layout.addLayout(header)
 
-        self.chat_view = QTextBrowser()
-        self.chat_view.setOpenExternalLinks(False)
-        self.chat_view.setOpenLinks(False)
-        self.chat_view.anchorClicked.connect(self.on_chat_link)
+        self.chat_view = QScrollArea()
+        self.chat_view.setWidgetResizable(True)
         self.chat_view.setStyleSheet(
-            "QTextBrowser{border:1px solid #EDEBE6; border-radius:12px; "
-            "background:#FFFFFF; padding:16px; font-size:13px;}"
+            "QScrollArea{border:1px solid #EDEBE6;border-radius:12px;"
+            "background:#FFFFFF;}"
         )
+
+        self.chat_container = QWidget()
+        self.chat_container.setStyleSheet("background:#FFFFFF;")
+        self.chat_layout = QVBoxLayout(self.chat_container)
+        self.chat_layout.setContentsMargins(16, 16, 16, 16)
+        self.chat_layout.setSpacing(0)
+        self.chat_layout.addStretch(1)
+        self.chat_view.setWidget(self.chat_container)
+
         layout.addWidget(self.chat_view, 1)
         return panel
 
@@ -1356,6 +1390,53 @@ class MainWindow(QMainWindow):
             escaped,
         )
 
+    def _message_html(self, text: str, images: list | None = None) -> str:
+        """气泡内部内容：文本 + 路径高亮 + 图片网格。"""
+        safe = self._highlight_paths(text).replace("\n", "<br/>")
+        if not images:
+            return safe
+
+        parts = []
+        shown = 0
+        for img in images[:20]:
+            if isinstance(img, str):
+                path = img
+            elif isinstance(img, dict):
+                path = img.get("path", "")
+            else:
+                path = getattr(img, "path", "")
+            if not path or not Path(path).exists():
+                continue
+            thumb = self._thumb_path(path)
+            if not thumb:
+                continue
+            try:
+                full_uri = Path(path).resolve().as_uri()
+                thumb_uri = Path(thumb).resolve().as_uri()
+            except ValueError:
+                continue
+            parts.append(
+                '<a href="' + full_uri + '">'
+                '<img src="' + thumb_uri + '" width="112" height="112" '
+                'style="margin:5px;border-radius:8px;vertical-align:middle;"></a>'
+            )
+            shown += 1
+
+        if not parts:
+            return safe
+
+        thumbs = '<div style="margin-top:10px;margin-bottom:6px;">' + "".join(parts) + "</div>"
+        rest = len(images) - shown
+        if rest > 0:
+            gid = f"g{len(self._galleries)}"
+            self._galleries[gid] = list(images)
+            thumbs += (
+                '<div style="margin-top:8px;font-size:12px;">'
+                '<a href="gallery:' + gid + '">'
+                "查看全部 " + str(len(images)) + " 张</a></div>"
+            )
+        return safe + thumbs
+
     def _chat_html(self, role: str, text: str, images: list | None = None) -> str:
         safe = self._highlight_paths(text).replace("\n", "<br/>")
         if role == "你":
@@ -1433,9 +1514,27 @@ class MainWindow(QMainWindow):
         )
 
     def _append_chat(self, role: str, text: str, images: list | None = None) -> None:
-        self.chat_view.append(self._chat_html(role, text, images))
-        bar = self.chat_view.verticalScrollBar()
-        bar.setValue(bar.maximum())
+        row = QWidget()
+        row.setStyleSheet("background:transparent;")
+        layout = QHBoxLayout(row)
+        layout.setContentsMargins(0, 6, 0, 6)
+        layout.setSpacing(0)
+
+        bubble = BubbleLabel(role, text, images, self, row)
+        if role == "你":
+            layout.addStretch(1)
+            layout.addWidget(bubble)
+        else:
+            layout.addWidget(bubble)
+            layout.addStretch(1)
+
+        self.chat_layout.insertWidget(self.chat_layout.count() - 1, row)
+        QTimer.singleShot(
+            0,
+            lambda: self.chat_view.verticalScrollBar().setValue(
+                self.chat_view.verticalScrollBar().maximum()
+            ),
+        )
 
     def on_chat_link(self, url) -> None:
         if url.scheme() == "gallery":
@@ -1502,8 +1601,17 @@ class MainWindow(QMainWindow):
         else:
             self.state_label.setText(f"已规划 {len(tasks)} 条任务，正在检索…")
 
+    def _clear_chat_view(self) -> None:
+        while self.chat_layout.count() > 1:
+            item = self.chat_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                # 立刻脱离父级，deleteLater 是延迟销毁，不先解绑会残留
+                widget.setParent(None)
+                widget.deleteLater()
+
     def _load_chat(self, session_id: str) -> None:
-        self.chat_view.clear()
+        self._clear_chat_view()
         self._galleries.clear()
         self.conversation = []
         if self.agent is None:
@@ -1516,7 +1624,7 @@ class MainWindow(QMainWindow):
         self._render_memory()
 
     def on_clear_chat(self) -> None:
-        self.chat_view.clear()
+        self._clear_chat_view()
         self.append_log(">>> 对话窗口已清屏（历史仍保存在会话中）")
 
     # ── 会话管理 ──────────────────────────────────────────────────────────
