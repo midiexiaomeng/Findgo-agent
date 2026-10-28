@@ -249,6 +249,7 @@ class ResizeHandle(QWidget):
         if event.button() == Qt.LeftButton:
             self._start = event.globalPos()
             self._geometry = self.window.geometry()
+            self.window._resizing = True
             event.accept()
 
     def mouseMoveEvent(self, event) -> None:
@@ -282,6 +283,7 @@ class ResizeHandle(QWidget):
 
     def mouseReleaseEvent(self, event) -> None:
         self._start = None
+        self.window._resizing = False
         event.accept()
 
 
@@ -845,6 +847,9 @@ class MainWindow(QMainWindow):
     def _layout_handles(self) -> None:
         if not hasattr(self, "_resize_handles"):
             return
+        # 正在拖动手柄时不要重排，否则鼠标会脱离手柄导致抖动
+        if getattr(self, "_resizing", False):
+            return
 
         w, h = self.width(), self.height()
         t = ResizeHandle.THICK
@@ -891,13 +896,6 @@ class MainWindow(QMainWindow):
             self._handle_timer.setSingleShot(True)
             self._handle_timer.timeout.connect(self._layout_handles)
         self._handle_timer.start(40)
-
-        # 输入框高度重算会改布局，用定时器防抖，否则拖窗口时来回抖动
-        if not hasattr(self, "_input_resize_timer"):
-            self._input_resize_timer = QTimer(self)
-            self._input_resize_timer.setSingleShot(True)
-            self._input_resize_timer.timeout.connect(self._adjust_input_height)
-        self._input_resize_timer.start(60)
 
         # 只在侧栏收起（中间宽度锁定）时重算填充块，正常缩放交给布局自适应
         if getattr(self, "_locked_center", None):
@@ -2326,6 +2324,17 @@ def main() -> int:
     app = QApplication(sys.argv)
     app.setApplicationName("imgsearch Agent")
     app.setStyle("Fusion")
+
+    from PyQt5.QtGui import QColor, QPalette
+
+    palette = app.palette()
+    palette.setColor(QPalette.ToolTipBase, QColor("#FFFFFF"))
+    palette.setColor(QPalette.ToolTipText, QColor("#2E2E2E"))
+    palette.setColor(QPalette.Window, QColor("#FBFAF7"))
+    palette.setColor(QPalette.Base, QColor("#FFFFFF"))
+    palette.setColor(QPalette.Text, QColor("#2E2E2E"))
+    palette.setColor(QPalette.WindowText, QColor("#2E2E2E"))
+    app.setPalette(palette)
     app.setStyleSheet(GLOBAL_QSS)
 
     from PyQt5.QtCore import QDir, QLockFile
