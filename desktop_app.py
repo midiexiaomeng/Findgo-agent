@@ -30,7 +30,16 @@ warnings.filterwarnings("ignore", message=".*bottleneck.*")
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from PyQt5.QtCore import QEvent, QObject, QPoint, QRect, Qt, QThread, pyqtSignal
+from PyQt5.QtCore import (
+    QEvent,
+    QObject,
+    QPoint,
+    QRect,
+    QSettings,
+    Qt,
+    QThread,
+    pyqtSignal,
+)
 from PyQt5.QtGui import QFont, QImage, QKeySequence, QPixmap
 from PyQt5.QtWidgets import (
     QApplication,
@@ -600,21 +609,22 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("imgsearch Agent · 多模态图像检索")
         self.setMinimumSize(880, 560)
 
-        screen = QApplication.primaryScreen()
-        if screen is not None:
-            area = screen.availableGeometry()
-            width = min(1200, int(area.width() * 0.82))
-            height = min(760, int(area.height() * 0.82))
-            self.resize(max(width, 900), max(height, 600))
-            self.move(
-                area.x() + (area.width() - max(width, 900)) // 2,
-                area.y() + (area.height() - max(height, 600)) // 2,
-            )
-        else:
-            self.resize(1100, 700)
+        if not self._restore_geometry():
+            screen = QApplication.primaryScreen()
+            if screen is not None:
+                area = screen.availableGeometry()
+                width = max(min(1200, int(area.width() * 0.82)), 900)
+                height = max(min(760, int(area.height() * 0.82)), 600)
+                self.resize(width, height)
+                self.move(
+                    area.x() + (area.width() - width) // 2,
+                    area.y() + (area.height() - height) // 2,
+                )
+            else:
+                self.resize(1100, 700)
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.Window)
         self._left_width = 240
-        self._right_width = 300
+        self._right_width = 225
         self.setStyleSheet(
             "QMainWindow{background:#FBFAF7;}"
             "QScrollBar:vertical{background:transparent;width:8px;}"
@@ -1122,7 +1132,7 @@ class MainWindow(QMainWindow):
         right = QSplitter(Qt.Vertical)
         right.addWidget(self._build_task_panel())
         right.addWidget(self._build_file_panel())
-        right.setSizes([400, 380])
+        right.setSizes([400, 330])
         right.setChildrenCollapsible(False)
 
         # 三列之间用水平分割器，左右宽度可以自由拖动
@@ -1130,7 +1140,7 @@ class MainWindow(QMainWindow):
         main.addWidget(left)
         main.addWidget(center)
         main.addWidget(right)
-        main.setSizes([240, 900, 300])
+        main.setSizes([240, 900, 225])
         main.setStretchFactor(0, 0)
         main.setStretchFactor(1, 1)
         main.setStretchFactor(2, 0)
@@ -1572,6 +1582,37 @@ class MainWindow(QMainWindow):
         self.model_btn.setText(entry.get("label", entry.get("model", "")))
         self.append_log(">>> 切换模型：" + str(entry.get("label")))
 
+    @staticmethod
+    def _state_file() -> Path:
+        return Path(__file__).resolve().parent / "data" / "window_state.json"
+
+    def _restore_geometry(self) -> bool:
+        try:
+            import json
+
+            data = json.loads(self._state_file().read_text(encoding="utf-8"))
+            x, y, w, h = (int(v) for v in data["rect"])
+            if w < 400 or h < 300:
+                return False
+            self.setGeometry(x, y, w, h)
+            return True
+        except Exception:
+            return False
+
+    def _save_geometry(self) -> None:
+        try:
+            import json
+
+            g = self.geometry()
+            target = self._state_file()
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(
+                json.dumps({"rect": [g.x(), g.y(), g.width(), g.height()]}),
+                encoding="utf-8",
+            )
+        except Exception:
+            pass
+
     def toggle_maximize(self) -> None:
         if self.isMaximized():
             self.showNormal()
@@ -1604,7 +1645,7 @@ class MainWindow(QMainWindow):
         else:
             widget.setHidden(False)
             if len(sizes) > 2:
-                sizes[2] = self._right_width or 300
+                sizes[2] = self._right_width or 225
                 self.main_split.setSizes(sizes)
 
     def reset_left(self) -> None:
@@ -1620,7 +1661,7 @@ class MainWindow(QMainWindow):
         widget.setHidden(False)
         sizes = list(self.main_split.sizes())
         if len(sizes) > 2:
-            sizes[2] = 300
+            sizes[2] = 225
             self.main_split.setSizes(sizes)
 
     def on_skills(self) -> None:
@@ -2076,7 +2117,8 @@ class MainWindow(QMainWindow):
         self.input.setFocus()
 
     def closeEvent(self, event) -> None:
-        """关闭窗口时释放向量库文件锁，便于下次启动。"""
+        """关闭窗口时保存尺寸并释放向量库文件锁。"""
+        self._save_geometry()
         try:
             if self.agent is not None:
                 self.agent.close()
