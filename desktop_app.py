@@ -611,7 +611,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("imgsearch Agent · 多模态图像检索")
-        self.setMinimumSize(760, 380)
+        self.setMinimumSize(760, 560)
 
         if not self._restore_geometry():
             screen = QApplication.primaryScreen()
