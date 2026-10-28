@@ -105,7 +105,7 @@ class VectorStore(abc.ABC):
         raise NotImplementedError(f"{self.backend_name} 不支持更新 payload")
 
     def get_vectors(
-        self, limit: int | None = None
+        self, ids: Sequence[str] | None = None, limit: int | None = None
     ) -> list[tuple[str, np.ndarray, dict[str, Any]]]:
         """返回 (id, 向量, metadata)，用于相似度分析。默认后端不支持时抛错。"""
         raise NotImplementedError(f"{self.backend_name} 不支持读取向量")

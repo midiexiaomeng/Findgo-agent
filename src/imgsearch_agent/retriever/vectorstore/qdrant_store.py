@@ -316,8 +316,24 @@ class QdrantVectorStore(VectorStore):
         )
 
     def get_vectors(
-        self, limit: int | None = None
+        self, ids=None, limit: int | None = None
     ) -> list[tuple[str, np.ndarray, dict]]:
+        if ids:
+            points = self._client.retrieve(
+                collection_name=self.collection,
+                ids=[str(i) for i in ids],
+                with_payload=True,
+                with_vectors=True,
+            )
+            return [
+                (
+                    str(p.id),
+                    np.asarray(p.vector, dtype=np.float32),
+                    dict(p.payload or {}),
+                )
+                for p in points
+            ]
+
         out: list[tuple[str, np.ndarray, dict]] = []
         offset = None
         remaining = int(limit or 100000)

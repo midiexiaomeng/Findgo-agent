@@ -25,6 +25,10 @@ class ImageRetrievalArgs(BaseModel):
     top_k: int = Field(8, ge=1, le=1000, description="返回数量，最大 1000")
     folder_path: str = Field("", description="限定检索的文件夹路径，空表示全库")
     all_results: bool = Field(False, description="返回全部匹配结果，忽略 top_k")
+    dedupe: bool = Field(True, description="过滤掉彼此高度相似的重复图")
+    dedupe_threshold: float = Field(
+        0.95, ge=0.5, le=1.0, description="相似度阈值，超过视为重复"
+    )
     path: str = Field("", description="（兼容）同 folder_path")
 
 
@@ -78,6 +82,37 @@ class ImageRetrievalTool(BaseTool):
             logger.warning("自动索引 %s 失败: %s", folder, e)
         self._indexed.add(key)
 
+    def _dedupe(self, images, threshold: float):
+        """按向量相似度去重，保留排名靠前的那张。"""
+        import numpy as np
+
+        from ..retriever.indexer import Indexer
+
+        id_map = {Indexer.image_id(i.path): i for i in images}
+        try:
+            records = self.pipeline.store.get_vectors(ids=list(id_map.keys()))
+        except Exception:
+            return images
+
+        vectors = {str(r[0]): np.asarray(r[1], dtype=np.float32) for r in records}
+
+        kept = []
+        kept_vectors: list[np.ndarray] = []
+        for image in images:
+            vector = vectors.get(Indexer.image_id(image.path))
+            if vector is None:
+                kept.append(image)
+                continue
+
+            norm = float(np.linalg.norm(vector))
+            unit = vector / max(norm, 1e-8)
+            if any(float(np.dot(unit, other)) >= threshold for other in kept_vectors):
+                continue
+            kept.append(image)
+            kept_vectors.append(unit)
+
+        return kept
+
     def run(
         self,
         query: str,
@@ -86,6 +121,8 @@ class ImageRetrievalTool(BaseTool):
         path: str = "",
         all_results: bool = False,
         should_stop=None,
+        dedupe: bool = True,
+        dedupe_threshold: float = 0.95,
     ) -> dict[str, Any]:
         target = folder_path or path
         scope = ""
@@ -120,6 +157,9 @@ class ImageRetrievalTool(BaseTool):
             )
             for r in resp.results
         ]
+        if dedupe and len(images) > 1:
+            images = self._dedupe(images, dedupe_threshold)
+
         confidence = (
             sum(i.score for i in images) / len(images) if images else 0.0
         )
