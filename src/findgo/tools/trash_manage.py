@@ -30,14 +30,17 @@ class TrashManageArgs(BaseModel):
     task_id: str = Field("", description="任务 ID，留空自动生成")
     ids: list[str] = Field(default_factory=list, description="指定要恢复或删除的记录 ID")
     max_days: int = Field(0, ge=0, le=365, description="cleanup 超时天数，0 表示用设置里的值")
-    max_total_gb: float = Field(0.0, ge=0.0, le=1000, description="cleanup 容量上限 GB，0 表示用设置里的值")
+    max_total_gb: float = Field(
+        0.0, ge=0.0, le=1000, description="cleanup 容量上限 GB，0 表示用设置里的值"
+    )
 
 
 class TrashManageTool(BaseTool):
     name = "trash_manage"
     permission = "file_write"
     description = (
-        "管理暂存区：stage 把图片移入暂存区（不删原图）/ list 查看 / " "restore 恢复 / purge 永久删除 / cleanup 按超时与容量清理"
+        "管理暂存区：stage 把图片移入暂存区（不删原图）/ list 查看 / "
+        "restore 恢复 / purge 永久删除 / cleanup 按超时与容量清理"
     )
     args_schema = TrashManageArgs
 
@@ -112,7 +115,9 @@ class TrashManageTool(BaseTool):
                 "items": items,
                 "count": len(items),
                 "total_bytes": stats["total_bytes"],
-                "summary": (f"暂存区有 {len(items)} 张，" f"占用 {stats['total_bytes'] / 1024**2:.1f} MB"),
+                "summary": (
+                    f"暂存区有 {len(items)} 张，" f"占用 {stats['total_bytes'] / 1024**2:.1f} MB"
+                ),
             }
 
         if action in ("restore", "purge"):
@@ -136,7 +141,8 @@ class TrashManageTool(BaseTool):
             return {
                 **result,
                 "summary": (
-                    f"已永久删除 {result['purged']} 张，" f"释放 {result['freed_bytes'] / 1024**2:.1f} MB"
+                    f"已永久删除 {result['purged']} 张，"
+                    f"释放 {result['freed_bytes'] / 1024**2:.1f} MB"
                 ),
             }
 
@@ -147,7 +153,8 @@ class TrashManageTool(BaseTool):
             return {
                 **result,
                 "summary": (
-                    f"清理 {result['total_purged']} 张，" f"释放 {result['freed_bytes'] / 1024**2:.1f} MB"
+                    f"清理 {result['total_purged']} 张，"
+                    f"释放 {result['freed_bytes'] / 1024**2:.1f} MB"
                 ),
             }
 

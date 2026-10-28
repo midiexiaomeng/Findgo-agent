@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import numpy as np
-
 from findgo.tools import FindDuplicatesTool
 from findgo.utils.sandbox import Sandbox
 

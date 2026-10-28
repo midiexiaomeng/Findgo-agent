@@ -255,7 +255,10 @@ class LLMReranker:
                 caption = "（无描述）"
             lines.append(f"[{i}] 文件：{filename}\n    描述：{caption}")
 
-        system = "你是图像检索系统的相关性评估器。你只输出 JSON，不输出任何解释、" "markdown 代码块或多余文字。"
+        system = (
+            "你是图像检索系统的相关性评估器。你只输出 JSON，不输出任何解释、"
+            "markdown 代码块或多余文字。"
+        )
         user = (
             f"用户想找的图片：{query}\n\n"
             "下面是候选图片的内容描述（由图像描述模型生成，可能是英文，请照常理解）：\n\n"

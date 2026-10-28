@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from findgo.retriever.llm.reranker import LLMReranker, ScoredCandidate
 from findgo.retriever.vectorstore.base import VectorHit
 from findgo.tools import ImageRetrievalTool

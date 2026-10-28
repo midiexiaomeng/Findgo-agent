@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from findgo.agent import custom_tools
 from findgo.utils.sandbox import Sandbox
 

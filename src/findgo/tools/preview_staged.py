@@ -50,5 +50,7 @@ class PreviewStagedTool(BaseTool):
             "count": len(items),
             "returned": min(len(items), limit),
             "total_bytes": total_bytes,
-            "summary": (f"暂存区有 {len(items)} 张待删除图片，" f"占用 {total_bytes / 1024**2:.1f} MB"),
+            "summary": (
+                f"暂存区有 {len(items)} 张待删除图片，" f"占用 {total_bytes / 1024**2:.1f} MB"
+            ),
         }

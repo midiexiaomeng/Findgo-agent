@@ -6,7 +6,6 @@ import threading
 from types import SimpleNamespace
 
 import pytest
-
 from findgo.retriever import pipeline as pipeline_module
 from findgo.retriever.pipeline import Pipeline
 

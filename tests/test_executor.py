@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import time
 
-from pydantic import BaseModel, Field
-
 from findgo.agent.executor import ToolExecutor
 from findgo.tools.base_tool import BaseTool
+from pydantic import BaseModel, Field
 
 
 class _Args(BaseModel):

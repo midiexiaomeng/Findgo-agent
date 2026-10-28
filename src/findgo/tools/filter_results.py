@@ -17,9 +17,15 @@ class FilterResultsArgs(BaseModel):
 
     paths: list[str] = Field(..., min_length=1, description="上一轮结果的图片路径")
     exclude_staged: bool = Field(True, description="排除已移入暂存区的图片")
-    min_similarity: float = Field(0.0, ge=0.0, le=1.0, description="最低相似度，需要同时提供 scores")
-    must_not_keywords: list[str] = Field(default_factory=list, description="描述里含这些词的图片会被排除")
-    scores: dict[str, float] = Field(default_factory=dict, description="路径到分数的映射，用于 min_similarity")
+    min_similarity: float = Field(
+        0.0, ge=0.0, le=1.0, description="最低相似度，需要同时提供 scores"
+    )
+    must_not_keywords: list[str] = Field(
+        default_factory=list, description="描述里含这些词的图片会被排除"
+    )
+    scores: dict[str, float] = Field(
+        default_factory=dict, description="路径到分数的映射，用于 min_similarity"
+    )
 
 
 class FilterResultsTool(BaseTool):

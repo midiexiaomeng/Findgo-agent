@@ -43,7 +43,8 @@ class FakePipeline:
 class FakeClient:
     def __init__(self, action=None):
         self.action = action or (
-            '{"action_type":"tool_call","tool_name":"image_retrieval",' '"tool_args":{"query":"猫"}}'
+            '{"action_type":"tool_call","tool_name":"image_retrieval",'
+            '"tool_args":{"query":"猫"}}'
         )
         self.calls: list[str] = []
 

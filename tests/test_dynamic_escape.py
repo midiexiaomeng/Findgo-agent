@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from findgo.agent.dynamic import DynamicToolSpec, build_dynamic_tool
 from findgo.utils.sandbox import Sandbox, SandboxError
 

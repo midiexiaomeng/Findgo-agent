@@ -52,7 +52,10 @@ class Critic:
 
         try:
             prompt = (
-                f"原始查询：{query}\n" f"检索问题：{reason}\n" "请改写这个查询，使其更容易检索到相关图片。" "只输出改写后的查询文本，不要解释。"
+                f"原始查询：{query}\n"
+                f"检索问题：{reason}\n"
+                "请改写这个查询，使其更容易检索到相关图片。"
+                "只输出改写后的查询文本，不要解释。"
             )
             new_query = self.client.chat(
                 [{"role": "user", "content": prompt}], max_tokens=64

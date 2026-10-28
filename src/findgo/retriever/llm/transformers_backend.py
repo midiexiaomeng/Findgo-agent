@@ -60,7 +60,9 @@ class TransformersChat:
     def is_available(self) -> tuple[bool, str]:
         path = Path(self.model_path)
         if not path.exists():
-            return False, (f"本地模型不存在: {path}。" "运行 python scripts/download_llm_hf.py 下载")
+            return False, (
+                f"本地模型不存在: {path}。" "运行 python scripts/download_llm_hf.py 下载"
+            )
         has_weights = any(path.glob("*.safetensors")) or any(path.glob("pytorch_model*.bin"))
         if not has_weights:
             return False, f"目录里没有模型权重: {path}"

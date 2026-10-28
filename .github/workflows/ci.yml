@@ -9,8 +9,12 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.10", "3.11"]
+
+    env:
+      QT_QPA_PLATFORM: offscreen
 
     steps:
       - uses: actions/checkout@v4
@@ -27,7 +31,7 @@ jobs:
           pip install -r requirements-ci.txt
 
       - name: Run tests
-        run: pytest tests -q
+        run: pytest tests -q --tb=short -rf
 
   lint:
     runs-on: ubuntu-latest
@@ -37,7 +41,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install linters
-        run: pip install black ruff
+        run: pip install "black==24.4.2" "ruff==0.4.4"
       - name: Black
         run: black --check --line-length 100 src tests
       - name: Ruff

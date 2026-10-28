@@ -76,7 +76,9 @@ class Pipeline:
                 new_store = create_vector_store(self.cfg, backend)
             except Exception as e:
                 logger.warning("切换 %s 失败，保留原后端: %s", backend, e)
-                raise RuntimeError(f"目标后端 {backend} 初始化失败，仍使用 {old.backend_name}：{e}") from e
+                raise RuntimeError(
+                    f"目标后端 {backend} 初始化失败，仍使用 {old.backend_name}：{e}"
+                ) from e
 
             # 2. 写入 + 查询 + 删除，确认真能读写
             try:
@@ -87,7 +89,9 @@ class Pipeline:
                 except Exception:
                     pass
                 logger.warning("目标后端 %s 自检失败，保留原后端: %s", backend, e)
-                raise RuntimeError(f"目标后端 {backend} 自检失败，仍使用 {old.backend_name}：{e}") from e
+                raise RuntimeError(
+                    f"目标后端 {backend} 自检失败，仍使用 {old.backend_name}：{e}"
+                ) from e
 
             # 3. 自检通过，关掉旧连接再切换
             try:
@@ -155,9 +159,11 @@ class Pipeline:
             llm_msg = f"检查失败: {e}"
 
         result = {
-            "device": describe_device(self.encoder.device)
-            if self.encoder.loaded
-            else (describe_device(_resolve_device(self.cfg))),
+            "device": (
+                describe_device(self.encoder.device)
+                if self.encoder.loaded
+                else (describe_device(_resolve_device(self.cfg)))
+            ),
             "encoder_loaded": self.encoder.loaded,
             "llm_ok": ok,
             "llm_message": llm_msg,

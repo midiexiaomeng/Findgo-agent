@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import pytest
-from PIL import Image
-
 from findgo.tools import (
     GetIndexStatsTool,
     ImageSearchByImageTool,
@@ -12,6 +10,7 @@ from findgo.tools import (
     SwitchVectorBackendTool,
 )
 from findgo.utils.path_guard import PathGuard
+from PIL import Image
 
 
 class FakeIndexStats:

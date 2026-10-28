@@ -393,9 +393,11 @@ class Memory:
                     action,
                     tool_name,
                     json.dumps(tool_args, ensure_ascii=False) if tool_args else None,
-                    json.dumps(tool_result, ensure_ascii=False)[:4000]
-                    if tool_result is not None
-                    else None,
+                    (
+                        json.dumps(tool_result, ensure_ascii=False)[:4000]
+                        if tool_result is not None
+                        else None
+                    ),
                     _now(),
                 ),
             )

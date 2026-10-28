@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from PIL import Image
-
 from findgo.tools import DescribeImageTool, ListIndexedFoldersTool
 from findgo.utils.path_guard import PathGuard
+from PIL import Image
 
 
 class _Hit:

@@ -87,7 +87,8 @@ class RemoveIndexTool(BaseTool):
                 "deleted": False,
                 "dry_run": True,
                 "summary": (
-                    f"{label}：将删除 {len(targets)} 条（dry_run，未真正删除）。" "确认后用 dry_run=False 执行。"
+                    f"{label}：将删除 {len(targets)} 条（dry_run，未真正删除）。"
+                    "确认后用 dry_run=False 执行。"
                 ),
             }
 

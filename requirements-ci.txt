@@ -1,4 +1,4 @@
-# CI 专用依赖：不装 torch / transformers / gradio，测试全部使用假编码器与 mock
+# CI 专用依赖：不装 torch / transformers / gradio / PyQt5，测试全部使用假编码器与 mock
 numpy>=1.24,<3
 Pillow>=9.5
 PyYAML>=6.0
@@ -7,3 +7,4 @@ pydantic>=2.0
 chromadb>=0.4.22
 qdrant-client>=1.7
 pytest>=7.0
+pytest-github-actions-annotate-failures>=0.2

@@ -6,7 +6,6 @@ import uuid
 
 import numpy as np
 import pytest
-
 from findgo.retriever.config import Config
 from findgo.retriever.vectorstore import create_vector_store, l2_normalize
 

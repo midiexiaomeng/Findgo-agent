@@ -74,7 +74,9 @@ class Planner:
             user_content = f"可用工具：\n{tools_desc}\n\n用户请求：{query}"
 
         if extra_context.strip():
-            user_content += "\n\n【当前会话生效约束（权威源，优先级高于历史对话）】\n" + extra_context.strip()
+            user_content += (
+                "\n\n【当前会话生效约束（权威源，优先级高于历史对话）】\n" + extra_context.strip()
+            )
 
         messages: list[dict[str, str]] = [
             {"role": "system", "content": self.prompts.get("system", "")},

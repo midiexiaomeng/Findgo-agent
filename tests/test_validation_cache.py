@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from findgo.tools import ImageRetrievalTool, IndexFolderTool
 from findgo.utils.exceptions import ValidationError
 from findgo.utils.path_guard import PathGuard

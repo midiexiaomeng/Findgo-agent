@@ -13,8 +13,6 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from PIL import Image
-
 from findgo.retriever.captioner import Captioner
 from findgo.retriever.clip_encoder import ClipEncoder
 from findgo.retriever.config import Config
@@ -22,6 +20,7 @@ from findgo.retriever.indexer import Indexer
 from findgo.retriever.llm.reranker import LLMReranker
 from findgo.retriever.searcher import Searcher
 from findgo.retriever.vectorstore import create_vector_store
+from PIL import Image
 
 COLORS = {
     "red.png": (255, 0, 0),

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from findgo.retriever.config import Config
 from findgo.retriever.llm.client import LLMError
 from findgo.retriever.llm.reranker import LLMReranker

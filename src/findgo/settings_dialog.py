@@ -145,7 +145,10 @@ class SettingsDialog(QDialog):
         layout.setContentsMargins(16, 14, 16, 14)
         layout.setSpacing(10)
 
-        tip = QLabel("选择服务商后会自动填入接口地址和常用模型。" "填写 API Key 并「测试连接」，成功后才会计入已添加模型。")
+        tip = QLabel(
+            "选择服务商后会自动填入接口地址和常用模型。"
+            "填写 API Key 并「测试连接」，成功后才会计入已添加模型。"
+        )
         tip.setWordWrap(True)
         tip.setStyleSheet("color:#8A8A8A; font-size:12px;")
         layout.addWidget(tip)
@@ -214,7 +217,9 @@ class SettingsDialog(QDialog):
         layout.setContentsMargins(16, 14, 16, 14)
         layout.setSpacing(10)
 
-        tip = QLabel("返回数量由模型根据你的描述自动判断（例如“两张”就是 2 张），这里只调整置信阈值与重试次数。")
+        tip = QLabel(
+            "返回数量由模型根据你的描述自动判断（例如“两张”就是 2 张），这里只调整置信阈值与重试次数。"
+        )
         tip.setStyleSheet("color:#8A8A8A; font-size:12px;")
         layout.addWidget(tip)
 
@@ -367,7 +372,10 @@ class SettingsDialog(QDialog):
         layout.setContentsMargins(16, 14, 16, 14)
         layout.setSpacing(10)
 
-        tip = QLabel("待删除的图片先进入暂存区，用硬链接保留，不占额外空间。" "超过留存天数或容量上限后，才会被永久删除。")
+        tip = QLabel(
+            "待删除的图片先进入暂存区，用硬链接保留，不占额外空间。"
+            "超过留存天数或容量上限后，才会被永久删除。"
+        )
         tip.setWordWrap(True)
         tip.setStyleSheet("color:#8A8A8A; font-size:12px;")
         layout.addWidget(tip)
@@ -571,7 +579,10 @@ class SettingsDialog(QDialog):
         layout.setContentsMargins(16, 14, 16, 14)
         layout.setSpacing(10)
 
-        tip = QLabel("从动态工具审核时勾选保存下来的全局工具，存在 configs/custom_tools.yaml，" "和内置工具完全隔离，可以单独备份或清空。")
+        tip = QLabel(
+            "从动态工具审核时勾选保存下来的全局工具，存在 configs/custom_tools.yaml，"
+            "和内置工具完全隔离，可以单独备份或清空。"
+        )
         tip.setWordWrap(True)
         tip.setStyleSheet("color:#8A8A8A; font-size:12px;")
         layout.addWidget(tip)

@@ -70,7 +70,8 @@ class ChromaVectorStore(VectorStore):
             actual_dim = None
         if actual_dim and int(actual_dim) != self.embedding_dim:
             logger.warning(
-                "collection %s 记录维度 %s 与当前配置 %s 不一致，检索可能失败；" "换模型后请重建索引",
+                "collection %s 记录维度 %s 与当前配置 %s 不一致，检索可能失败；"
+                "换模型后请重建索引",
                 self.collection,
                 actual_dim,
                 self.embedding_dim,

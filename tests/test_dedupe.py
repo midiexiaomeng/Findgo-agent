@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import numpy as np
-
 from findgo.retriever.indexer import Indexer
 from findgo.tools import ImageRetrievalTool
 from findgo.utils.schemas import RetrievedImage
