@@ -106,9 +106,19 @@ from imgsearch_agent.theme import GLOBAL_QSS
 
 
 class ChatInput(QPlainTextEdit):
-    """支持粘贴图片的输入框。"""
+    """支持粘贴图片、Enter 发送的输入框。"""
 
     image_pasted = pyqtSignal(str)
+    send_requested = pyqtSignal()
+
+    def keyPressEvent(self, event) -> None:
+        if event.key() in (Qt.Key_Return, Qt.Key_Enter):
+            if event.modifiers() & Qt.ShiftModifier:
+                super().keyPressEvent(event)      # Shift+Enter 换行
+            else:
+                self.send_requested.emit()        # Enter 发送
+            return
+        super().keyPressEvent(event)
 
     def insertFromMimeData(self, source) -> None:
         if source is not None and source.hasImage():
@@ -746,12 +756,14 @@ class MainWindow(QMainWindow):
 
         self.input = ChatInput()
         self.input.image_pasted.connect(self._set_attachment)
+        self.input.send_requested.connect(self.on_send)
         self.input.setPlaceholderText(
-            "描述你想找的图片，支持多行。Ctrl+Enter 发送，例如：\n找两张猫的图片，再找几张海边的日落"
+            "描述你想找的图片。Enter 发送，Shift+Enter 换行，例如：\n找两张猫的图片，再找几张海边的日落"
         )
         self.input.setStyleSheet(
-            "QPlainTextEdit{border:1px solid #EDEBE6;border-radius:10px;"
-            "padding:10px 12px 46px 12px;font-size:14px;background:#ffffff;}"
+            "QPlainTextEdit{border:1px solid #EDEBE6;border-radius:18px;"
+            "padding:14px 18px 48px 18px;font-size:14px;background:#FFFFFF;}"
+            "QPlainTextEdit:focus{border:1px solid #A8C9B8;}"
         )
         self.input.textChanged.connect(self._adjust_input_height)
         grid.addWidget(self.input, 0, 0)
