@@ -74,7 +74,9 @@ from PyQt5.QtWidgets import (
 
 from imgsearch_agent.model_store import ModelStore
 from imgsearch_agent.ui.bubble import BubbleLabel, ImageGalleryDialog
+from imgsearch_agent.ui.chat_render import highlight_paths, message_html
 from imgsearch_agent.ui.components import LogBridge, QtLogHandler, Worker
+from imgsearch_agent.ui.thumbnail_cache import thumb_path
 from imgsearch_agent.ui.dynamic_dialog import DynamicToolDialog
 from imgsearch_agent.ui.skills_panel import SkillDropZone, SkillsPopup
 from imgsearch_agent.ui.input_panel import ChatInput, ResizeHandle
@@ -792,95 +794,13 @@ class MainWindow(QMainWindow):
     # ── 聊天记录 ──────────────────────────────────────────────────────────
 
     def _thumb_path(self, path: str, size: int = 112) -> str:
-        """生成正方形缩略图，保证对话里图片高度一致。"""
-        import hashlib
-
-        from PIL import Image, ImageOps
-
-        source = Path(path)
-        try:
-            stat = source.stat()
-        except OSError:
-            return ""
-
-        key = hashlib.md5(
-            f"{source.resolve()}|{stat.st_mtime}|{size}".encode("utf-8")
-        ).hexdigest()
-        cache_dir = Path(__file__).resolve().parent / "data" / "thumbs"
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        target = cache_dir / f"{key}.jpg"
-        if target.exists():
-            return str(target)
-
-        try:
-            with Image.open(source) as im:
-                im = ImageOps.exif_transpose(im).convert("RGB")
-                im = ImageOps.fit(im, (size, size), method=Image.LANCZOS)
-                im.save(target, "JPEG", quality=85)
-        except Exception:
-            return ""
-        return str(target)
+        return thumb_path(path, size)
 
     def _highlight_paths(self, text: str) -> str:
-        """把路径这类技术文本做淡绿高亮，保留可读性。"""
-        import re
-
-        escaped = html.escape(str(text))
-        pattern = r"([A-Za-z]:\\[^\s<>\"']+|(?<![\w])/[\w./-]{3,})"
-        return re.sub(
-            pattern,
-            '<span style="color:#4E7A63;background:#EAF3EE;'
-            'padding:1px 4px;border-radius:3px;">'
-            + chr(92) + "1</span>",
-            escaped,
-        )
+        return highlight_paths(text)
 
     def _message_html(self, text: str, images: list | None = None) -> str:
-        """气泡内部内容：文本 + 路径高亮 + 图片网格。"""
-        safe = self._highlight_paths(text).replace("\n", "<br/>")
-        if not images:
-            return safe
-
-        parts = []
-        shown = 0
-        for img in images[:20]:
-            if isinstance(img, str):
-                path = img
-            elif isinstance(img, dict):
-                path = img.get("path", "")
-            else:
-                path = getattr(img, "path", "")
-            if not path or not Path(path).exists():
-                continue
-            thumb = self._thumb_path(path)
-            if not thumb:
-                continue
-            try:
-                full_uri = Path(path).resolve().as_uri()
-                thumb_uri = Path(thumb).resolve().as_uri()
-            except ValueError:
-                continue
-            parts.append(
-                '<a href="' + full_uri + '">'
-                '<img src="' + thumb_uri + '" width="112" height="112" '
-                'style="margin:5px;border-radius:8px;vertical-align:middle;"></a>'
-            )
-            shown += 1
-
-        if not parts:
-            return safe
-
-        thumbs = '<div style="margin-top:10px;margin-bottom:6px;">' + "".join(parts) + "</div>"
-        rest = len(images) - shown
-        if rest > 0:
-            gid = f"g{len(self._galleries)}"
-            self._galleries[gid] = list(images)
-            thumbs += (
-                '<div style="text-align:right;margin-top:4px;">'
-                '<a href="gallery:' + gid + '" style="color:#4E7A63;'
-                'text-decoration:none;font-size:15px;font-weight:600;">…</a></div>'
-            )
-        return safe + thumbs
+        return message_html(text, images, self._galleries, self._thumb_path)
 
     def _chat_html(self, role: str, text: str, images: list | None = None) -> str:
         safe = self._highlight_paths(text).replace("\n", "<br/>")
