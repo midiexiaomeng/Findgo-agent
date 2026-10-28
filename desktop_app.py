@@ -884,7 +884,13 @@ class MainWindow(QMainWindow):
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         self._apply_round_mask()
-        self._layout_handles()
+
+        # 拖拽手柄位置跟着窗口变，但拖动过程中重排会让鼠标脱离手柄
+        if not hasattr(self, "_handle_timer"):
+            self._handle_timer = QTimer(self)
+            self._handle_timer.setSingleShot(True)
+            self._handle_timer.timeout.connect(self._layout_handles)
+        self._handle_timer.start(40)
 
         # 输入框高度重算会改布局，用定时器防抖，否则拖窗口时来回抖动
         if not hasattr(self, "_input_resize_timer"):
@@ -1152,6 +1158,13 @@ class MainWindow(QMainWindow):
 
         # 三列之间用水平分割器，左右宽度可以自由拖动
         main = QSplitter(Qt.Horizontal)
+
+        # 左侧占位：收起左栏后用它撑住空白，中间和右栏不会贴到窗口左边
+        self.left_spacer = QWidget()
+        self.left_spacer.setStyleSheet("background:#FBFAF7;")
+        self.left_spacer.setMinimumWidth(0)
+
+        main.addWidget(self.left_spacer)
         main.addWidget(left)
         main.addWidget(center)
         main.addWidget(right)
@@ -1163,11 +1176,12 @@ class MainWindow(QMainWindow):
         self.spacer.setMinimumWidth(0)
         main.addWidget(self.spacer)
 
-        main.setSizes([240, 900, 225, 0])
-        main.setStretchFactor(0, 0)
-        main.setStretchFactor(1, 1)   # 中间跟随窗口自适应
-        main.setStretchFactor(2, 0)
-        main.setStretchFactor(3, 0)   # 填充块只在侧栏收起时吸收空白
+        main.setSizes([0, 240, 900, 225, 0])
+        main.setStretchFactor(0, 0)   # 左侧占位
+        main.setStretchFactor(1, 0)
+        main.setStretchFactor(2, 1)   # 中间跟随窗口自适应
+        main.setStretchFactor(3, 0)
+        main.setStretchFactor(4, 0)   # 右侧填充块
         main.setChildrenCollapsible(False)
 
         # 分割条只保留可拖区域，视觉上隐藏
@@ -1654,84 +1668,81 @@ class MainWindow(QMainWindow):
         self._apply_round_mask()
 
     def toggle_left(self) -> None:
-        widget = self.main_split.widget(0)
+        widget = self.main_split.widget(1)
         sizes = list(self.main_split.sizes())
+        if len(sizes) < 5:
+            return
+
         if not widget.isHidden():
-            if len(sizes) > 0 and sizes[0] > 0:
-                self._left_width = sizes[0]
+            left_w = sizes[1] or self._left_width or 240
+            self._left_width = left_w
             widget.setHidden(True)
+            # 把左栏宽度让给左侧占位块，中间保持原位
+            self.main_split.setSizes([left_w, 0, sizes[2], sizes[3], 0])
         else:
             widget.setHidden(False)
-            if len(sizes) > 0:
-                sizes[0] = self._left_width or 240
-                self.main_split.setSizes(sizes)
-        self._balance_spacer()
+            self.main_split.setSizes(
+                [0, self._left_width, sizes[2], sizes[3], 0]
+            )
 
     def toggle_right(self) -> None:
-        widget = self.main_split.widget(2)
+        widget = self.main_split.widget(3)
         sizes = list(self.main_split.sizes())
+        if len(sizes) < 5:
+            return
+
         if not widget.isHidden():
-            if len(sizes) > 2 and sizes[2] > 0:
-                self._right_width = sizes[2]
+            self._right_width = sizes[3] or self._right_width or 225
             widget.setHidden(True)
+            self.main_split.setSizes(
+                [sizes[0], sizes[1], sizes[2], 0, self._right_width]
+            )
         else:
             widget.setHidden(False)
-            if len(sizes) > 2:
-                sizes[2] = self._right_width or 225
-                self.main_split.setSizes(sizes)
-        self._balance_spacer()
+            self.main_split.setSizes(
+                [sizes[0], sizes[1], sizes[2], self._right_width, 0]
+            )
 
     def _balance_spacer(self) -> None:
-        """侧栏收起时把中间宽度锁住，多余空间交给填充块。
-
-        两侧都在时中间正常自适应，拖侧边栏仍然可以挤压它。
-        """
+        """侧栏收起时把中间宽度锁住，多余空间交给对应占位块。"""
         if not hasattr(self, "spacer"):
             return
 
         sizes = list(self.main_split.sizes())
-        if len(sizes) < 4:
+        if len(sizes) < 5:
             return
 
-        left = self.main_split.widget(0)
-        center = self.main_split.widget(1)
-        right = self.main_split.widget(2)
-        collapsed = left.isHidden() or right.isHidden()
+        left = self.main_split.widget(1)
+        center = self.main_split.widget(2)
+        right = self.main_split.widget(3)
 
-        if collapsed:
-            if getattr(self, "_locked_center", None) is None:
-                self._locked_center = max(sizes[1], center.minimumWidth())
-            center.setMaximumWidth(self._locked_center)
+        total = sum(sizes)
+        left_w = 0 if left.isHidden() else sizes[1]
+        right_w = 0 if right.isHidden() else sizes[3]
+        center_w = sizes[2]
 
-            total = sum(sizes)
-            left_w = 0 if left.isHidden() else sizes[0]
-            right_w = 0 if right.isHidden() else sizes[2]
-            spacer_w = max(0, total - left_w - self._locked_center - right_w)
-            self.main_split.setSizes([left_w, self._locked_center, right_w, spacer_w])
-        else:
-            self._locked_center = None
-            center.setMaximumWidth(16777215)
-            spacer_w = sizes[3]
-            if spacer_w and spacer_w > 0:
-                self.main_split.setSizes(
-                    [sizes[0], sizes[1] + spacer_w, sizes[2], 0]
-                )
+        left_spacer = max(0, self._left_width) if left.isHidden() else 0
+        right_spacer = max(0, self._right_width) if right.isHidden() else 0
+        used = left_spacer + left_w + center_w + right_w + right_spacer
+        leftover = max(0, total - used)
+
+        self.main_split.setSizes(
+            [left_spacer, left_w, center_w, right_w, leftover]
+        )
 
     def reset_left(self) -> None:
-        widget = self.main_split.widget(0)
+        widget = self.main_split.widget(1)
         widget.setHidden(False)
         sizes = list(self.main_split.sizes())
-        if len(sizes) > 0:
-            sizes[0] = 240
-            self.main_split.setSizes(sizes)
+        if len(sizes) >= 5:
+            self.main_split.setSizes([0, 240, sizes[2], sizes[3], 0])
 
     def reset_right(self) -> None:
-        widget = self.main_split.widget(2)
+        widget = self.main_split.widget(3)
         widget.setHidden(False)
         sizes = list(self.main_split.sizes())
-        if len(sizes) > 2:
-            sizes[2] = 225
-            self.main_split.setSizes(sizes)
+        if len(sizes) >= 5:
+            self.main_split.setSizes([sizes[0], sizes[1], sizes[2], 225, 0])
 
     def on_skills(self) -> None:
         popup = SkillsPopup(self)
