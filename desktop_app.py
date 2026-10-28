@@ -217,7 +217,7 @@ class TitleBar(QWidget):
         self.window = window
         self._drag_offset = None
         self.setFixedHeight(38)
-        self.setStyleSheet("background:#FBFAF7; border-bottom:1px solid #EDEBE6;")
+        self.setStyleSheet("background:#FBFAF7;")
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(10, 0, 8, 0)
@@ -255,8 +255,8 @@ class TitleBar(QWidget):
         layout.addStretch(1)
         layout.addWidget(self.right_btn)
         layout.addSpacing(8)
-        layout.addWidget(self.max_btn)
         layout.addWidget(self.min_btn)
+        layout.addWidget(self.max_btn)
         layout.addWidget(self.close_btn)
 
     @staticmethod
@@ -765,9 +765,26 @@ class MainWindow(QMainWindow):
         if target < max_h:
             self.input.verticalScrollBar().setValue(0)
 
+    def _apply_round_mask(self) -> None:
+        """无边框窗口靠遮罩做圆角，最大化时取消。"""
+        from PyQt5.QtGui import QPainterPath, QRegion
+
+        if self.isMaximized():
+            self.clearMask()
+            return
+
+        path = QPainterPath()
+        path.addRoundedRect(0, 0, self.width(), self.height(), 14, 14)
+        self.setMask(QRegion(path.toFillPolygon().toPolygon()))
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        self._apply_round_mask()
+
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         self._adjust_input_height()
+        self._apply_round_mask()
         if hasattr(self, "size_grip") and hasattr(self, "_container"):
             c = self._container
             self.size_grip.move(c.width() - 18, c.height() - 18)
@@ -1056,8 +1073,13 @@ class MainWindow(QMainWindow):
         self.size_grip.setFixedSize(16, 16)
         self.size_grip.raise_()
 
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
+        container.setObjectName("rootFrame")
+        container.setStyleSheet(
+            "#rootFrame{background:#FBFAF7; border-radius:14px;}"
+        )
         self.setCentralWidget(container)
-        self.setStyleSheet("QMainWindow{background:#F2F0EA;}")
+        self.setStyleSheet("QMainWindow{background:transparent;}")
 
     # ── 日志 / 记忆 ───────────────────────────────────────────────────────
 
@@ -1464,6 +1486,7 @@ class MainWindow(QMainWindow):
         else:
             self.showMaximized()
             self.title_bar.max_btn.setText("❐")
+        self._apply_round_mask()
 
     def toggle_left(self) -> None:
         widget = self.main_split.widget(0)
