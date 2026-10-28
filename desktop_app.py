@@ -260,8 +260,8 @@ class ResizeHandle(QWidget):
         geo = self._geometry
         x, y, w, h = geo.x(), geo.y(), geo.width(), geo.height()
 
-        min_w = max(self.window.minimumWidth(), 400)
-        min_h = max(self.window.minimumHeight(), 300)
+        min_w = self.window.minimumWidth()
+        min_h = self.window.minimumHeight()
 
         if "left" in self.edge:
             new_w = w - delta.x()
@@ -610,7 +610,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("imgsearch Agent · 多模态图像检索")
-        self.setMinimumSize(880, 560)
+        self.setMinimumSize(760, 380)
 
         if not self._restore_geometry():
             screen = QApplication.primaryScreen()
