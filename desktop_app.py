@@ -81,6 +81,7 @@ from imgsearch_agent.ui.dynamic_dialog import DynamicToolDialog
 from imgsearch_agent.ui.file_tree import FileTreeMixin
 from imgsearch_agent.ui.skills_panel import SkillDropZone, SkillsPopup
 from imgsearch_agent.ui.input_panel import ChatInput, ResizeHandle
+from imgsearch_agent.ui.session_panel import SessionMixin
 from imgsearch_agent.ui.title_bar import TitleBar
 from imgsearch_agent.settings_dialog import SettingsDialog
 from imgsearch_agent.utils.schemas import TaskSpec
@@ -91,7 +92,7 @@ IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"}
 # ── 日志桥接 ──────────────────────────────────────────────────────────────────
 
 
-class MainWindow(FileTreeMixin, QMainWindow):
+class MainWindow(SessionMixin, FileTreeMixin, QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("imgsearch Agent · 多模态图像检索")
@@ -937,28 +938,6 @@ class MainWindow(FileTreeMixin, QMainWindow):
         layout.addWidget(label)
         dialog.exec_()
 
-    def _session_menu(self, pos) -> None:
-        item = self.session_list.itemAt(pos)
-        if item is None:
-            return
-        menu = QMenu(self)
-        rename = menu.addAction("重命名")
-        rename.triggered.connect(lambda: self.on_rename_session(item))
-        delete = menu.addAction("删除此会话")
-        delete.triggered.connect(lambda: self._delete_session(item))
-        menu.exec_(self.session_list.mapToGlobal(pos))
-
-    def _delete_session(self, item: QListWidgetItem) -> None:
-        sid = item.data(Qt.UserRole)
-        if not sid or self.agent is None:
-            return
-        self.agent.memory.delete_session(sid)
-        if sid == self.agent.memory.session_id:
-            self.on_new_chat()
-        else:
-            self._refresh_sessions()
-        self.append_log(">>> 已删除会话 " + sid)
-
     def on_tasks_ready(self, tasks) -> None:
         self.task_list.clear()
         for t in tasks:
@@ -973,117 +952,7 @@ class MainWindow(FileTreeMixin, QMainWindow):
         else:
             self.state_label.setText(f"已规划 {len(tasks)} 条任务，正在检索…")
 
-    def _clear_chat_view(self) -> None:
-        while self.chat_layout.count() > 1:
-            item = self.chat_layout.takeAt(0)
-            widget = item.widget()
-            if widget is not None:
-                # 立刻脱离父级，deleteLater 是延迟销毁，不先解绑会残留
-                widget.setParent(None)
-                widget.deleteLater()
-
-    def _load_chat(self, session_id: str) -> None:
-        self._clear_chat_view()
-        self._galleries.clear()
-        self.conversation = []
-        if self.agent is None:
-            return
-        for m in self.agent.memory.load_messages(session_id):
-            role = "你" if m.get("role") == "user" else "Agent"
-            content = m.get("content", "")
-            self.conversation.append((role, content))
-            self._append_chat(role, content, m.get("images") or [])
-        self._render_memory()
-
-    def on_clear_chat(self) -> None:
-        self._clear_chat_view()
-        self.append_log(">>> 对话窗口已清屏（历史仍保存在会话中）")
-
     # ── 会话管理 ──────────────────────────────────────────────────────────
-
-    def _refresh_sessions(self) -> None:
-        self.session_list.clear()
-        if self.agent is None:
-            return
-        keep = max(1, int(self.agent.config.memory_max_sessions))
-        for s in self.agent.memory.list_sessions(limit=keep):
-            mark = "● " if s["session_id"] == self.agent.memory.session_id else "○ "
-            item = QListWidgetItem(mark + s["title"][:16] + "  (" + str(s["count"]) + ")")
-            item.setData(Qt.UserRole, s["session_id"])
-            item.setToolTip(s["updated_at"] + "\n" + s["session_id"])
-            self.session_list.addItem(item)
-
-    def on_new_chat(self) -> None:
-        try:
-            agent = self._get_agent()
-            agent.memory.new_session()
-            agent.memory.save_tasks([])
-            agent.memory.prune_sessions(keep=max(1, int(agent.config.memory_max_sessions)))
-            self.conversation = []
-            self.last_results = []
-            self.chat_view.clear()
-            self.task_list.clear()
-            self._render_memory()
-            self._refresh_sessions()
-            self.append_log(">>> 已开始新对话 " + agent.memory.session_id)
-        except Exception as e:
-            self.append_log("新建对话失败: " + str(e))
-
-    def on_session_clicked(self, item: QListWidgetItem) -> None:
-        sid = item.data(Qt.UserRole)
-        if not sid:
-            return
-        try:
-            agent = self._get_agent()
-            agent.memory.switch_session(sid)
-            self._load_chat(sid)
-            self.task_list.clear()
-            for t in agent.memory.load_tasks(sid):
-                self._add_task_item(t)
-            self._refresh_sessions()
-            self.append_log(">>> 已切换历史会话 " + sid)
-        except Exception as e:
-            self.append_log("切换会话失败: " + str(e))
-
-    def on_rename_session(self, item: QListWidgetItem) -> None:
-        sid = item.data(Qt.UserRole)
-        if not sid or self.agent is None:
-            return
-        current = self.agent.memory.get_title(sid)
-        if not current:
-            current = item.text().lstrip("●○ ").split("  (")[0]
-        title, ok = QInputDialog.getText(
-            self, "重命名会话", "会话名称：", text=current
-        )
-        if not ok:
-            return
-        self.agent.memory.rename_session(title.strip(), sid)
-        self._refresh_sessions()
-        self.append_log(">>> 会话已重命名为「" + title.strip() + "」")
-
-    def _restore_history(self) -> None:
-        try:
-            agent = self._get_agent()
-            self._refresh_sessions()
-            self._load_chat(agent.memory.session_id)
-
-            # 恢复任务链，但不自动执行；有未完成的任务时给一个「继续」入口
-            tasks = agent.memory.load_tasks(agent.memory.session_id)
-            self.task_list.clear()
-            for task in tasks:
-                self._add_task_item(task)
-
-            pending = [t for t in tasks if t.status == "pending" and t.query]
-            if pending and hasattr(self, "resume_btn"):
-                self.resume_btn.setVisible(True)
-                self.state_label.setText(
-                    f"有 {len(pending)} 个未完成任务，点「继续」开始执行"
-                )
-                self.append_log(f">>> 发现 {len(pending)} 个未完成任务，等待确认")
-
-            self.append_log(">>> 已恢复会话 " + agent.memory.session_id)
-        except Exception as e:
-            self.append_log("加载历史失败: " + str(e))
 
     # ── 模型选择 ──────────────────────────────────────────────────────────
 
