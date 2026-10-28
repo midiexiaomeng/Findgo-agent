@@ -385,6 +385,20 @@ class SettingsDialog(QDialog):
         form = QFormLayout()
         form.setSpacing(10)
 
+        self.trash_path_edit = QLineEdit()
+        self.trash_path_edit.setReadOnly(True)
+        self.trash_path_edit.setPlaceholderText("默认 ./data/trash_staging")
+        browse = QPushButton("选择目录")
+        browse.clicked.connect(self.on_pick_trash_path)
+
+        path_row = QWidget()
+        path_layout = QHBoxLayout(path_row)
+        path_layout.setContentsMargins(0, 0, 0, 0)
+        path_layout.setSpacing(6)
+        path_layout.addWidget(self.trash_path_edit, 1)
+        path_layout.addWidget(browse)
+        form.addRow("暂存位置", path_row)
+
         self.trash_days = QSpinBox()
         self.trash_days.setRange(1, 365)
         self.trash_days.setSuffix(" 天")
@@ -482,11 +496,17 @@ class SettingsDialog(QDialog):
         self.trash_status.setText(f"已永久删除 {total} 张")
         self._refresh_trash_info()
 
+    def on_pick_trash_path(self) -> None:
+        folder = QFileDialog.getExistingDirectory(self, "选择暂存区目录")
+        if folder:
+            self.trash_path_edit.setText(folder)
+
     def _load_trash(self) -> None:
         try:
             from .config import AgentConfig
 
             cfg = AgentConfig()
+            self.trash_path_edit.setText(str(cfg.trash_path))
             self.trash_days.setValue(int(cfg.trash_max_days))
             self.trash_gb.setValue(float(cfg.trash_max_gb))
             self.trash_auto.setChecked(bool(cfg.trash_auto_clean))
@@ -506,6 +526,7 @@ class SettingsDialog(QDialog):
         try:
             data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
             data.setdefault("trash_staging", {})
+            data["trash_staging"]["path"] = self.trash_path_edit.text().strip()
             data["trash_staging"]["max_keep_days"] = self.trash_days.value()
             data["trash_staging"]["max_total_size_gb"] = round(
                 self.trash_gb.value(), 1

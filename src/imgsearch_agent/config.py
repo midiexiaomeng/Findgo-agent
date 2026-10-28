@@ -56,6 +56,7 @@ class AgentConfig:
         self.allowed_roots = list(self.image_roots)
 
         trash = raw.get("trash_staging", {}) or {}
+        self.trash_path = str(trash.get("path") or "./data/trash_staging")
         self.trash_max_days = int(trash.get("max_keep_days", 14))
         self.trash_max_gb = float(trash.get("max_total_size_gb", 10.0))
         self.trash_auto_clean = bool(trash.get("auto_clean", True))

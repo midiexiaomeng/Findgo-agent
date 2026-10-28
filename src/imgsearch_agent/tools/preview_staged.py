@@ -30,12 +30,15 @@ class PreviewStagedTool(BaseTool):
         if self._staging is None:
             from pathlib import Path
 
+            from ..config import AgentConfig
             from ..retriever.runtime import PROJECT_ROOT
             from ..trash import TrashStaging
 
-            self._staging = TrashStaging(
-                Path(PROJECT_ROOT) / "data" / "trash_staging"
-            )
+            raw = AgentConfig().trash_path
+            root = Path(raw).expanduser()
+            if not root.is_absolute():
+                root = Path(PROJECT_ROOT) / root
+            self._staging = TrashStaging(root)
         return self._staging
 
     def run(self, task_id: str = "", limit: int = 100) -> dict[str, Any]:
