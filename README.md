@@ -415,6 +415,10 @@ pytest tests -q
 
 Bug 请附上复现步骤和日志片段（`logs/app.log` 相关行），最好说明你的系统、Python 版本、是否有 GPU。需求请说清想要什么、为什么需要、做到什么程度算完成。
 
+- [提交 Bug](https://github.com/你的用户名/imgsearch-agent/issues/new?template=bug_report.md)
+- [提交需求](https://github.com/你的用户名/imgsearch-agent/issues/new?template=feature_request.md)
+- [开发指南](CONTRIBUTING.md)
+
 ## 致谢
 
 - 中文跨模态检索基于 [Chinese-CLIP](https://github.com/OFA-Sys/Chinese-CLIP)
