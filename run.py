@@ -19,7 +19,6 @@ os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 
 from findgo.app import main  # noqa: E402
 
-
 if __name__ == "__main__":
     print()
     print("=" * 56)

@@ -30,15 +30,30 @@ warnings.filterwarnings("ignore", message=".*bottleneck.*")
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "src"))
 
+from findgo.model_store import ModelStore
+from findgo.settings_dialog import SettingsDialog
+from findgo.theme import GLOBAL_QSS
+from findgo.ui.agent_runner import AgentRunnerMixin
+from findgo.ui.bubble import BubbleLabel, ImageGalleryDialog
+from findgo.ui.chat_render import highlight_paths, message_html
+from findgo.ui.components import LogBridge, QtLogHandler, Worker
+from findgo.ui.dynamic_dialog import DynamicToolDialog
+from findgo.ui.file_tree import FileTreeMixin
+from findgo.ui.input_panel import ChatInput, ResizeHandle
+from findgo.ui.session_panel import SessionMixin
+from findgo.ui.skills_panel import SkillDropZone, SkillsPopup
+from findgo.ui.thumbnail_cache import thumb_path
+from findgo.ui.title_bar import TitleBar
+from findgo.utils.schemas import TaskSpec
 from PyQt5.QtCore import (
     QEvent,
     QObject,
     QPoint,
     QRect,
     QSettings,
-    QTimer,
     Qt,
     QThread,
+    QTimer,
     pyqtSignal,
 )
 from PyQt5.QtGui import QFont, QImage, QKeySequence, QPixmap
@@ -59,10 +74,10 @@ from PyQt5.QtWidgets import (
     QMenu,
     QPlainTextEdit,
     QPushButton,
+    QScrollArea,
     QShortcut,
     QSizeGrip,
     QSizePolicy,
-    QScrollArea,
     QSplitter,
     QTextBrowser,
     QToolButton,
@@ -71,21 +86,6 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-
-from findgo.model_store import ModelStore
-from findgo.ui.bubble import BubbleLabel, ImageGalleryDialog
-from findgo.ui.agent_runner import AgentRunnerMixin
-from findgo.ui.chat_render import highlight_paths, message_html
-from findgo.ui.components import LogBridge, QtLogHandler, Worker
-from findgo.ui.thumbnail_cache import thumb_path
-from findgo.ui.dynamic_dialog import DynamicToolDialog
-from findgo.ui.file_tree import FileTreeMixin
-from findgo.ui.skills_panel import SkillDropZone, SkillsPopup
-from findgo.ui.input_panel import ChatInput, ResizeHandle
-from findgo.ui.session_panel import SessionMixin
-from findgo.ui.title_bar import TitleBar
-from findgo.settings_dialog import SettingsDialog
-from findgo.utils.schemas import TaskSpec
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"}
 
@@ -178,8 +178,7 @@ class MainWindow(AgentRunnerMixin, SessionMixin, FileTreeMixin, QMainWindow):
         self.chat_view = QScrollArea()
         self.chat_view.setWidgetResizable(True)
         self.chat_view.setStyleSheet(
-            "QScrollArea{border:1px solid #EDEBE6;border-radius:12px;"
-            "background:#FFFFFF;}"
+            "QScrollArea{border:1px solid #EDEBE6;border-radius:12px;" "background:#FFFFFF;}"
         )
 
         self.chat_container = QWidget()
@@ -677,11 +676,11 @@ class MainWindow(AgentRunnerMixin, SessionMixin, FileTreeMixin, QMainWindow):
         main.addWidget(self.spacer)
 
         main.setSizes([0, 240, 900, 225, 0])
-        main.setStretchFactor(0, 0)   # 左侧占位
+        main.setStretchFactor(0, 0)  # 左侧占位
         main.setStretchFactor(1, 0)
-        main.setStretchFactor(2, 1)   # 中间跟随窗口自适应
+        main.setStretchFactor(2, 1)  # 中间跟随窗口自适应
         main.setStretchFactor(3, 0)
-        main.setStretchFactor(4, 0)   # 右侧填充块
+        main.setStretchFactor(4, 0)  # 右侧填充块
         main.setChildrenCollapsible(False)
 
         # 分割条只保留可拖区域，视觉上隐藏
@@ -723,9 +722,7 @@ class MainWindow(AgentRunnerMixin, SessionMixin, FileTreeMixin, QMainWindow):
 
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         container.setObjectName("rootFrame")
-        container.setStyleSheet(
-            "#rootFrame{background:#FBFAF7; border-radius:14px;}"
-        )
+        container.setStyleSheet("#rootFrame{background:#FBFAF7; border-radius:14px;}")
         self.setCentralWidget(container)
         self.setStyleSheet("QMainWindow{background:transparent;}")
 
@@ -757,12 +754,8 @@ class MainWindow(AgentRunnerMixin, SessionMixin, FileTreeMixin, QMainWindow):
         for who, text in self.conversation[-80:]:
             safe = html.escape(str(text)).replace("\n", "<br/>")
             color = "#6F9C86" if who == "你" else "#2E2E2E"
-            rows.append(
-                f'<p style="margin:5px 0;color:{color};"><b>{who}：</b>{safe}</p>'
-            )
-        self.memory_view.setHtml(
-            "".join(rows) or "<p style='color:#A8A8A8'>暂无对话</p>"
-        )
+            rows.append(f'<p style="margin:5px 0;color:{color};"><b>{who}：</b>{safe}</p>')
+        self.memory_view.setHtml("".join(rows) or "<p style='color:#A8A8A8'>暂无对话</p>")
         bar = self.memory_view.verticalScrollBar()
         bar.setValue(bar.maximum())
 
@@ -783,9 +776,8 @@ class MainWindow(AgentRunnerMixin, SessionMixin, FileTreeMixin, QMainWindow):
             return (
                 '<div style="margin:28px 0 10px 0;text-align:right;">'
                 '<span style="display:inline-block;background:#E3EFE7;color:#2E2E2E;'
-                'padding:18px 24px;border-radius:16px;width:640px;'
-                'text-align:left;font-size:13px;line-height:1.65;">'
-                + safe + "</span></div>"
+                "padding:18px 24px;border-radius:16px;width:640px;"
+                'text-align:left;font-size:13px;line-height:1.65;">' + safe + "</span></div>"
             )
 
         thumbs = ""
@@ -819,9 +811,7 @@ class MainWindow(AgentRunnerMixin, SessionMixin, FileTreeMixin, QMainWindow):
             if parts:
                 # 不能用 line-height:0，Qt 会按行高算容器高度，导致图片不占位
                 thumbs = (
-                    '<div style="margin-top:10px;margin-bottom:6px;">'
-                    + "".join(parts)
-                    + "</div>"
+                    '<div style="margin-top:10px;margin-bottom:6px;">' + "".join(parts) + "</div>"
                 )
                 rest = len(images) - shown
                 if rest > 0:
@@ -839,18 +829,15 @@ class MainWindow(AgentRunnerMixin, SessionMixin, FileTreeMixin, QMainWindow):
                 '<div style="margin:18px 0;text-align:left;">'
                 '<table cellspacing="0" cellpadding="0">'
                 '<tr><td style="background:#F5F3EE;color:#2E2E2E;'
-                'padding:18px 24px;border-radius:16px;'
-                'font-size:13px;line-height:1.65;">'
-                + safe + thumbs
-                + "</td></tr></table></div>"
+                "padding:18px 24px;border-radius:16px;"
+                'font-size:13px;line-height:1.65;">' + safe + thumbs + "</td></tr></table></div>"
             )
 
         return (
             '<div style="margin:10px 0;text-align:left;">'
             '<span style="display:inline-block;background:#F5F3EE;color:#2E2E2E;'
-            'padding:18px 24px;border-radius:16px;width:640px;'
-            'font-size:13px;line-height:1.65;">'
-            + safe + "</span></div>"
+            "padding:18px 24px;border-radius:16px;width:640px;"
+            'font-size:13px;line-height:1.65;">' + safe + "</span></div>"
         )
 
     def _append_chat(self, role: str, text: str, images: list | None = None) -> None:
@@ -894,7 +881,7 @@ class MainWindow(AgentRunnerMixin, SessionMixin, FileTreeMixin, QMainWindow):
             self._open_image_dialog(path)
 
     def _open_image_dialog(self, path: str) -> None:
-        from PyQt5.QtWidgets import QDialog, QLabel, QVBoxLayout
+        from PyQt5.QtWidgets import QLabel, QVBoxLayout
 
         dialog = QDialog(self)
         dialog.setWindowTitle(Path(path).name)
@@ -905,9 +892,7 @@ class MainWindow(AgentRunnerMixin, SessionMixin, FileTreeMixin, QMainWindow):
         label.setAlignment(Qt.AlignCenter)
         pixmap = QPixmap(path)
         if not pixmap.isNull():
-            label.setPixmap(
-                pixmap.scaled(920, 680, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            )
+            label.setPixmap(pixmap.scaled(920, 680, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         layout.addWidget(label)
         dialog.exec_()
 
@@ -1019,9 +1004,7 @@ class MainWindow(AgentRunnerMixin, SessionMixin, FileTreeMixin, QMainWindow):
             self.main_split.setSizes([left_w, 0, sizes[2], sizes[3], 0])
         else:
             widget.setHidden(False)
-            self.main_split.setSizes(
-                [0, self._left_width, sizes[2], sizes[3], 0]
-            )
+            self.main_split.setSizes([0, self._left_width, sizes[2], sizes[3], 0])
 
     def toggle_right(self) -> None:
         widget = self.main_split.widget(3)
@@ -1032,14 +1015,10 @@ class MainWindow(AgentRunnerMixin, SessionMixin, FileTreeMixin, QMainWindow):
         if not widget.isHidden():
             self._right_width = sizes[3] or self._right_width or 225
             widget.setHidden(True)
-            self.main_split.setSizes(
-                [sizes[0], sizes[1], sizes[2], 0, self._right_width]
-            )
+            self.main_split.setSizes([sizes[0], sizes[1], sizes[2], 0, self._right_width])
         else:
             widget.setHidden(False)
-            self.main_split.setSizes(
-                [sizes[0], sizes[1], sizes[2], self._right_width, 0]
-            )
+            self.main_split.setSizes([sizes[0], sizes[1], sizes[2], self._right_width, 0])
 
     def _balance_spacer(self) -> None:
         """侧栏收起时把中间宽度锁住，多余空间交给对应占位块。"""
@@ -1061,7 +1040,6 @@ class MainWindow(AgentRunnerMixin, SessionMixin, FileTreeMixin, QMainWindow):
             return
 
         left = self.main_split.widget(1)
-        center = self.main_split.widget(2)
         right = self.main_split.widget(3)
 
         total = sum(sizes)
@@ -1074,9 +1052,7 @@ class MainWindow(AgentRunnerMixin, SessionMixin, FileTreeMixin, QMainWindow):
         used = left_spacer + left_w + center_w + right_w + right_spacer
         leftover = max(0, total - used)
 
-        self.main_split.setSizes(
-            [left_spacer, left_w, center_w, right_w, leftover]
-        )
+        self.main_split.setSizes([left_spacer, left_w, center_w, right_w, leftover])
 
     def reset_left(self) -> None:
         widget = self.main_split.widget(1)
@@ -1269,9 +1245,7 @@ class MainWindow(AgentRunnerMixin, SessionMixin, FileTreeMixin, QMainWindow):
         if tool is None:
             return [], [], "没有注册以图搜图工具", []
 
-        result, _ = agent.executor.execute(
-            tool, {"image_path": image_path, "top_k": 12}
-        )
+        result, _ = agent.executor.execute(tool, {"image_path": image_path, "top_k": 12})
         reply = agent.responder.compose(text or "找相似的图片", result)
         images = result.get("images", [])
 
@@ -1314,6 +1288,7 @@ class MainWindow(AgentRunnerMixin, SessionMixin, FileTreeMixin, QMainWindow):
         super().closeEvent(event)
 
     # ── 文件树 ────────────────────────────────────────────────────────────
+
 
 def _setup_file_logging() -> None:
     try:
@@ -1359,8 +1334,7 @@ def main() -> int:
         QMessageBox.warning(
             None,
             "已有实例在运行",
-            "Findgo 已经打开了一个窗口。\n"
-            "Qdrant 本地模式只允许单进程访问，请先关闭已有窗口。",
+            "Findgo 已经打开了一个窗口。\n" "Qdrant 本地模式只允许单进程访问，请先关闭已有窗口。",
         )
         return 1
 

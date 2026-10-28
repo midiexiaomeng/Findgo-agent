@@ -97,6 +97,7 @@ def redirect_output_when_no_console() -> None:
 def start_server(host: str, port: int):
     from findgo.retriever import Config
     from findgo.retriever.runtime import setup_logging
+
     from webui.app import CSS, build_app
 
     cfg = Config.from_yaml()
@@ -186,7 +187,9 @@ def run_browser(url: str) -> None:
 
 def check(host: str, port: int) -> int:
     print("== 桌面模式检查 ==")
-    print(f"pywebview : {'已安装' if has_webview() else '未安装（pip install pywebview 可启用原生窗口）'}")
+    print(
+        f"pywebview : {'已安装' if has_webview() else '未安装（pip install pywebview 可启用原生窗口）'}"
+    )
     edge = find_edge()
     print(f"Edge      : {edge if edge else '未找到'}")
     print(f"端口 {port} : {'已占用（会直接复用现有服务）' if port_open(host, port) else '空闲'}")

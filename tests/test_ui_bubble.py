@@ -9,6 +9,19 @@ pytest.importorskip("PyQt5")
 import desktop_app  # noqa: E402
 
 
+def test_global_qss_imported():
+    """main() 会调 app.setStyleSheet(GLOBAL_QSS)，导入丢失会直接启动失败。"""
+    assert hasattr(desktop_app, "GLOBAL_QSS")
+    assert isinstance(desktop_app.GLOBAL_QSS, str)
+    assert desktop_app.GLOBAL_QSS.strip()
+
+
+def test_main_window_constructible():
+    """MainWindow 能用 __new__ 建实例，不触发重初始化。"""
+    win = desktop_app.MainWindow.__new__(desktop_app.MainWindow)
+    assert win is not None
+
+
 def test_bubble_has_larger_padding():
     win = desktop_app.MainWindow.__new__(desktop_app.MainWindow)
     win._galleries = {}

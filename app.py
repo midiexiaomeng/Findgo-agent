@@ -16,7 +16,7 @@ os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 # 允许直接 python app.py（不用先 pip install -e .）
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "src"))
 
-from findgo.retriever.runtime import setup_logging, set_windows_safe_env  # noqa: E402
+from findgo.retriever.runtime import set_windows_safe_env, setup_logging  # noqa: E402
 
 
 def main() -> None:

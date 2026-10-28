@@ -64,7 +64,9 @@ def _print_results(response) -> None:
 
 def cmd_index(args) -> int:
     p = _pipeline(args)
-    print(f"向量库: {p.store.backend_name} | collection={p.store.collection} | 现有 {p.store.count()} 条")
+    print(
+        f"向量库: {p.store.backend_name} | collection={p.store.collection} | 现有 {p.store.count()} 条"
+    )
 
     last = {"pct": -1}
 
@@ -180,10 +182,7 @@ def cmd_doctor(args) -> int:
         if torch.cuda.is_available():
             for i in range(torch.cuda.device_count()):
                 prop = torch.cuda.get_device_properties(i)
-                print(
-                    f"  GPU {i}     : {prop.name} "
-                    f"{prop.total_memory / 1024**3:.1f} GB"
-                )
+                print(f"  GPU {i}     : {prop.name} " f"{prop.total_memory / 1024**3:.1f} GB")
     except Exception:
         pass
 
@@ -192,12 +191,8 @@ def cmd_doctor(args) -> int:
 
     from findgo.retriever.runtime import resolve_model_source
 
-    clip_src = resolve_model_source(
-        cfg.embedding.model, cfg.models_dir, cfg.embedding.fallback
-    )
-    blip_src = resolve_model_source(
-        cfg.caption.model, cfg.models_dir, cfg.caption.fallback
-    )
+    clip_src = resolve_model_source(cfg.embedding.model, cfg.models_dir, cfg.embedding.fallback)
+    blip_src = resolve_model_source(cfg.caption.model, cfg.models_dir, cfg.caption.fallback)
     print(f"CLIP        : {clip_src}")
     print(f"BLIP        : {blip_src}")
     if not Path(clip_src).exists():

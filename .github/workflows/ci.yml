@@ -43,6 +43,6 @@ jobs:
       - name: Install linters
         run: pip install "black==24.4.2" "ruff==0.4.4"
       - name: Black
-        run: black --check --line-length 100 src tests
+        run: black --check --line-length 100 src tests *.py
       - name: Ruff
-        run: ruff check src tests
+        run: ruff check src tests *.py
