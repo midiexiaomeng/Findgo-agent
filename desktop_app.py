@@ -766,16 +766,13 @@ class MainWindow(QMainWindow):
             self.input.verticalScrollBar().setValue(0)
 
     def _apply_round_mask(self) -> None:
-        """无边框窗口靠遮罩做圆角，最大化时取消。"""
-        from PyQt5.QtGui import QPainterPath, QRegion
+        """保留接口；圆角由容器的 border-radius 实现。
 
-        if self.isMaximized():
+        不用 setMask：遮罩会把右下角的拖拽手柄一起裁掉，导致窗口无法拉伸。
+        透明背景 + 容器圆角在视觉上效果一致，但边缘仍然可交互。
+        """
+        if self.mask() and not self.mask().isEmpty():
             self.clearMask()
-            return
-
-        path = QPainterPath()
-        path.addRoundedRect(0, 0, self.width(), self.height(), 14, 14)
-        self.setMask(QRegion(path.toFillPolygon().toPolygon()))
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
