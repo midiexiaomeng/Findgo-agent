@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from findgo.tools import DescribeImageTool, ListIndexedFoldersTool
 from findgo.utils.path_guard import PathGuard
 from PIL import Image
+
+# 用 Path 拼路径，跨平台下嵌套关系都成立
+_PHOTOS = Path("photos")
 
 
 class _Hit:
@@ -15,9 +20,9 @@ class _Hit:
 class _FolderStore:
     def get(self, limit=None):
         return [
-            _Hit(r"D:\photos\a\1.jpg"),
-            _Hit(r"D:\photos\a\2.jpg"),
-            _Hit(r"D:\photos\b\3.jpg"),
+            _Hit(str(_PHOTOS / "a" / "1.jpg")),
+            _Hit(str(_PHOTOS / "a" / "2.jpg")),
+            _Hit(str(_PHOTOS / "b" / "3.jpg")),
         ]
 
 
