@@ -77,6 +77,94 @@ def scan_source(code: str) -> None:
             raise DynamicToolError(f"源码包含禁止的关键字：{token}")
 
 
+def _guarded_path_class(sandbox):
+    """构造一个受限的 Path 子类，所有读写都要过沙箱。
+
+    动态工具拿到的 ``Path`` 如果是原始 pathlib.Path，可以直接
+    ``Path("C:/Windows/win.ini").read_text()`` 绕过所有边界。
+    这里把读写方法全部包一层校验，并保证 ``/``、``parent``、``resolve``
+    这些派生操作仍然返回受限类型。
+    """
+    from pathlib import Path as _RealPath
+
+    base = type(_RealPath())
+
+    class GuardedPath(base):
+        _guard = staticmethod(sandbox.check if sandbox is not None else None)
+
+        def _check(self, mode: str) -> None:
+            checker = type(self)._guard
+            if checker is not None:
+                checker(str(self), mode)
+
+        def _wrap(self, other) -> "GuardedPath":
+            return GuardedPath(other)
+
+        # ── 派生操作保持类型 ──
+
+        def __truediv__(self, key):
+            return GuardedPath(super().__truediv__(key))
+
+        def __rtruediv__(self, key):
+            return GuardedPath(super().__rtruediv__(key))
+
+        def joinpath(self, *args):
+            return GuardedPath(super().joinpath(*args))
+
+        @property
+        def parent(self):
+            return GuardedPath(super().parent)
+
+        @property
+        def parents(self):
+            return tuple(GuardedPath(p) for p in super().parents)
+
+        def resolve(self, *args, **kwargs):
+            return GuardedPath(super().resolve(*args, **kwargs))
+
+        def absolute(self):
+            return GuardedPath(super().absolute())
+
+        def with_name(self, name):
+            return GuardedPath(super().with_name(name))
+
+        def with_suffix(self, suffix):
+            return GuardedPath(super().with_suffix(suffix))
+
+        # ── 读写全部校验 ──
+
+        def open(self, mode: str = "r", *args, **kwargs):
+            writing = any(ch in mode for ch in ("w", "a", "x", "+"))
+            self._check("write" if writing else "read")
+            return super().open(mode, *args, **kwargs)
+
+        def read_text(self, *args, **kwargs):
+            self._check("read")
+            return super().read_text(*args, **kwargs)
+
+        def read_bytes(self):
+            self._check("read")
+            return super().read_bytes()
+
+        def write_text(self, *args, **kwargs):
+            self._check("write")
+            return super().write_text(*args, **kwargs)
+
+        def write_bytes(self, *args, **kwargs):
+            self._check("write")
+            return super().write_bytes(*args, **kwargs)
+
+        def unlink(self, *args, **kwargs):
+            self._check("delete")
+            return super().unlink(*args, **kwargs)
+
+        def rmdir(self, *args, **kwargs):
+            self._check("delete")
+            return super().rmdir(*args, **kwargs)
+
+    return GuardedPath
+
+
 def _build_namespace(sandbox):
     """只开放白名单库，其余一律不给。"""
     import pydantic
@@ -118,7 +206,7 @@ def _build_namespace(sandbox):
         "__builtins__": safe_builtins,
         "BaseModel": pydantic.BaseModel,
         "Field": pydantic.Field,
-        "Path": Path,
+        "Path": _guarded_path_class(sandbox),
         "Image": Image,
         "json": json,
         "re": re,
