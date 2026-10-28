@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from imgsearch_agent.agent.memory import Memory
+from findgo.agent.memory import Memory
 
 
 def test_memory_in_process():

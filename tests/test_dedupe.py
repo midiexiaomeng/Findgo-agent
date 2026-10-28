@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import numpy as np
 
-from imgsearch_agent.retriever.indexer import Indexer
-from imgsearch_agent.tools import ImageRetrievalTool
-from imgsearch_agent.utils.schemas import RetrievedImage
+from findgo.retriever.indexer import Indexer
+from findgo.tools import ImageRetrievalTool
+from findgo.utils.schemas import RetrievedImage
 
 
 class _Store:

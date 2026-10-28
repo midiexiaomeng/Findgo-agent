@@ -95,8 +95,8 @@ def redirect_output_when_no_console() -> None:
 
 
 def start_server(host: str, port: int):
-    from imgsearch_agent.retriever import Config
-    from imgsearch_agent.retriever.runtime import setup_logging
+    from findgo.retriever import Config
+    from findgo.retriever.runtime import setup_logging
     from webui.app import CSS, build_app
 
     cfg = Config.from_yaml()
@@ -201,14 +201,14 @@ def check(host: str, port: int) -> int:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="以桌面窗口方式启动 imgsearch")
+    parser = argparse.ArgumentParser(description="以桌面窗口方式启动 findgo")
     parser.add_argument("--mode", choices=["auto", "webview", "edge", "browser"], default="auto")
     parser.add_argument("--host", default=None)
     parser.add_argument("--port", type=int, default=None)
     parser.add_argument("--check", action="store_true", help="只检查环境")
     args = parser.parse_args()
 
-    from imgsearch_agent.retriever import Config
+    from findgo.retriever import Config
 
     cfg = Config.from_yaml()
     host = args.host or cfg.app.host

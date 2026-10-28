@@ -1,4 +1,4 @@
-# imgsearch deploy - cloud API mode
+# findgo deploy - cloud API mode
 #
 # Double-click deploy-api.bat. Or run:
 #   .\scripts\deploy-api.ps1 -Provider deepseek -ApiKey sk-xxx
@@ -32,7 +32,7 @@ $Py = Join-Path $VenvDir "Scripts\python.exe"
 
 Write-Host ""
 Write-Host "==============================================" -ForegroundColor Cyan
-Write-Host " imgsearch deploy - API MODE"
+Write-Host " findgo deploy - API MODE"
 Write-Host " root: $Root"
 Write-Host " venv: $VenvDir"
 Write-Host "==============================================" -ForegroundColor Cyan

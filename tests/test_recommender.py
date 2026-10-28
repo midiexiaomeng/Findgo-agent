@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from imgsearch_agent.agent.recommender import has_hardcoded_path, score_dynamic_tool
+from findgo.agent.recommender import has_hardcoded_path, score_dynamic_tool
 
 SPEC = {
     "name": "count_jpg",

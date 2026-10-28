@@ -2,7 +2,7 @@
 chcp 65001 >nul
 cd /d "%~dp0"
 
-set "IMGSRCH_CONFIG=%~dp0config.api.yaml"
+set "FINDGO_CONFIG=%~dp0config.api.yaml"
 
 if not exist ".venv-api\Scripts\pythonw.exe" (
     echo .venv-api not found. Run deploy-api.bat first.

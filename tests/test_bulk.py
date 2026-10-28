@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import pytest
 
-from imgsearch_agent.retriever.llm.reranker import LLMReranker, ScoredCandidate
-from imgsearch_agent.retriever.vectorstore.base import VectorHit
-from imgsearch_agent.tools import ImageRetrievalTool
-from imgsearch_agent.utils.schemas import TaskSpec
+from findgo.retriever.llm.reranker import LLMReranker, ScoredCandidate
+from findgo.retriever.vectorstore.base import VectorHit
+from findgo.tools import ImageRetrievalTool
+from findgo.utils.schemas import TaskSpec
 
 
 def _cand(score: float, idx: int) -> ScoredCandidate:

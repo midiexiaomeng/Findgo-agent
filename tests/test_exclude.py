@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from imgsearch_agent.retriever.searcher import Searcher
+from findgo.retriever.searcher import Searcher
 
 
 class _Hit:

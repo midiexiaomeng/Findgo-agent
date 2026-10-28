@@ -205,7 +205,7 @@ def check(models_dir: Path, llm_model: str) -> int:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="下载 imgsearch 所需模型")
+    parser = argparse.ArgumentParser(description="下载 findgo 所需模型")
     parser.add_argument("--models-dir", default=str(ROOT / "models"))
     parser.add_argument("--mirror", default="https://hf-mirror.com",
                         help="HuggingFace 镜像，传空字符串使用官方源")

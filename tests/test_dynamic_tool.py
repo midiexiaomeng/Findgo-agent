@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import pytest
 
-from imgsearch_agent.agent.dynamic import (
+from findgo.agent.dynamic import (
     DynamicToolError,
     DynamicToolSpec,
     build_dynamic_tool,
     scan_source,
 )
-from imgsearch_agent.utils.sandbox import Sandbox
+from findgo.utils.sandbox import Sandbox
 
 
 def make_spec(run_code: str | None = None, args_code: str | None = None):

@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="生成 imgsearch 部署配置")
+    parser = argparse.ArgumentParser(description="生成 findgo 部署配置")
     parser.add_argument("--mode", choices=["local", "api"], required=True)
     parser.add_argument("--out", required=True)
     parser.add_argument("--base-url", default="")

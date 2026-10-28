@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from imgsearch_agent.agent import ImageSearchAgent
-from imgsearch_agent.config import AgentConfig
-from imgsearch_agent.utils.schemas import TaskSpec
+from findgo.agent import FindgoAgent
+from findgo.config import AgentConfig
+from findgo.utils.schemas import TaskSpec
 
 
 class _Pipeline:
@@ -26,7 +26,7 @@ class _Pipeline:
 def make_agent():
     cfg = AgentConfig()
     cfg.memory_persist = False
-    return ImageSearchAgent(config=cfg, pipeline=_Pipeline())
+    return FindgoAgent(config=cfg, pipeline=_Pipeline())
 
 
 SPEC = {

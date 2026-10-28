@@ -1,11 +1,11 @@
 @echo off
 chcp 65001 >nul
 cd /d "%~dp0"
-title imgsearch deploy - local model
+title findgo deploy - local model
 
 echo.
 echo ============================================
-echo  imgsearch deployment: LOCAL MODEL
+echo  findgo deployment: LOCAL MODEL
 echo  Creates .venv-local, downloads CLIP/BLIP,
 echo  sets up Ollama and pulls Qwen.
 echo  First run may take 10-30 minutes.

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from imgsearch_agent.tools import ImageRetrievalTool, IndexFolderTool
-from imgsearch_agent.utils.exceptions import ValidationError
-from imgsearch_agent.utils.path_guard import PathGuard
+from findgo.tools import ImageRetrievalTool, IndexFolderTool
+from findgo.utils.exceptions import ValidationError
+from findgo.utils.path_guard import PathGuard
 
 
 class _FakeIndexStats:

@@ -1,4 +1,4 @@
-# imgsearch environment setup (Windows PowerShell)
+# findgo environment setup (Windows PowerShell)
 #
 #   .\scripts\setup.ps1              # install into current Python
 #   .\scripts\setup.ps1 -Venv        # create .venv and install there
@@ -17,7 +17,7 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
-Write-Host "== imgsearch setup ==" -ForegroundColor Cyan
+Write-Host "== findgo setup ==" -ForegroundColor Cyan
 Write-Host "project: $Root"
 
 # 1. Python

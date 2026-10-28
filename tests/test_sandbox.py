@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from imgsearch_agent.utils.sandbox import Sandbox, SandboxError
+from findgo.utils.sandbox import Sandbox, SandboxError
 
 
 def make(tmp_path):

@@ -1,4 +1,4 @@
-# Contributing to imgsearch-agent
+# Contributing to Findgo
 
 感谢你对这个项目的兴趣。
 
@@ -52,7 +52,7 @@ python cli.py doctor
 ## 项目结构
 
 ```
-src/imgsearch_agent/
+src/findgo/
 ├── agent/            Agent 层：编排、规划、执行、记忆、动态工具
 ├── retriever/        内核层：CLIP、索引、检索、向量库、重排
 ├── tools/            16 个工具实现
@@ -78,7 +78,7 @@ docs/                 架构说明与开发笔记
 
 **1. 写类**
 
-在 `src/imgsearch_agent/tools/` 下新建文件，继承 `BaseTool`：
+在 `src/findgo/tools/` 下新建文件，继承 `BaseTool`：
 
 ```python
 from pydantic import BaseModel, Field

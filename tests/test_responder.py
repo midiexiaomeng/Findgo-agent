@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from imgsearch_agent.agent.responder import Responder
+from findgo.agent.responder import Responder
 
 
 def test_fallback_without_client():

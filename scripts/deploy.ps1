@@ -1,4 +1,4 @@
-# imgsearch one-click deployment (Windows PowerShell)
+# findgo one-click deployment (Windows PowerShell)
 #
 #   .\scripts\deploy.ps1
 #   .\scripts\deploy.ps1 -Cpu                 # CPU only
@@ -26,7 +26,7 @@ Set-Location $Root
 
 Write-Host ""
 Write-Host "==============================================" -ForegroundColor Cyan
-Write-Host " imgsearch deploy"
+Write-Host " findgo deploy"
 Write-Host " root: $Root"
 Write-Host "==============================================" -ForegroundColor Cyan
 Write-Host ""

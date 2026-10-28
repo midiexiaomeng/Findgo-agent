@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 from pathlib import Path
 
-from imgsearch_agent.retriever.indexer import Indexer
+from findgo.retriever.indexer import Indexer
 
 
 def bare_indexer():

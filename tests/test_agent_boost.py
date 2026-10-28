@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import inspect
 
-from imgsearch_agent.agent.path_extractor import PathExtractor
-from imgsearch_agent.agent.planner import assess_risk
-from imgsearch_agent.agent.orchestrator import ImageSearchAgent
-from imgsearch_agent.utils.schemas import TaskSpec
+from findgo.agent.path_extractor import PathExtractor
+from findgo.agent.planner import assess_risk
+from findgo.agent.orchestrator import FindgoAgent
+from findgo.utils.schemas import TaskSpec
 
 
 def test_assess_risk_high():
@@ -25,7 +25,7 @@ def test_task_spec_risk_default():
 
 
 def test_run_tasks_has_failure_strategy():
-    params = inspect.signature(ImageSearchAgent.run_tasks).parameters
+    params = inspect.signature(FindgoAgent.run_tasks).parameters
     assert "continue_on_failure" in params
     assert params["continue_on_failure"].default is True
 

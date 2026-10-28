@@ -6,7 +6,7 @@ import os
 import time
 from pathlib import Path
 
-from imgsearch_agent.trash import TrashStaging
+from findgo.trash import TrashStaging
 
 
 def make_image(root, name="a.jpg", size=128):

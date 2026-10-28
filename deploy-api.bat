@@ -1,11 +1,11 @@
 @echo off
 chcp 65001 >nul
 cd /d "%~dp0"
-title imgsearch deploy - API mode
+title findgo deploy - API mode
 
 echo.
 echo ============================================
-echo  imgsearch deployment: API MODE
+echo  findgo deployment: API MODE
 echo  Creates .venv-api and downloads CLIP/BLIP.
 echo  The LLM reranker calls a cloud API.
 echo  CLIP and BLIP still run on this machine.

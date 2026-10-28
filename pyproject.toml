@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "imgsearch-agent"
+name = "findgo-agent"
 version = "0.1.0"
 description = "基于 ReAct 的多模态图像检索 Agent"
 readme = "README.md"
@@ -34,7 +34,7 @@ dev = [
 ]
 
 [project.scripts]
-imgsearch-agent = "imgsearch_agent.app:main"
+findgo-agent = "findgo.app:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

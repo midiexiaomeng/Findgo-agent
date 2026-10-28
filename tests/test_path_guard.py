@@ -5,9 +5,9 @@ from __future__ import annotations
 import pytest
 from PIL import Image
 
-from imgsearch_agent.tools.folder_scan import FolderScanTool
-from imgsearch_agent.tools.image_retrieval import ImageRetrievalTool
-from imgsearch_agent.utils.path_guard import PathGuard, PathSecurityError
+from findgo.tools.folder_scan import FolderScanTool
+from findgo.tools.image_retrieval import ImageRetrievalTool
+from findgo.utils.path_guard import PathGuard, PathSecurityError
 
 
 def make_guard(root) -> PathGuard:

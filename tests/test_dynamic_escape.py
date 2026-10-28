@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from imgsearch_agent.agent.dynamic import DynamicToolSpec, build_dynamic_tool
-from imgsearch_agent.utils.sandbox import Sandbox, SandboxError
+from findgo.agent.dynamic import DynamicToolSpec, build_dynamic_tool
+from findgo.utils.sandbox import Sandbox, SandboxError
 
 
 def make_spec(run_code: str) -> DynamicToolSpec:

@@ -5,13 +5,13 @@ from __future__ import annotations
 import pytest
 from PIL import Image
 
-from imgsearch_agent.tools import (
+from findgo.tools import (
     GetIndexStatsTool,
     ImageSearchByImageTool,
     IndexFolderTool,
     SwitchVectorBackendTool,
 )
-from imgsearch_agent.utils.path_guard import PathGuard
+from findgo.utils.path_guard import PathGuard
 
 
 class FakeIndexStats:

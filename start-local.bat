@@ -2,7 +2,7 @@
 chcp 65001 >nul
 cd /d "%~dp0"
 
-set "IMGSRCH_CONFIG=%~dp0config.local.yaml"
+set "FINDGO_CONFIG=%~dp0config.local.yaml"
 
 if not exist ".venv-local\Scripts\pythonw.exe" (
     echo .venv-local not found. Run deploy-local.bat first.

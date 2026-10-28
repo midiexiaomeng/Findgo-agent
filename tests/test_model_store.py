@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from imgsearch_agent.model_store import ModelStore
+from findgo.model_store import ModelStore
 
 
 def test_add_and_active(tmp_path):

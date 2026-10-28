@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from imgsearch_agent.tools import FindDuplicatesTool
-from imgsearch_agent.utils.sandbox import Sandbox
+from findgo.tools import FindDuplicatesTool
+from findgo.utils.sandbox import Sandbox
 
 
 class _Store:

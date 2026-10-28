@@ -3,7 +3,7 @@
 
 tools:
   - name: image_retrieval
-    module: imgsearch_agent.tools.image_retrieval
+    module: findgo.tools.image_retrieval
     class: ImageRetrievalTool
     enabled: true
     description: 用自然语言描述搜索本地图片库，返回图片路径、描述与相似度
@@ -22,7 +22,7 @@ tools:
         required: false
 
   - name: image_search_by_image
-    module: imgsearch_agent.tools.image_search_by_image
+    module: findgo.tools.image_search_by_image
     class: ImageSearchByImageTool
     enabled: true
     description: 以图搜图，给出本地图片路径，返回视觉相似的图片
@@ -41,7 +41,7 @@ tools:
         required: false
 
   - name: index_folder
-    module: imgsearch_agent.tools.index_folder
+    module: findgo.tools.index_folder
     class: IndexFolderTool
     enabled: true
     description: 对指定文件夹构建图像索引，默认增量更新
@@ -56,14 +56,14 @@ tools:
         default: false
 
   - name: get_index_stats
-    module: imgsearch_agent.tools.get_index_stats
+    module: findgo.tools.get_index_stats
     class: GetIndexStatsTool
     enabled: true
     description: 查询索引统计，包括图片数量、向量库类型与当前设备
     parameters: {}
 
   - name: switch_vector_backend
-    module: imgsearch_agent.tools.switch_vector_backend
+    module: findgo.tools.switch_vector_backend
     class: SwitchVectorBackendTool
     enabled: true
     description: 切换向量库后端（chroma / qdrant），切换后需重新索引
@@ -74,7 +74,7 @@ tools:
         required: true
 
   - name: list_indexed_folders
-    module: imgsearch_agent.tools.list_indexed_folders
+    module: findgo.tools.list_indexed_folders
     class: ListIndexedFoldersTool
     enabled: true
     description: 列出当前索引包含的文件夹及各文件夹图片数量
@@ -85,7 +85,7 @@ tools:
         default: 20000
 
   - name: describe_image
-    module: imgsearch_agent.tools.describe_image
+    module: findgo.tools.describe_image
     class: DescribeImageTool
     enabled: true
     description: 给一张本地图片生成中文描述
@@ -96,7 +96,7 @@ tools:
         required: true
 
   - name: export_results
-    module: imgsearch_agent.tools.export_results
+    module: findgo.tools.export_results
     class: ExportResultsTool
     enabled: true
     description: 把检索结果导出成 CSV 或 TXT 清单
@@ -119,7 +119,7 @@ tools:
         default: csv
 
   - name: remove_index
-    module: imgsearch_agent.tools.remove_index
+    module: findgo.tools.remove_index
     class: RemoveIndexTool
     enabled: true
     description: 移除某个文件夹的索引记录，默认只试运行
@@ -134,7 +134,7 @@ tools:
         default: true
 
   - name: find_duplicates
-    module: imgsearch_agent.tools.find_duplicates
+    module: findgo.tools.find_duplicates
     class: FindDuplicatesTool
     enabled: true
     description: 在索引里找出视觉重复的图片，按相似度分组
@@ -153,7 +153,7 @@ tools:
         default: 5000
 
   - name: trash_manage
-    module: imgsearch_agent.tools.trash_manage
+    module: findgo.tools.trash_manage
     class: TrashManageTool
     enabled: true
     description: 管理暂存区，stage 暂存待删图片、list 查看、restore 恢复、purge 永久删除、cleanup 清理过期
@@ -184,7 +184,7 @@ tools:
         default: 10
 
   - name: folder_scan
-    module: imgsearch_agent.tools.folder_scan
+    module: findgo.tools.folder_scan
     class: FolderScanTool
     enabled: true
     description: 扫描本地文件夹，统计图片数量并列出示例路径
@@ -199,7 +199,7 @@ tools:
         default: true
 
   - name: filter_results
-    module: imgsearch_agent.tools.filter_results
+    module: findgo.tools.filter_results
     class: FilterResultsTool
     enabled: true
     description: 对已有检索结果做二次过滤，排除暂存图、按分数阈值与关键词筛选
@@ -222,7 +222,7 @@ tools:
         required: false
 
   - name: preview_staged
-    module: imgsearch_agent.tools.preview_staged
+    module: findgo.tools.preview_staged
     class: PreviewStagedTool
     enabled: true
     description: 只读查看暂存区待删除图片清单
@@ -237,7 +237,7 @@ tools:
         default: 100
 
   - name: count_indexed_images
-    module: imgsearch_agent.tools.count_indexed_images
+    module: findgo.tools.count_indexed_images
     class: CountIndexedImagesTool
     enabled: true
     description: 统计索引内图片数量，可对比磁盘数量排查不一致
@@ -248,7 +248,7 @@ tools:
         required: false
 
   - name: web_image_search
-    module: imgsearch_agent.tools.web_image_search
+    module: findgo.tools.web_image_search
     class: WebImageSearchTool
     enabled: true
     description: 联网搜索图片并下载到本地缓存，可选自动建索引，用于本地图库不够时补充

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from imgsearch_agent.tools import TrashManageTool
-from imgsearch_agent.trash import TrashStaging
-from imgsearch_agent.utils.sandbox import Sandbox
+from findgo.tools import TrashManageTool
+from findgo.trash import TrashStaging
+from findgo.utils.sandbox import Sandbox
 
 
 class _Store:

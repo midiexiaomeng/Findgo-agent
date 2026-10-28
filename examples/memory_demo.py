@@ -19,7 +19,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from imgsearch_agent.agent.memory import Memory
+from findgo.agent.memory import Memory
 
 
 def show(memory: Memory, title: str) -> None:
@@ -62,7 +62,7 @@ def main() -> None:
 
     print("\n" + "=" * 60)
     print("长期记忆（跨会话偏好）请用 LongTermMemory：")
-    print("  from imgsearch_agent.long_term import LongTermConfig, LongTermMemory")
+    print("  from findgo.long_term import LongTermConfig, LongTermMemory")
     print("  lt = LongTermMemory()")
     print("  lt.add(user_id, session_id, text, vector, tags)")
     print("  lt.search(user_id, vector)")

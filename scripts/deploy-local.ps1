@@ -1,4 +1,4 @@
-# imgsearch deploy - local model mode
+# findgo deploy - local model mode
 #
 # Double-click deploy-local.bat. Or run:
 #   .\scripts\deploy-local.ps1
@@ -29,7 +29,7 @@ $Py = Join-Path $VenvDir "Scripts\python.exe"
 
 Write-Host ""
 Write-Host "==============================================" -ForegroundColor Cyan
-Write-Host " imgsearch deploy - LOCAL MODEL"
+Write-Host " findgo deploy - LOCAL MODEL"
 Write-Host " root: $Root"
 Write-Host " venv: $VenvDir"
 Write-Host "==============================================" -ForegroundColor Cyan

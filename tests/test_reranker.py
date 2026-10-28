@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import pytest
 
-from imgsearch_agent.retriever.config import Config
-from imgsearch_agent.retriever.llm.client import LLMError
-from imgsearch_agent.retriever.llm.reranker import LLMReranker
-from imgsearch_agent.retriever.vectorstore.base import VectorHit
+from findgo.retriever.config import Config
+from findgo.retriever.llm.client import LLMError
+from findgo.retriever.llm.reranker import LLMReranker
+from findgo.retriever.vectorstore.base import VectorHit
 
 
 def make_hits(n: int = 4) -> list[VectorHit]:

@@ -11,7 +11,7 @@ param(
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 $Dist = Join-Path $Root "dist"
-$Name = "imgsearch-$Version"
+$Name = "findgo-$Version"
 $Stage = Join-Path $Dist $Name
 $Zip = Join-Path $Dist "$Name.zip"
 

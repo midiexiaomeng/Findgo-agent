@@ -5,8 +5,8 @@ from __future__ import annotations
 import inspect
 
 import desktop_app
-from imgsearch_agent.retriever.llm.reranker import LLMReranker
-from imgsearch_agent.tools import ImageRetrievalTool
+from findgo.retriever.llm.reranker import LLMReranker
+from findgo.tools import ImageRetrievalTool
 
 
 def test_tool_accepts_should_stop():

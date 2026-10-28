@@ -11,7 +11,7 @@ with open("requirements.txt", "r", encoding="utf-8") as f:
     ]
 
 setup(
-    name="imgsearch",
+    name="findgo",
     version="2.0.0",
     description="本地多模态 RAG 图像检索：Chinese-CLIP + Qwen2.5 + 双向量库",
     long_description=long_description,
@@ -22,7 +22,7 @@ setup(
     install_requires=requirements,
     entry_points={
         "console_scripts": [
-            "imgsearch=cli:main",
+            "findgo=cli:main",
         ],
     },
     python_requires=">=3.9",

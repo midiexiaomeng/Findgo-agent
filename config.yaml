@@ -1,4 +1,4 @@
-# imgsearch 配置
+# findgo 配置
 # 修改后重启程序生效；所有相对路径都相对本文件所在目录。
 
 # 运行设备：auto | cpu | cuda | cuda:0 | mps

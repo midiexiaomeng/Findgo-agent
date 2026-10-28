@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from imgsearch_agent.agent.planner import Planner
+from findgo.agent.planner import Planner
 
 
 class FakeClient:

@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from imgsearch_agent.agent.executor import ToolExecutor
-from imgsearch_agent.tools.base_tool import BaseTool
-from imgsearch_agent.tools import TrashManageTool, IndexFolderTool, ExportResultsTool
-from imgsearch_agent.trash import TrashStaging
-from imgsearch_agent.utils.sandbox import Sandbox
+from findgo.agent.executor import ToolExecutor
+from findgo.tools.base_tool import BaseTool
+from findgo.tools import TrashManageTool, IndexFolderTool, ExportResultsTool
+from findgo.trash import TrashStaging
+from findgo.utils.sandbox import Sandbox
 
 
 class _DangerTool(BaseTool):

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from imgsearch_agent.agent import ImageSearchAgent
-from imgsearch_agent.config import AgentConfig
+from findgo.agent import FindgoAgent
+from findgo.config import AgentConfig
 
 
 class FakeResult:
@@ -68,7 +68,7 @@ def make_agent(client, pipeline, **overrides):
     cfg.memory_persist = False
     for k, v in overrides.items():
         setattr(cfg, k, v)
-    return ImageSearchAgent(config=cfg, client=client, pipeline=pipeline)
+    return FindgoAgent(config=cfg, client=client, pipeline=pipeline)
 
 
 def test_tool_call_flow():
@@ -122,7 +122,7 @@ def test_plan_tasks():
 
 
 def test_run_tasks_skips_skipped():
-    from imgsearch_agent.utils.schemas import TaskSpec
+    from findgo.utils.schemas import TaskSpec
 
     agent = make_agent(FakeClient(), FakePipeline())
     tasks = [

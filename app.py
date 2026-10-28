@@ -1,7 +1,7 @@
 """程序入口：python app.py
 
 只做三件事：修环境变量、解析配置、启动界面。
-所有业务逻辑都在 imgsearch 包里，界面只是壳。
+所有业务逻辑都在 findgo 包里，界面只是壳。
 """
 
 from __future__ import annotations
@@ -16,13 +16,13 @@ os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 # 允许直接 python app.py（不用先 pip install -e .）
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "src"))
 
-from imgsearch_agent.retriever.runtime import setup_logging, set_windows_safe_env  # noqa: E402
+from findgo.retriever.runtime import setup_logging, set_windows_safe_env  # noqa: E402
 
 
 def main() -> None:
     set_windows_safe_env()
 
-    from imgsearch_agent.retriever import Config
+    from findgo.retriever import Config
 
     cfg = Config.from_yaml()
     setup_logging(cfg.app.log_level)

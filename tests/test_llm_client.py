@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from imgsearch_agent.llm.client import ChatClient
+from findgo.llm.client import ChatClient
 
 
 class FakeResp:

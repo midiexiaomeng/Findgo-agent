@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from imgsearch_agent.agent import ImageSearchAgent
-from imgsearch_agent.config import AgentConfig
-from imgsearch_agent.utils.schemas import TaskSpec
+from findgo.agent import FindgoAgent
+from findgo.config import AgentConfig
+from findgo.utils.schemas import TaskSpec
 
 
 class _Result:
@@ -53,7 +53,7 @@ def make_agent(patch_response, tmp_path):
     cfg.memory_persist = True
     cfg.memory_db_path = str(tmp_path / "facts.sqlite")
     client = _Client(patch_response)
-    agent = ImageSearchAgent(config=cfg, client=client, pipeline=_Pipeline())
+    agent = FindgoAgent(config=cfg, client=client, pipeline=_Pipeline())
     return agent, client
 
 

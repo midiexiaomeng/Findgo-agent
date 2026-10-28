@@ -18,8 +18,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from imgsearch_agent.agent import ImageSearchAgent  # noqa: E402
-from imgsearch_agent.config import AgentConfig  # noqa: E402
+from findgo.agent import FindgoAgent  # noqa: E402
+from findgo.config import AgentConfig  # noqa: E402
 
 
 def main() -> int:
@@ -31,7 +31,7 @@ def main() -> int:
     print(f"查询    : {query}")
     print("运行中（首次会加载 CLIP 与向量库）...")
 
-    agent = ImageSearchAgent(config=config)
+    agent = FindgoAgent(config=config)
     started = time.time()
     try:
         result = agent.run(query)

@@ -16,8 +16,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from imgsearch_agent.retriever.config import Config  # noqa: E402
-from imgsearch_agent.retriever.llm.client import LLMClient  # noqa: E402
+from findgo.retriever.config import Config  # noqa: E402
+from findgo.retriever.llm.client import LLMClient  # noqa: E402
 
 
 def main() -> int:

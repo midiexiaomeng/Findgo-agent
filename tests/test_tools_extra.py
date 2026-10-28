@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from PIL import Image
 
-from imgsearch_agent.tools import DescribeImageTool, ListIndexedFoldersTool
-from imgsearch_agent.utils.path_guard import PathGuard
+from findgo.tools import DescribeImageTool, ListIndexedFoldersTool
+from findgo.utils.path_guard import PathGuard
 
 
 class _Hit:

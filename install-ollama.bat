@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 >nul
 cd /d "%~dp0"
-title imgsearch - portable ollama
+title findgo - portable ollama
 
 echo.
 echo ============================================

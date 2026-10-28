@@ -1,4 +1,4 @@
-# imgsearch - portable Ollama installer
+# findgo - portable Ollama installer
 #
 # Installs Ollama into <project>\ollama and keeps models in
 # <project>\ollama\models. Nothing is written to C: except temp files.

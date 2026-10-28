@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from imgsearch_agent.agent.planner import detect_reuse
-from imgsearch_agent.utils.schemas import TaskSpec
+from findgo.agent.planner import detect_reuse
+from findgo.utils.schemas import TaskSpec
 
 
 def test_detect_reuse_positive():

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from imgsearch_agent.tools import ExportResultsTool, RemoveIndexTool
-from imgsearch_agent.utils.sandbox import Sandbox
+from findgo.tools import ExportResultsTool, RemoveIndexTool
+from findgo.utils.sandbox import Sandbox
 
 
 class _Item:
@@ -36,7 +36,7 @@ class _ExportPipeline:
 def test_export_csv(tmp_path, monkeypatch):
     target = tmp_path / "exports"
     monkeypatch.setattr(
-        "imgsearch_agent.retriever.runtime.PROJECT_ROOT", str(tmp_path)
+        "findgo.retriever.runtime.PROJECT_ROOT", str(tmp_path)
     )
 
     tool = ExportResultsTool(

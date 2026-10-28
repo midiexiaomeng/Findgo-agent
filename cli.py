@@ -21,12 +21,12 @@ os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
-from imgsearch_agent.retriever import Config, __version__  # noqa: E402
-from imgsearch_agent.retriever.runtime import human_time, setup_logging  # noqa: E402
+from findgo.retriever import Config, __version__  # noqa: E402
+from findgo.retriever.runtime import human_time, setup_logging  # noqa: E402
 
 
 def _pipeline(args):
-    from imgsearch_agent.retriever.pipeline import Pipeline
+    from findgo.retriever.pipeline import Pipeline
 
     cfg = Config.from_yaml(args.config)
     return Pipeline(cfg, backend=getattr(args, "backend", None))
@@ -146,7 +146,7 @@ def cmd_serve(args) -> int:
 
 
 def cmd_doctor(args) -> int:
-    print(f"imgsearch {__version__}")
+    print(f"findgo {__version__}")
     print("=" * 60)
 
     ok = True
@@ -190,7 +190,7 @@ def cmd_doctor(args) -> int:
     cfg = Config.from_yaml(getattr(args, "config", None))
     print("-" * 60)
 
-    from imgsearch_agent.retriever.runtime import resolve_model_source
+    from findgo.retriever.runtime import resolve_model_source
 
     clip_src = resolve_model_source(
         cfg.embedding.model, cfg.models_dir, cfg.embedding.fallback
@@ -207,7 +207,7 @@ def cmd_doctor(args) -> int:
         print("  ! BLIP 未在本地，首次运行会联网下载")
 
     try:
-        from imgsearch_agent.retriever.pipeline import Pipeline
+        from findgo.retriever.pipeline import Pipeline
 
         p = Pipeline(cfg)
         print(
@@ -236,11 +236,11 @@ def cmd_doctor(args) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="imgsearch",
+        prog="findgo",
         description="本地多模态 RAG 图像检索（以文搜图 / 以图搜图）",
     )
     parser.add_argument("--config", default=None, help="配置文件路径")
-    parser.add_argument("--version", action="version", version=f"imgsearch {__version__}")
+    parser.add_argument("--version", action="version", version=f"findgo {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_index = sub.add_parser("index", help="为图片文件夹建立索引")

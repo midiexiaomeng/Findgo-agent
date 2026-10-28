@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from imgsearch_agent.retriever.captioner import Captioner
-from imgsearch_agent.retriever.config import Config
+from findgo.retriever.captioner import Captioner
+from findgo.retriever.config import Config
 
 
 def make_captioner(tmp_path, limit=5):

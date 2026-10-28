@@ -7,8 +7,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from imgsearch_agent.retriever import pipeline as pipeline_module
-from imgsearch_agent.retriever.pipeline import Pipeline
+from findgo.retriever import pipeline as pipeline_module
+from findgo.retriever.pipeline import Pipeline
 
 
 class _FakeStore:

@@ -4,7 +4,7 @@ cd /d "%~dp0"
 
 REM Debug launch: keep console open for errors and logs
 echo ============================================
-echo  imgsearch Agent - debug console
+echo  Findgo - debug console
 echo  Logs are also written to logs\app.log
 echo ============================================
 echo.

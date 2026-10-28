@@ -6,8 +6,8 @@ import time
 
 from pydantic import BaseModel, Field
 
-from imgsearch_agent.agent.executor import ToolExecutor
-from imgsearch_agent.tools.base_tool import BaseTool
+from findgo.agent.executor import ToolExecutor
+from findgo.tools.base_tool import BaseTool
 
 
 class _Args(BaseModel):

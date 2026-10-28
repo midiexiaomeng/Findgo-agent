@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from imgsearch_agent.tools.image_retrieval import ImageRetrievalTool
+from findgo.tools.image_retrieval import ImageRetrievalTool
 
 
 class FakeResult:
@@ -49,7 +49,7 @@ def test_args_schema_defaults():
 
 
 def test_validate_rejects_missing_query():
-    from imgsearch_agent.utils.exceptions import ValidationError
+    from findgo.utils.exceptions import ValidationError
 
     tool = ImageRetrievalTool(FakePipeline())
     try:

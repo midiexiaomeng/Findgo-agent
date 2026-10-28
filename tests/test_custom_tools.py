@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from imgsearch_agent.agent import custom_tools
-from imgsearch_agent.utils.sandbox import Sandbox
+from findgo.agent import custom_tools
+from findgo.utils.sandbox import Sandbox
 
 SPEC = {
     "name": "count_jpg",

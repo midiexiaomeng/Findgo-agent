@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# imgsearch setup for Linux / macOS
+# findgo setup for Linux / macOS
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -21,7 +21,7 @@ if [ "$VENV" = "1" ]; then
   PYTHON="$ROOT/.venv/bin/python"
 fi
 
-echo "== imgsearch setup =="
+echo "== findgo setup =="
 "$PYTHON" -c 'import sys; assert sys.version_info >= (3,9), "Python 3.9+ required"'
 
 if "$PYTHON" -c "import torch" 2>/dev/null; then

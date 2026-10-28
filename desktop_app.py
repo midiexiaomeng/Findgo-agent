@@ -1,4 +1,4 @@
-"""imgsearch Agent 桌面应用（PyQt5）。
+"""Findgo 桌面应用（PyQt5）。
 
 布局：
 ┌──────┬──────────────────────────┬──────┐
@@ -72,20 +72,20 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from imgsearch_agent.model_store import ModelStore
-from imgsearch_agent.ui.bubble import BubbleLabel, ImageGalleryDialog
-from imgsearch_agent.ui.agent_runner import AgentRunnerMixin
-from imgsearch_agent.ui.chat_render import highlight_paths, message_html
-from imgsearch_agent.ui.components import LogBridge, QtLogHandler, Worker
-from imgsearch_agent.ui.thumbnail_cache import thumb_path
-from imgsearch_agent.ui.dynamic_dialog import DynamicToolDialog
-from imgsearch_agent.ui.file_tree import FileTreeMixin
-from imgsearch_agent.ui.skills_panel import SkillDropZone, SkillsPopup
-from imgsearch_agent.ui.input_panel import ChatInput, ResizeHandle
-from imgsearch_agent.ui.session_panel import SessionMixin
-from imgsearch_agent.ui.title_bar import TitleBar
-from imgsearch_agent.settings_dialog import SettingsDialog
-from imgsearch_agent.utils.schemas import TaskSpec
+from findgo.model_store import ModelStore
+from findgo.ui.bubble import BubbleLabel, ImageGalleryDialog
+from findgo.ui.agent_runner import AgentRunnerMixin
+from findgo.ui.chat_render import highlight_paths, message_html
+from findgo.ui.components import LogBridge, QtLogHandler, Worker
+from findgo.ui.thumbnail_cache import thumb_path
+from findgo.ui.dynamic_dialog import DynamicToolDialog
+from findgo.ui.file_tree import FileTreeMixin
+from findgo.ui.skills_panel import SkillDropZone, SkillsPopup
+from findgo.ui.input_panel import ChatInput, ResizeHandle
+from findgo.ui.session_panel import SessionMixin
+from findgo.ui.title_bar import TitleBar
+from findgo.settings_dialog import SettingsDialog
+from findgo.utils.schemas import TaskSpec
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"}
 
@@ -96,7 +96,7 @@ IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"}
 class MainWindow(AgentRunnerMixin, SessionMixin, FileTreeMixin, QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("imgsearch Agent · 多模态图像检索")
+        self.setWindowTitle("Findgo · 多模态图像检索")
         self.setMinimumSize(760, 560)
 
         if not self._restore_geometry():
@@ -741,7 +741,7 @@ class MainWindow(AgentRunnerMixin, SessionMixin, FileTreeMixin, QMainWindow):
                 datefmt="%H:%M:%S",
             )
         )
-        root = logging.getLogger("imgsearch_agent")
+        root = logging.getLogger("findgo")
         root.addHandler(handler)
         root.setLevel(logging.INFO)
         for noisy in ("httpx", "urllib3", "chromadb", "PIL"):
@@ -1124,8 +1124,8 @@ class MainWindow(AgentRunnerMixin, SessionMixin, FileTreeMixin, QMainWindow):
         if self.agent is None:
             return
         try:
-            from imgsearch_agent.config import AgentConfig
-            from imgsearch_agent.utils.path_guard import PathGuard
+            from findgo.config import AgentConfig
+            from findgo.utils.path_guard import PathGuard
 
             cfg = AgentConfig()
             self.agent.config.memory_max_sessions = cfg.memory_max_sessions
@@ -1143,7 +1143,7 @@ class MainWindow(AgentRunnerMixin, SessionMixin, FileTreeMixin, QMainWindow):
 
             # 检索参数热更新：只改已创建的 Pipeline，未创建的等首次检索读新配置
             try:
-                from imgsearch_agent.retriever import Config as RetrieverConfig
+                from findgo.retriever import Config as RetrieverConfig
 
                 rcfg = RetrieverConfig.from_yaml()
                 tool = self.agent.tools.get("image_retrieval")
@@ -1336,7 +1336,7 @@ def main() -> int:
     QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
     QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
     app = QApplication(sys.argv)
-    app.setApplicationName("imgsearch Agent")
+    app.setApplicationName("Findgo")
     app.setStyle("Fusion")
 
     from PyQt5.QtGui import QColor, QPalette
@@ -1354,12 +1354,12 @@ def main() -> int:
     from PyQt5.QtCore import QDir, QLockFile
     from PyQt5.QtWidgets import QMessageBox
 
-    lock = QLockFile(QDir.temp().filePath("imgsearch_agent.lock"))
+    lock = QLockFile(QDir.temp().filePath("findgo.lock"))
     if not lock.tryLock(100):
         QMessageBox.warning(
             None,
             "已有实例在运行",
-            "imgsearch Agent 已经打开了一个窗口。\n"
+            "Findgo 已经打开了一个窗口。\n"
             "Qdrant 本地模式只允许单进程访问，请先关闭已有窗口。",
         )
         return 1

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from imgsearch_agent.retriever.config import Config
-from imgsearch_agent.retriever.runtime import resolve_model_source
+from findgo.retriever.config import Config
+from findgo.retriever.runtime import resolve_model_source
 
 
 def test_defaults_are_consistent():
@@ -39,7 +39,7 @@ def test_unknown_key_is_ignored(tmp_path):
 
 
 def test_env_override(monkeypatch):
-    monkeypatch.setenv("IMGSRCH_VECTOR_STORE__BACKEND", "qdrant")
+    monkeypatch.setenv("FINDGO_VECTOR_STORE__BACKEND", "qdrant")
     cfg = Config()
     cfg._apply_env_overrides()
     assert cfg.vector_store.backend == "qdrant"

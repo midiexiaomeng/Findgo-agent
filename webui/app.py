@@ -21,10 +21,10 @@ from typing import Any
 
 import gradio as gr
 
-from imgsearch_agent.retriever import __version__
-from imgsearch_agent.retriever.config import Config
-from imgsearch_agent.retriever.pipeline import Pipeline
-from imgsearch_agent.retriever.runtime import describe_device, human_time
+from findgo.retriever import __version__
+from findgo.retriever.config import Config
+from findgo.retriever.pipeline import Pipeline
+from findgo.retriever.runtime import describe_device, human_time
 
 logger = logging.getLogger(__name__)
 

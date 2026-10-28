@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from imgsearch_agent.downloads import DownloadCache
+from findgo.downloads import DownloadCache
 
 
 def test_save_and_stats(tmp_path):

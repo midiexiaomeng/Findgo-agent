@@ -133,8 +133,8 @@ def main() -> int:
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
-    from imgsearch_agent.retriever import Config
-    from imgsearch_agent.retriever.pipeline import Pipeline
+    from findgo.retriever import Config
+    from findgo.retriever.pipeline import Pipeline
 
     caps_path = Path(args.captions)
     if not caps_path.exists():

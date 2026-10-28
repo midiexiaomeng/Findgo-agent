@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from imgsearch_agent.diagnostics import run_checks, summarize
+from findgo.diagnostics import run_checks, summarize
 
 
 def test_run_checks_returns_items():

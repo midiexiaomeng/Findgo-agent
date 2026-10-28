@@ -1,4 +1,4 @@
-# imgsearch-agent
+# Findgo
 
 **一个会自己判断该做什么的本地图像检索 Agent**
 
@@ -10,7 +10,7 @@
 
 差的那一步，是判断。
 
-imgsearch-agent 想做的是把这个判断补上：先看你的话里有没有路径、有没有数量、有没有排除条件，决定该调用哪个工具；检索回来先看成色，置信度太低就换个说法再试一次；本地不够就联网补，补完记得下次别重复返回同一批。整个过程在本地完成，只有可选的语义重排会用到云端大模型。
+Findgo 想做的是把这个判断补上：先看你的话里有没有路径、有没有数量、有没有排除条件，决定该调用哪个工具；检索回来先看成色，置信度太低就换个说法再试一次；本地不够就联网补，补完记得下次别重复返回同一批。整个过程在本地完成，只有可选的语义重排会用到云端大模型。
 
 它现在有 16 个工具、三层记忆、一套路径沙箱，以及一个不占端口、不依赖浏览器的 PyQt5 桌面窗口。说它是「图片检索」，不如说它是「一个只关心图片的助手」。
 
@@ -115,7 +115,7 @@ Agent：
 ## 架构
 
 ```
-src/imgsearch_agent/
+src/findgo/
 ├── agent/            Agent 层：编排、规划、执行、记忆、动态工具
 ├── retriever/        内核层：CLIP、索引、检索、向量库、重排
 ├── tools/            16 个工具实现
@@ -227,7 +227,7 @@ python cli.py doctor
 pre-commit run --all-files
 ```
 
-新增一个内置工具的话，在 `src/imgsearch_agent/tools/` 下继承 `BaseTool`，定义 `name`、`description`、`args_schema`、`permission`、`timeout`、`run()`，然后在 `tools/__init__.py` 导出、`orchestrator.py` 的 `self.tools` 注册、`configs/tools.yaml` 登记、补一个测试。
+新增一个内置工具的话，在 `src/findgo/tools/` 下继承 `BaseTool`，定义 `name`、`description`、`args_schema`、`permission`、`timeout`、`run()`，然后在 `tools/__init__.py` 导出、`orchestrator.py` 的 `self.tools` 注册、`configs/tools.yaml` 登记、补一个测试。
 
 临时需求不必新增工具，直接提给 Agent，它会走动态工具：生成 `DynamicToolSpec`，源码过黑名单扫描，在隔离命名空间编译，弹窗让你审。
 
@@ -301,7 +301,7 @@ download_cache:
   max_total_size_gb: 5
 ```
 
-优先级：`环境变量 > configs/agent.yaml > 代码默认值`。环境变量格式是 `IMGSRCH_<SECTION>__<KEY>`，比如 `IMGSRCH_VECTOR_STORE__QDRANT__PATH` 会覆盖 Qdrant 路径，适合 Docker 或临时调试。
+优先级：`环境变量 > configs/agent.yaml > 代码默认值`。环境变量格式是 `FINDGO_<SECTION>__<KEY>`，比如 `FINDGO_VECTOR_STORE__QDRANT__PATH` 会覆盖 Qdrant 路径，适合 Docker 或临时调试。
 
 `configs/agent.yaml` 不进 git（含 LLM 地址与个人路径），首次运行由 `init_agent_config.py` 从模板生成。
 

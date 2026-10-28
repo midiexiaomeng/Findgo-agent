@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from imgsearch_agent.agent.critic import Critic
+from findgo.agent.critic import Critic
 
 
 def test_check_passes_above_threshold():
