@@ -259,9 +259,7 @@ class ClipEncoder:
             if "image" in item:
                 buf = io.BytesIO()
                 item["image"].convert("RGB").save(buf, format="JPEG", quality=92)
-                payload_input.append(
-                    {"image": base64.b64encode(buf.getvalue()).decode("ascii")}
-                )
+                payload_input.append({"image": base64.b64encode(buf.getvalue()).decode("ascii")})
             else:
                 payload_input.append({"text": str(item["text"])})
 
@@ -282,9 +280,7 @@ class ClipEncoder:
         resp.raise_for_status()
         data = resp.json().get("data", [])
         if len(data) != len(payload_input):
-            raise RuntimeError(
-                f"CLIP 服务返回 {len(data)} 条向量，期望 {len(payload_input)} 条"
-            )
+            raise RuntimeError(f"CLIP 服务返回 {len(data)} 条向量，期望 {len(payload_input)} 条")
 
         feats = np.array([row["embedding"] for row in data], dtype=np.float32)
         if self.cfg.embedding.normalize:

@@ -417,9 +417,7 @@ class SettingsDialog(QDialog):
         dim_title.setStyleSheet("font-weight:600;color:#4A4A4A;font-size:13px;")
         layout.addWidget(dim_title)
 
-        dim_tip = QLabel(
-            "改维度会让现有索引全部作废，必须重建。改之前先确认自己能接受重建耗时。"
-        )
+        dim_tip = QLabel("改维度会让现有索引全部作废，必须重建。改之前先确认自己能接受重建耗时。")
         dim_tip.setWordWrap(True)
         dim_tip.setStyleSheet("color:#C0504D; font-size:12px;")
         layout.addWidget(dim_tip)

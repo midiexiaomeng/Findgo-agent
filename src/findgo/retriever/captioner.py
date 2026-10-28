@@ -374,9 +374,7 @@ class Captioner:
                     timeout=int(cfg.api_timeout or 60),
                 )
                 resp.raise_for_status()
-                content = (
-                    resp.json().get("choices", [{}])[0].get("message", {}).get("content", "")
-                )
+                content = resp.json().get("choices", [{}])[0].get("message", {}).get("content", "")
                 results.append(str(content).strip())
             except Exception as e:
                 logger.debug("视觉 API 描述失败 %s: %s", path, e)
