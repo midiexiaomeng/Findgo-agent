@@ -209,6 +209,7 @@ class FindgoAgent:
         max_steps: int = 10,
         continue_on_failure: bool = True,
         auto_update_facts: bool = False,
+        access_level: str = "auto",
     ) -> list[AgentResult]:
         """按任务列表逐条执行，跳过 skipped。
 
@@ -293,7 +294,9 @@ class FindgoAgent:
                     "exclude_paths": list(previous_paths),
                 }
 
-            result, retries = self._execute_with_retry(tool, args, should_stop=should_stop)
+            result, retries = self._execute_with_retry(
+                tool, args, should_stop=should_stop, access_level=access_level
+            )
 
             if result.get("error") and not continue_on_failure:
                 logger.warning(
@@ -428,15 +431,26 @@ class FindgoAgent:
     # ── 内部 ──────────────────────────────────────────────────────────────
 
     def _execute_with_retry(
-        self, tool: BaseTool, args: dict[str, Any], should_stop=None
+        self,
+        tool: BaseTool,
+        args: dict[str, Any],
+        should_stop=None,
+        access_level: str = "auto",
     ) -> tuple[dict[str, Any], int]:
         query = str(args.get("query", ""))
         attempt = 0
         result: dict[str, Any] = {}
 
         while True:
-            result, _ = self.executor.execute(tool, args, should_stop=should_stop)
-            if result.get("error") in ("invalid_args", "timeout"):
+            result, _ = self.executor.execute(
+                tool, args, should_stop=should_stop, access_level=access_level
+            )
+            if result.get("error") in (
+                "invalid_args",
+                "timeout",
+                "need_confirm",
+                "readonly_blocked",
+            ):
                 self.trace.error(
                     "tool", result["error"], tool=tool.name, error=result.get("summary", "")
                 )

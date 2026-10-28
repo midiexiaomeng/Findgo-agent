@@ -157,15 +157,35 @@ class AgentRunnerMixin:
                 [],
             )
 
-        results = agent.run_tasks(tasks, write_memory=False, should_stop=lambda: self._cancel)
+        results = agent.run_tasks(
+            tasks,
+            write_memory=False,
+            should_stop=lambda: self._cancel,
+            access_level=self._access_level(),
+        )
         self._maybe_web_fill(agent, tasks, results)
         return self._pack_results(agent, tasks, results)
 
     def _run_existing_tasks(self, tasks):
         agent = self._get_agent()
-        results = agent.run_tasks(tasks, write_memory=False, should_stop=lambda: self._cancel)
+        results = agent.run_tasks(
+            tasks,
+            write_memory=False,
+            should_stop=lambda: self._cancel,
+            access_level=self._access_level(),
+        )
         self._maybe_web_fill(agent, tasks, results)
         return self._pack_results(agent, tasks, results)
+
+    def _access_level(self) -> str:
+        """当前权限等级，供执行器判断写操作能不能过。"""
+        btn = getattr(self, "perm_btn", None)
+        if btn is None:
+            return "auto"
+        try:
+            return btn.key()
+        except Exception:
+            return "auto"
 
     def _maybe_web_fill(self, agent, tasks, results) -> None:
         """本地不够时按所选模式联网补充。"""

@@ -36,6 +36,14 @@ from findgo.theme import GLOBAL_QSS
 from findgo.ui.agent_runner import AgentRunnerMixin
 from findgo.ui.bubble import BubbleLabel, ImageGalleryDialog
 from findgo.ui.chat_render import highlight_paths, message_html
+from findgo.ui.command_panel import (
+    CommandMenu,
+    PermissionButton,
+    SlashPopup,
+    command_by_name,
+    match_commands,
+    popup_position,
+)
 from findgo.ui.components import LogBridge, QtLogHandler, Worker
 from findgo.ui.dynamic_dialog import DynamicToolDialog
 from findgo.ui.file_tree import FileTreeMixin
@@ -248,6 +256,8 @@ class MainWindow(AgentRunnerMixin, SessionMixin, FileTreeMixin, QMainWindow):
             "QPlainTextEdit:focus{border:1px solid #A8C9B8;}"
         )
         self.input.textChanged.connect(self._adjust_input_height)
+        self.input.textChanged.connect(self._on_input_changed)
+        self.input.nav_key.connect(self._on_input_nav_key)
         grid.addWidget(self.input, 0, 0)
 
         overlay = QWidget()
@@ -307,6 +317,26 @@ class MainWindow(AgentRunnerMixin, SessionMixin, FileTreeMixin, QMainWindow):
         )
         self.attach_btn.clicked.connect(self.on_attach)
         left_row.addWidget(self.attach_btn)
+
+        # 命令菜单：四角星，点击弹出，也响应输入框里的 /
+        self.command_btn = QToolButton()
+        self.command_btn.setText("✦")
+        self.command_btn.setToolTip("命令菜单（输入 / 也能唤出）")
+        self.command_btn.setFixedSize(28, 28)
+        self.command_btn.setCursor(Qt.PointingHandCursor)
+        self.command_btn.setStyleSheet(
+            "QToolButton{border:1px solid #EDEBE6;border-radius:14px;"
+            "background:#FFFFFF;font-size:14px;color:#6F9C86;}"
+            "QToolButton:hover{background:#E3EFE7;}"
+        )
+        self.command_btn.clicked.connect(self.on_command_menu)
+        left_row.addWidget(self.command_btn)
+
+        # 权限切换：按钮文字就是当前等级符号
+        self.perm_btn = PermissionButton(self._load_permission())
+        self.perm_btn.changed.connect(self._on_permission_changed)
+        left_row.addWidget(self.perm_btn)
+
         left_row.addStretch(1)
         grid.addWidget(left_overlay, 0, 0, Qt.AlignBottom | Qt.AlignLeft)
 
@@ -340,6 +370,113 @@ class MainWindow(AgentRunnerMixin, SessionMixin, FileTreeMixin, QMainWindow):
         # 超过上限后才交给滚动条跟随光标
         if target < max_h:
             self.input.verticalScrollBar().setValue(0)
+
+    # ── 命令菜单与斜杠候选 ────────────────────────────────────────────────
+
+    def on_command_menu(self) -> None:
+        menu = CommandMenu(self)
+        menu.command_picked.connect(self._apply_command)
+        menu.exec_(self.command_btn.mapToGlobal(QPoint(0, self.command_btn.height() + 4)))
+
+    def _on_input_changed(self) -> None:
+        text = self.input.toPlainText()
+        # 只在整段以 / 开头、且还没输入空格时弹候选
+        if text.startswith("/") and "\n" not in text:
+            query_part = text.split(" ")[0]
+            if " " in text:
+                self._hide_slash_popup()
+                return
+            items = match_commands(query_part)
+            if items:
+                self._show_slash_popup(items)
+                return
+        self._hide_slash_popup()
+
+    def _show_slash_popup(self, items: list[dict]) -> None:
+        if not hasattr(self, "slash_popup"):
+            self.slash_popup = SlashPopup(self)
+            self.slash_popup.command_picked.connect(self._apply_command)
+
+        self.slash_popup.fill(items)
+        self.slash_popup.resize(420, min(len(items) * 34 + 14, 6 * 34 + 14))
+
+        cursor = self.input.textCursor()
+        rect = self.input.cursorRect(cursor)
+        self.slash_popup.move(popup_position(self.input, rect))
+        self.slash_popup.show()
+        self.slash_popup.raise_()
+
+    def _hide_slash_popup(self) -> None:
+        if hasattr(self, "slash_popup") and self.slash_popup.isVisible():
+            self.slash_popup.hide()
+
+    def _slash_popup_visible(self) -> bool:
+        return hasattr(self, "slash_popup") and self.slash_popup.isVisible()
+
+    def _on_input_nav_key(self, key: int) -> None:
+        """方向键与回车在候选列表里导航，Esc 关闭。"""
+        if not self._slash_popup_visible():
+            return
+
+        if key == Qt.Key_Down:
+            self.slash_popup.move_selection(1)
+        elif key == Qt.Key_Up:
+            self.slash_popup.move_selection(-1)
+        elif key == Qt.Key_Escape:
+            self._hide_slash_popup()
+
+    def _apply_command(self, name: str) -> None:
+        cmd = command_by_name(name)
+        self._hide_slash_popup()
+        if cmd is None:
+            return
+        self.input.setPlainText(str(cmd.get("prompt", "")))
+        self.input.setFocus()
+        cursor = self.input.textCursor()
+        cursor.movePosition(cursor.End)
+        self.input.setTextCursor(cursor)
+
+    def _on_permission_changed(self, key: str) -> None:
+        label = {
+            "full": "完整权限",
+            "auto": "自动审批",
+            "ask": "操作前询问",
+            "readonly": "只读模式",
+        }.get(key, key)
+        self._save_permission(key)
+        self.append_log(f">>> 权限切换为：{label}")
+        self.state_label.setText(f"当前权限：{label}")
+
+    @staticmethod
+    def _permission_file() -> Path:
+        return ROOT / "data" / "ui_state.json"
+
+    def _load_permission(self) -> str:
+        try:
+            import json
+
+            data = json.loads(self._permission_file().read_text(encoding="utf-8"))
+            key = str(data.get("permission", "ask"))
+            return key if key in {"full", "auto", "ask", "readonly"} else "ask"
+        except Exception:
+            return "ask"
+
+    def _save_permission(self, key: str) -> None:
+        try:
+            import json
+
+            path = self._permission_file()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            data = {}
+            if path.exists():
+                try:
+                    data = json.loads(path.read_text(encoding="utf-8"))
+                except Exception:
+                    data = {}
+            data["permission"] = key
+            path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception:
+            pass
 
     def _layout_handles(self) -> None:
         if not hasattr(self, "_resize_handles"):

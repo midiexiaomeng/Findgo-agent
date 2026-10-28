@@ -42,22 +42,18 @@ class ToolExecutor:
         timeout: float | None = None,
         should_stop=None,
         allow_danger: bool = False,
+        access_level: str = "auto",
     ) -> tuple[dict[str, Any], int]:
         started = time.time()
 
-        # 高危操作默认拒绝，必须由界面显式放行
         try:
             permission = tool.permission_for(args)
         except Exception:
             permission = getattr(tool, "permission", "read")
 
-        if permission == "danger_delete" and not allow_danger:
-            logger.warning("拒绝高危操作 %s（需要人工确认）", tool.name)
-            return {
-                "error": "need_confirm",
-                "need_user_confirm": True,
-                "summary": f"{tool.name} 属于高危删除，需要人工确认后执行",
-            }, 0
+        blocked = self._check_access(tool.name, permission, access_level, allow_danger)
+        if blocked is not None:
+            return blocked, 0
 
         try:
             payload = tool.validate(args)
@@ -97,6 +93,51 @@ class ToolExecutor:
         elapsed = time.time() - started
         logger.info("工具 %s 完成，耗时 %.2fs", tool.name, elapsed)
         return self._truncate(result), 0
+
+    # ── 权限校验 ────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _check_access(
+        tool_name: str,
+        permission: str,
+        access_level: str,
+        allow_danger: bool,
+    ) -> dict[str, Any] | None:
+        """按当前权限等级判断能不能执行，返回拒绝原因或 None。
+
+        四档：readonly 只放行读；ask 写操作转人工确认；
+        auto 读写都放行；full 全放行。危险删除任何档位都要界面确认。
+        """
+        level = (access_level or "auto").lower()
+        is_write = permission in ("index_write", "file_write", "danger_delete")
+
+        if permission == "danger_delete" and not allow_danger:
+            logger.warning("拒绝高危操作 %s（需要人工确认）", tool_name)
+            return {
+                "error": "need_confirm",
+                "need_user_confirm": True,
+                "summary": f"{tool_name} 属于高危删除，需要人工确认后执行",
+            }
+
+        if level == "readonly" and is_write:
+            logger.warning("只读模式下拒绝写入 %s（%s）", tool_name, permission)
+            return {
+                "error": "readonly_blocked",
+                "summary": (
+                    f"只读模式：{tool_name} 需要 {permission} 权限，已阻止。"
+                    "切换到自动审批或完整权限后重试。"
+                ),
+            }
+
+        if level == "ask" and is_write:
+            logger.info("操作前询问：%s（%s）", tool_name, permission)
+            return {
+                "error": "need_confirm",
+                "need_user_confirm": True,
+                "summary": f"操作前询问：{tool_name} 要执行 {permission} 操作，确认后才继续。",
+            }
+
+        return None
 
     # ── 输出截断 ────────────────────────────────────────────────────────────
 
