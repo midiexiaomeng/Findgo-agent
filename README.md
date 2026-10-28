@@ -1,5 +1,10 @@
 # Findgo
 
+[![CI](https://github.com/midiexiaomeng/Findgo-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/midiexiaomeng/Findgo-agent/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey)]()
+
 **一个会自己判断该做什么的本地图像检索 Agent**
 
 用中文描述找图，能看懂目录、会挑工具、记得你说过的话，找不到就上网补，找到的不重复。
