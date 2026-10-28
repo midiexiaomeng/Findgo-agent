@@ -30,7 +30,7 @@ warnings.filterwarnings("ignore", message=".*bottleneck.*")
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from PyQt5.QtCore import QObject, QPoint, QRect, Qt, QThread, pyqtSignal
+from PyQt5.QtCore import QEvent, QObject, QPoint, QRect, Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QFont, QImage, QKeySequence, QPixmap
 from PyQt5.QtWidgets import (
     QApplication,
@@ -50,6 +50,7 @@ from PyQt5.QtWidgets import (
     QPlainTextEdit,
     QPushButton,
     QShortcut,
+    QSizeGrip,
     QSizePolicy,
     QSplitter,
     QTextBrowser,
@@ -206,6 +207,113 @@ class ImageGalleryDialog(QDialog):
             )
         layout.addWidget(label)
         dialog.exec_()
+
+
+class TitleBar(QWidget):
+    """无边框窗口的自定义标题栏：拖拽移动、双击最大化。"""
+
+    def __init__(self, window):
+        super().__init__(window)
+        self.window = window
+        self._drag_offset = None
+        self.setFixedHeight(38)
+        self.setStyleSheet("background:#FBFAF7; border-bottom:1px solid #EDEBE6;")
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(10, 0, 8, 0)
+        layout.setSpacing(6)
+
+        self.left_btn = self._make_toggle("◧", "隐藏/显示左栏（双击恢复默认宽度）")
+        self.left_btn.clicked.connect(window.toggle_left)
+        self.left_btn.installEventFilter(self)
+
+        title = QLabel("imgsearch · 多模态图像检索")
+        title.setStyleSheet("color:#2E2E2E; font-size:12.5px; font-weight:600;")
+        title.setAlignment(Qt.AlignCenter)
+
+        self.right_btn = self._make_toggle("◨", "隐藏/显示右栏（双击恢复默认宽度）")
+        self.right_btn.clicked.connect(window.toggle_right)
+        self.right_btn.installEventFilter(self)
+
+        self.min_btn = self._make_icon("—", "最小化")
+        self.min_btn.clicked.connect(window.showMinimized)
+
+        self.close_btn = self._make_icon("×", "关闭")
+        self.close_btn.setStyleSheet(
+            "QToolButton{border:none;border-radius:6px;color:#4A4A4A;"
+            "font-size:15px;padding:2px 6px;}"
+            "QToolButton:hover{background:#F6DED9;color:#C97B6E;}"
+        )
+        self.close_btn.clicked.connect(window.close)
+
+        layout.addWidget(self.left_btn)
+        layout.addStretch(1)
+        layout.addWidget(title)
+        layout.addStretch(1)
+        layout.addWidget(self.right_btn)
+        layout.addSpacing(8)
+        layout.addWidget(self.min_btn)
+        layout.addWidget(self.close_btn)
+
+    @staticmethod
+    def _make_toggle(text, tip):
+        btn = QToolButton()
+        btn.setText(text)
+        btn.setToolTip(tip)
+        btn.setFixedSize(26, 24)
+        btn.setStyleSheet(
+            "QToolButton{border:1px solid #EDEBE6;border-radius:7px;"
+            "background:#FFFFFF;color:#4A4A4A;font-size:13px;}"
+            "QToolButton:hover{background:#F2F0EA;}"
+        )
+        return btn
+
+    @staticmethod
+    def _make_icon(text, tip):
+        btn = QToolButton()
+        btn.setText(text)
+        btn.setToolTip(tip)
+        btn.setFixedSize(26, 24)
+        btn.setStyleSheet(
+            "QToolButton{border:none;border-radius:6px;color:#4A4A4A;"
+            "font-size:14px;padding:2px 4px;}"
+            "QToolButton:hover{background:#F2F0EA;}"
+        )
+        return btn
+
+    # ── 拖拽移动 ──
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.LeftButton:
+            self._drag_offset = event.globalPos() - self.window.frameGeometry().topLeft()
+            event.accept()
+
+    def mouseMoveEvent(self, event) -> None:
+        if self._drag_offset and event.buttons() & Qt.LeftButton:
+            self.window.move(event.globalPos() - self._drag_offset)
+            event.accept()
+
+    def mouseReleaseEvent(self, event) -> None:
+        self._drag_offset = None
+        event.accept()
+
+    def mouseDoubleClickEvent(self, event) -> None:
+        if self.window.isMaximized():
+            self.window.showNormal()
+        else:
+            self.window.showMaximized()
+        event.accept()
+
+    def eventFilter(self, obj, event) -> bool:
+        # 双击左右切换按钮 = 恢复该栏预设宽度
+        if event.type() == QEvent.MouseButtonDblClick:
+            if obj is self.left_btn:
+                self.window.reset_left()
+                return True
+            if obj is self.right_btn:
+                self.window.reset_right()
+                return True
+        return super().eventFilter(obj, event)
 
 
 class SkillDropZone(QFrame):
@@ -421,6 +529,10 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("imgsearch Agent · 多模态图像检索")
         self.resize(1440, 880)
+        self.setMinimumSize(960, 620)
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.Window)
+        self._left_width = 240
+        self._right_width = 300
         self.setStyleSheet(
             "QMainWindow{background:#FBFAF7;}"
             "QScrollBar:vertical{background:transparent;width:8px;}"
@@ -898,7 +1010,22 @@ class MainWindow(QMainWindow):
         right.setMinimumWidth(200)
 
         self.main_split = main
-        self.setCentralWidget(main)
+        self.title_bar = TitleBar(self)
+
+        container = QWidget()
+        vbox = QVBoxLayout(container)
+        vbox.setContentsMargins(0, 0, 0, 0)
+        vbox.setSpacing(0)
+        vbox.addWidget(self.title_bar)
+        vbox.addWidget(main, 1)
+
+        grip_row = QHBoxLayout()
+        grip_row.setContentsMargins(0, 0, 2, 2)
+        grip_row.addStretch(1)
+        grip_row.addWidget(QSizeGrip(container))
+        vbox.addLayout(grip_row)
+
+        self.setCentralWidget(container)
         self.setStyleSheet("QMainWindow{background:#F2F0EA;}")
 
     # ── 日志 / 记忆 ───────────────────────────────────────────────────────
@@ -1298,6 +1425,48 @@ class MainWindow(QMainWindow):
             self.agent.set_llm(ModelStore.to_llm_config(entry))
         self.model_btn.setText(entry.get("label", entry.get("model", "")))
         self.append_log(">>> 切换模型：" + str(entry.get("label")))
+
+    def toggle_left(self) -> None:
+        widget = self.main_split.widget(0)
+        sizes = list(self.main_split.sizes())
+        if not widget.isHidden():
+            if len(sizes) > 0 and sizes[0] > 0:
+                self._left_width = sizes[0]
+            widget.setHidden(True)
+        else:
+            widget.setHidden(False)
+            if len(sizes) > 0:
+                sizes[0] = self._left_width or 240
+                self.main_split.setSizes(sizes)
+
+    def toggle_right(self) -> None:
+        widget = self.main_split.widget(2)
+        sizes = list(self.main_split.sizes())
+        if not widget.isHidden():
+            if len(sizes) > 2 and sizes[2] > 0:
+                self._right_width = sizes[2]
+            widget.setHidden(True)
+        else:
+            widget.setHidden(False)
+            if len(sizes) > 2:
+                sizes[2] = self._right_width or 300
+                self.main_split.setSizes(sizes)
+
+    def reset_left(self) -> None:
+        widget = self.main_split.widget(0)
+        widget.setHidden(False)
+        sizes = list(self.main_split.sizes())
+        if len(sizes) > 0:
+            sizes[0] = 240
+            self.main_split.setSizes(sizes)
+
+    def reset_right(self) -> None:
+        widget = self.main_split.widget(2)
+        widget.setHidden(False)
+        sizes = list(self.main_split.sizes())
+        if len(sizes) > 2:
+            sizes[2] = 300
+            self.main_split.setSizes(sizes)
 
     def on_skills(self) -> None:
         popup = SkillsPopup(self)
