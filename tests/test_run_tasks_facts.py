@@ -24,7 +24,9 @@ class _Resp:
 
 
 class _Searcher:
-    def search_text(self, query, top_k=8, scope=None, all_results=False, should_stop=None, exclude_paths=None):
+    def search_text(
+        self, query, top_k=8, scope=None, all_results=False, should_stop=None, exclude_paths=None
+    ):
         return _Resp()
 
 

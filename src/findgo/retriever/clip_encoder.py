@@ -97,8 +97,7 @@ class ClipEncoder:
             if model_dim:
                 if int(model_dim) != self._dim:
                     logger.warning(
-                        "配置维度 %d 与模型实际维度 %d 不一致，以模型为准；"
-                        "如果已有索引，请重建。",
+                        "配置维度 %d 与模型实际维度 %d 不一致，以模型为准；" "如果已有索引，请重建。",
                         self._dim,
                         int(model_dim),
                     )

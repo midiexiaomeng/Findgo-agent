@@ -12,10 +12,14 @@ def make(tmp_path):
     workspace = tmp_path / "data"
     images.mkdir()
     workspace.mkdir()
-    return Sandbox(
-        image_roots=[str(images)],
-        workspace_roots=[str(workspace)],
-    ), images, workspace
+    return (
+        Sandbox(
+            image_roots=[str(images)],
+            workspace_roots=[str(workspace)],
+        ),
+        images,
+        workspace,
+    )
 
 
 def test_read_image_root_allowed(tmp_path):
@@ -77,6 +81,7 @@ def test_describe_lists_roots(tmp_path):
     text = sandbox.describe()
     assert "只读目录" in text
     assert "可写目录" in text
+
 
 def test_symlink_rejected(tmp_path):
     sandbox, images, _ = make(tmp_path)

@@ -6,17 +6,13 @@ from findgo.agent.critic import Critic
 
 
 def test_check_passes_above_threshold():
-    critique = Critic(threshold=0.25).check(
-        {"images": [{"path": "a.jpg"}], "confidence": 0.5}
-    )
+    critique = Critic(threshold=0.25).check({"images": [{"path": "a.jpg"}], "confidence": 0.5})
     assert critique.passed is True
     assert critique.confidence == 0.5
 
 
 def test_check_fails_below_threshold():
-    critique = Critic(threshold=0.25).check(
-        {"images": [{"path": "a.jpg"}], "confidence": 0.1}
-    )
+    critique = Critic(threshold=0.25).check({"images": [{"path": "a.jpg"}], "confidence": 0.1})
     assert critique.passed is False
     assert "低于阈值" in critique.reason
 

@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from findgo.agent.executor import ToolExecutor
+from findgo.tools import ExportResultsTool, IndexFolderTool, TrashManageTool
 from findgo.tools.base_tool import BaseTool
-from findgo.tools import TrashManageTool, IndexFolderTool, ExportResultsTool
 from findgo.trash import TrashStaging
 from findgo.utils.sandbox import Sandbox
 

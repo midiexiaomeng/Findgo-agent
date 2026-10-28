@@ -150,29 +150,22 @@ class VectorStore(abc.ABC):
         metadatas: Sequence[dict[str, Any]] | None,
     ) -> np.ndarray:
         if len(ids) != len(embeddings):
-            raise VectorStoreError(
-                f"ids 数量({len(ids)}) 与 embeddings 数量({len(embeddings)}) 不一致"
-            )
+            raise VectorStoreError(f"ids 数量({len(ids)}) 与 embeddings 数量({len(embeddings)}) 不一致")
         if metadatas is not None and len(metadatas) != len(ids):
-            raise VectorStoreError(
-                f"metadatas 数量({len(metadatas)}) 与 ids 数量({len(ids)}) 不一致"
-            )
+            raise VectorStoreError(f"metadatas 数量({len(metadatas)}) 与 ids 数量({len(ids)}) 不一致")
         arr = np.asarray(embeddings, dtype=np.float32)
         if arr.ndim == 1:
             arr = arr.reshape(1, -1)
         if arr.shape[1] != self.embedding_dim:
             raise VectorStoreError(
-                f"向量维度不匹配：期望 {self.embedding_dim}，实际 {arr.shape[1]}。"
-                "如果换过嵌入模型，需要重建索引。"
+                f"向量维度不匹配：期望 {self.embedding_dim}，实际 {arr.shape[1]}。" "如果换过嵌入模型，需要重建索引。"
             )
         return arr
 
     def _check_query(self, embedding: np.ndarray) -> np.ndarray:
         arr = np.asarray(embedding, dtype=np.float32).reshape(-1)
         if arr.shape[0] != self.embedding_dim:
-            raise VectorStoreError(
-                f"查询向量维度不匹配：期望 {self.embedding_dim}，实际 {arr.shape[0]}"
-            )
+            raise VectorStoreError(f"查询向量维度不匹配：期望 {self.embedding_dim}，实际 {arr.shape[0]}")
         return arr
 
 

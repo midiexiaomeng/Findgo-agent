@@ -19,13 +19,13 @@ _VENDOR = Path(__file__).resolve().parents[4] / "_vendor"
 if _VENDOR.is_dir() and str(_VENDOR) not in sys.path:
     sys.path.insert(0, str(_VENDOR))
 
-import logging
-from pathlib import Path
-from typing import Any, Sequence
+import logging  # noqa: E402
+from pathlib import Path  # noqa: E402
+from typing import Any, Sequence  # noqa: E402
 
-import numpy as np
+import numpy as np  # noqa: E402
 
-from .base import VectorHit, VectorStore, VectorStoreError, sanitize_metadata
+from .base import VectorHit, VectorStore, VectorStoreError, sanitize_metadata  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -60,9 +60,7 @@ class QdrantVectorStore(VectorStore):
             from qdrant_client import QdrantClient
             from qdrant_client.http import models as qm
         except ImportError as e:  # pragma: no cover
-            raise VectorStoreError(
-                "未安装 qdrant-client，请执行: pip install qdrant-client"
-            ) from e
+            raise VectorStoreError("未安装 qdrant-client，请执行: pip install qdrant-client") from e
 
         self._models = qm
 
@@ -239,28 +237,18 @@ class QdrantVectorStore(VectorStore):
                 for op, operand in value.items():
                     if op in ("$in", "in"):
                         must.append(
-                            qm.FieldCondition(
-                                key=str(key), match=qm.MatchAny(any=list(operand))
-                            )
+                            qm.FieldCondition(key=str(key), match=qm.MatchAny(any=list(operand)))
                         )
                     elif op in ("$gte", ">="):
-                        must.append(
-                            qm.FieldCondition(key=str(key), range=qm.Range(gte=operand))
-                        )
+                        must.append(qm.FieldCondition(key=str(key), range=qm.Range(gte=operand)))
                     elif op in ("$lte", "<="):
-                        must.append(
-                            qm.FieldCondition(key=str(key), range=qm.Range(lte=operand))
-                        )
+                        must.append(qm.FieldCondition(key=str(key), range=qm.Range(lte=operand)))
                     else:
                         must.append(
-                            qm.FieldCondition(
-                                key=str(key), match=qm.MatchValue(value=operand)
-                            )
+                            qm.FieldCondition(key=str(key), match=qm.MatchValue(value=operand))
                         )
             else:
-                must.append(
-                    qm.FieldCondition(key=str(key), match=qm.MatchValue(value=value))
-                )
+                must.append(qm.FieldCondition(key=str(key), match=qm.MatchValue(value=value)))
         return qm.Filter(must=must) if must else None
 
     def get(
@@ -276,8 +264,7 @@ class QdrantVectorStore(VectorStore):
                 with_vectors=False,
             )
             return [
-                VectorHit(id=str(p.id), score=1.0, metadata=dict(p.payload or {}))
-                for p in points
+                VectorHit(id=str(p.id), score=1.0, metadata=dict(p.payload or {})) for p in points
             ]
 
         out: list[VectorHit] = []
@@ -292,9 +279,7 @@ class QdrantVectorStore(VectorStore):
                 with_vectors=False,
             )
             for p in batch:
-                out.append(
-                    VectorHit(id=str(p.id), score=1.0, metadata=dict(p.payload or {}))
-                )
+                out.append(VectorHit(id=str(p.id), score=1.0, metadata=dict(p.payload or {})))
             remaining -= len(batch)
             if not batch or offset is None:
                 break
@@ -315,9 +300,7 @@ class QdrantVectorStore(VectorStore):
             points=[str(i) for i in ids],
         )
 
-    def get_vectors(
-        self, ids=None, limit: int | None = None
-    ) -> list[tuple[str, np.ndarray, dict]]:
+    def get_vectors(self, ids=None, limit: int | None = None) -> list[tuple[str, np.ndarray, dict]]:
         if ids:
             points = self._client.retrieve(
                 collection_name=self.collection,

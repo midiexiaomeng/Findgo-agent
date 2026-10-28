@@ -9,8 +9,8 @@ from .logger import TraceLogger, setup_logging
 from .schemas import (
     AgentAction,
     AgentState,
-    RetrievedImage,
     RetrievalResult,
+    RetrievedImage,
     TaskStatus,
 )
 

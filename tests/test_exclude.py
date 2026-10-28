@@ -27,9 +27,7 @@ def make_searcher(paths):
 
 def test_recall_excludes_previous_paths():
     searcher = make_searcher(["D:/a/1.jpg", "D:/a/2.jpg", "D:/a/3.jpg"])
-    hits = Searcher._recall(
-        searcher, None, 10, 0.0, None, {"d:/a/1.jpg", "d:/a/2.jpg"}
-    )
+    hits = Searcher._recall(searcher, None, 10, 0.0, None, {"d:/a/1.jpg", "d:/a/2.jpg"})
     assert len(hits) == 1
     assert hits[0].path == "D:/a/3.jpg"
 

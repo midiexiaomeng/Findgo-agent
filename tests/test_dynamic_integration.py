@@ -35,8 +35,7 @@ SPEC = {
     "tags": ["read-only"],
     "timeout": 30,
     "args_schema_code": (
-        "class Args(BaseModel):\n"
-        '    folder: str = Field(..., description="目录")\n'
+        "class Args(BaseModel):\n" '    folder: str = Field(..., description="目录")\n'
     ),
     "run_func_code": (
         "def run(self, args):\n"

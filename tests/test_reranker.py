@@ -35,7 +35,10 @@ def make_cfg(**overrides) -> Config:
 
 def test_parse_variants():
     parse = LLMReranker._parse_scores
-    assert parse('{"scores":[{"index":1,"score":85},{"index":2,"score":30}]}', 2) == {0: 0.85, 1: 0.3}
+    assert parse('{"scores":[{"index":1,"score":85},{"index":2,"score":30}]}', 2) == {
+        0: 0.85,
+        1: 0.3,
+    }
     assert parse('```json\n{"scores":[{"index":1,"score":90}]}\n```', 2) == {0: 0.9}
     assert parse('[{"id":1,"relevance":0.2}]', 1) == {0: 0.2}
     assert parse('{"1": 70}', 1) == {0: 0.7}
@@ -86,7 +89,10 @@ def test_rerank_degrades_when_llm_fails():
 def test_rerank_skips_without_captions():
     cfg = make_cfg()
     reranker = LLMReranker(cfg)
-    hits = [VectorHit(id=f"x{i}", score=0.3 - i * 0.01, metadata={"filename": f"{i}.jpg"}) for i in range(3)]
+    hits = [
+        VectorHit(id=f"x{i}", score=0.3 - i * 0.01, metadata={"filename": f"{i}.jpg"})
+        for i in range(3)
+    ]
 
     called = {"n": 0}
 

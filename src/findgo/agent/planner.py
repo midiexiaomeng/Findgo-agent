@@ -74,10 +74,7 @@ class Planner:
             user_content = f"可用工具：\n{tools_desc}\n\n用户请求：{query}"
 
         if extra_context.strip():
-            user_content += (
-                "\n\n【当前会话生效约束（权威源，优先级高于历史对话）】\n"
-                + extra_context.strip()
-            )
+            user_content += "\n\n【当前会话生效约束（权威源，优先级高于历史对话）】\n" + extra_context.strip()
 
         messages: list[dict[str, str]] = [
             {"role": "system", "content": self.prompts.get("system", "")},
@@ -104,8 +101,6 @@ class Planner:
                 action_type="answer",
                 reply="抱歉，我没能理解这个请求。",
             )
-
-
 
     # ── 任务拆解 ──────────────────────────────────────────────────────────
 
@@ -145,7 +140,7 @@ class Planner:
             '"run_func_code":"def run(self, args):\\n    ...",'
             '"safety_note":"..."}\n'
             "动态工具禁止硬编码具体文件名或固定路径，路径一律从参数传入，"
-            "并用 sandbox_check_path(路径, \"read\") 校验。\n"
+            '并用 sandbox_check_path(路径, "read") 校验。\n'
             "能用现有工具完成时不要生成 dynamic_tool。\n"
             "每个任务包含：\n"
             "- description：一句话说明这次找什么\n"

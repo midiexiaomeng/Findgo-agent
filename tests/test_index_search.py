@@ -142,7 +142,9 @@ def test_index_and_search(workspace, tmp_path, backend):
     assert resp.results[0].caption  # 描述已落库
 
     # 以图搜图：排除自身
-    resp2 = searcher.search_image(workspace / "red.png", top_k=3, use_rerank=False, exclude_self=True)
+    resp2 = searcher.search_image(
+        workspace / "red.png", top_k=3, use_rerank=False, exclude_self=True
+    )
     names = [r.filename for r in resp2.results]
     assert "red.png" not in names
     assert names

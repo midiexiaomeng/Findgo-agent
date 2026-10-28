@@ -39,9 +39,7 @@ class _FakeStore:
 def build_pipeline(old_store):
     pipeline = Pipeline.__new__(Pipeline)
     pipeline._lock = threading.RLock()
-    pipeline.cfg = SimpleNamespace(
-        vector_store=SimpleNamespace(backend=old_store.backend_name)
-    )
+    pipeline.cfg = SimpleNamespace(vector_store=SimpleNamespace(backend=old_store.backend_name))
     pipeline.store = old_store
     pipeline._bind = lambda: None
     return pipeline
@@ -85,9 +83,7 @@ def test_switch_succeeds_when_probe_passes(monkeypatch):
     pipeline = build_pipeline(old)
     new = _FakeStore("chroma")
 
-    monkeypatch.setattr(
-        pipeline_module, "create_vector_store", lambda cfg, backend: new
-    )
+    monkeypatch.setattr(pipeline_module, "create_vector_store", lambda cfg, backend: new)
 
     message = pipeline.switch_backend("chroma")
     assert "已切换到" in message

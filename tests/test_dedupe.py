@@ -42,7 +42,7 @@ def test_dedupe_removes_near_duplicates():
     a, b, c = "D:/a/1.jpg", "D:/a/2.jpg", "D:/a/3.jpg"
     vectors = {
         Indexer.image_id(a): [1.0, 0.0, 0.0],
-        Indexer.image_id(b): [0.999, 0.01, 0.0],   # 与 a 几乎一致
+        Indexer.image_id(b): [0.999, 0.01, 0.0],  # 与 a 几乎一致
         Indexer.image_id(c): [0.0, 1.0, 0.0],
     }
     tool = make_tool(vectors)

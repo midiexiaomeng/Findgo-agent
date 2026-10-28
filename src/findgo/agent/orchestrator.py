@@ -24,8 +24,8 @@ from ..tools import (
     FindDuplicatesTool,
     FolderScanTool,
     GetIndexStatsTool,
-    ImageSearchByImageTool,
     ImageRetrievalTool,
+    ImageSearchByImageTool,
     IndexFolderTool,
     ListIndexedFoldersTool,
     PreviewStagedTool,
@@ -35,8 +35,8 @@ from ..tools import (
     WebImageSearchTool,
 )
 from ..tools.base_tool import BaseTool
-from ..utils.logger import TraceLogger
 from ..utils.exceptions import ValidationError
+from ..utils.logger import TraceLogger
 from ..utils.schemas import AgentAction, TaskSpec
 from .critic import Critic
 from .custom_tools import load_custom_tools
@@ -83,12 +83,8 @@ class FindgoAgent:
     ):
         self.config = config or AgentConfig()
         self.client = client or ChatClient(self.config.llm)
-        self.planner = Planner(
-            self.client, self.config.prompts, self.config.max_iterations
-        )
-        self.critic = Critic(
-            self.client, self.config.similarity_threshold, self.config.max_retries
-        )
+        self.planner = Planner(self.client, self.config.prompts, self.config.max_iterations)
+        self.critic = Critic(self.client, self.config.similarity_threshold, self.config.max_retries)
         self.responder = Responder(self.client, self.config.prompts)
 
         persist = self.config.resolve_db_path() if self.config.memory_persist else None
@@ -116,9 +112,7 @@ class FindgoAgent:
             self.sandbox = guard
             self.tools = {
                 "image_retrieval": ImageRetrievalTool(pipeline, guard=guard),
-                "image_search_by_image": ImageSearchByImageTool(
-                    pipeline, guard=guard
-                ),
+                "image_search_by_image": ImageSearchByImageTool(pipeline, guard=guard),
                 "index_folder": IndexFolderTool(pipeline, guard=guard),
                 "get_index_stats": GetIndexStatsTool(pipeline),
                 "switch_vector_backend": SwitchVectorBackendTool(pipeline),
@@ -200,16 +194,12 @@ class FindgoAgent:
             retries=retries,
         )
 
-
-
     # ── 任务规划与分步执行 ────────────────────────────────────────────────
 
     def plan_tasks(self, user_input: str) -> list[TaskSpec]:
         """让 Planner 拆解任务，供界面展示与人工干预。"""
         tools_desc = "\n".join(t.signature() for t in self.tools.values())
-        return self.planner.plan_tasks(
-            user_input, tools_desc, history=self.memory.recent(n=20)
-        )
+        return self.planner.plan_tasks(user_input, tools_desc, history=self.memory.recent(n=20))
 
     def run_tasks(
         self,
@@ -303,9 +293,7 @@ class FindgoAgent:
                     "exclude_paths": list(previous_paths),
                 }
 
-            result, retries = self._execute_with_retry(
-                tool, args, should_stop=should_stop
-            )
+            result, retries = self._execute_with_retry(tool, args, should_stop=should_stop)
 
             if result.get("error") and not continue_on_failure:
                 logger.warning(
@@ -379,10 +367,7 @@ class FindgoAgent:
         self._last_paths = this_round_paths
         if this_round_paths:
             self._last_images = [
-                item
-                for result in results
-                for item in result.results
-                if isinstance(item, dict)
+                item for result in results for item in result.results if isinstance(item, dict)
             ]
         return results
 
@@ -450,9 +435,7 @@ class FindgoAgent:
         result: dict[str, Any] = {}
 
         while True:
-            result, _ = self.executor.execute(
-                tool, args, should_stop=should_stop
-            )
+            result, _ = self.executor.execute(tool, args, should_stop=should_stop)
             if result.get("error") in ("invalid_args", "timeout"):
                 self.trace.error(
                     "tool", result["error"], tool=tool.name, error=result.get("summary", "")

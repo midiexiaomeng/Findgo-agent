@@ -61,9 +61,7 @@ class ImageGalleryDialog(QDialog):
             self.preview.setText("无法预览")
             return
         self.preview.setPixmap(
-            pixmap.scaled(
-                self.preview.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation
-            )
+            pixmap.scaled(self.preview.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
         )
 
     def _open_large(self, item) -> None:
@@ -77,9 +75,7 @@ class ImageGalleryDialog(QDialog):
         label.setAlignment(Qt.AlignCenter)
         pixmap = QPixmap(path)
         if not pixmap.isNull():
-            label.setPixmap(
-                pixmap.scaled(920, 680, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            )
+            label.setPixmap(pixmap.scaled(920, 680, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         layout.addWidget(label)
         dialog.exec_()
 
@@ -94,9 +90,7 @@ class BubbleLabel(QLabel):
         self.setTextFormat(Qt.RichText)
         self.setOpenExternalLinks(False)
         self.linkActivated.connect(host.on_chat_link)
-        self.setTextInteractionFlags(
-            Qt.TextSelectableByMouse | Qt.LinksAccessibleByMouse
-        )
+        self.setTextInteractionFlags(Qt.TextSelectableByMouse | Qt.LinksAccessibleByMouse)
 
         body = host._message_html(text, images)
         self.setText(body)

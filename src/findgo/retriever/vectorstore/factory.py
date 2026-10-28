@@ -34,8 +34,7 @@ def create_vector_store(cfg: Config, backend: str | None = None) -> VectorStore:
     name = _ALIASES.get((backend or cfg.vector_store.backend or "").lower())
     if name is None:
         raise VectorStoreError(
-            f"未知向量库后端: {backend or cfg.vector_store.backend!r}，"
-            f"可选: {', '.join(BACKENDS)}"
+            f"未知向量库后端: {backend or cfg.vector_store.backend!r}，" f"可选: {', '.join(BACKENDS)}"
         )
 
     vs = cfg.vector_store

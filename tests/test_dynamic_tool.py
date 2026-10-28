@@ -20,10 +20,7 @@ def make_spec(run_code: str | None = None, args_code: str | None = None):
         tags=["read-only"],
         timeout=30,
         args_schema_code=args_code
-        or (
-            "class Args(BaseModel):\n"
-            '    folder: str = Field(..., description="目录")\n'
-        ),
+        or ("class Args(BaseModel):\n" '    folder: str = Field(..., description="目录")\n'),
         run_func_code=run_code
         or (
             "def run(self, args):\n"
@@ -58,9 +55,7 @@ def test_blocked_keyword_rejected():
 
 
 def test_blocked_subprocess_rejected():
-    spec = make_spec(
-        run_code="import subprocess\ndef run(self, args):\n    return 1\n"
-    )
+    spec = make_spec(run_code="import subprocess\ndef run(self, args):\n    return 1\n")
     with pytest.raises(DynamicToolError):
         build_dynamic_tool(spec)
 

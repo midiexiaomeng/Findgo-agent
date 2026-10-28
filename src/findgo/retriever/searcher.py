@@ -133,7 +133,10 @@ class Searcher:
         started = time.time()
         if not query:
             return SearchResponse(
-                query="", mode="text", results=[], report=RerankReport(),
+                query="",
+                mode="text",
+                results=[],
+                report=RerankReport(),
                 note="查询为空",
             )
 
@@ -150,9 +153,7 @@ class Searcher:
         recall_k = max(recall_k, min(top_k * 2, 5000))
 
         query_vec = self.encoder.encode_text(query)
-        hits = self._recall(
-            query_vec, recall_k, min_score, scope, exclude_paths
-        )
+        hits = self._recall(query_vec, recall_k, min_score, scope, exclude_paths)
 
         candidates, report = self.reranker.rerank(
             query, hits, top_k=top_k, use_llm=use_rerank, should_stop=should_stop
@@ -198,11 +199,7 @@ class Searcher:
                 self_abs = str(Path(image_path).expanduser().resolve()).lower()
             except OSError:
                 self_abs = image_path.lower()
-            hits = [
-                h
-                for h in hits
-                if str(h.metadata.get("path", "")).lower() != self_abs
-            ]
+            hits = [h for h in hits if str(h.metadata.get("path", "")).lower() != self_abs]
 
         # 查询图的语义描述：LLM 重排的唯一依据
         query_caption = ""
@@ -267,9 +264,7 @@ class Searcher:
             except OSError:
                 scope_norm = str(scope).lower()
             hits = [
-                h
-                for h in hits
-                if str(h.metadata.get("path", "")).lower().startswith(scope_norm)
+                h for h in hits if str(h.metadata.get("path", "")).lower().startswith(scope_norm)
             ]
             hits = hits[:recall_k]
 

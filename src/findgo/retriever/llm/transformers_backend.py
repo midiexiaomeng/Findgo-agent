@@ -60,13 +60,8 @@ class TransformersChat:
     def is_available(self) -> tuple[bool, str]:
         path = Path(self.model_path)
         if not path.exists():
-            return False, (
-                f"本地模型不存在: {path}。"
-                "运行 python scripts/download_llm_hf.py 下载"
-            )
-        has_weights = any(path.glob("*.safetensors")) or any(
-            path.glob("pytorch_model*.bin")
-        )
+            return False, (f"本地模型不存在: {path}。" "运行 python scripts/download_llm_hf.py 下载")
+        has_weights = any(path.glob("*.safetensors")) or any(path.glob("pytorch_model*.bin"))
         if not has_weights:
             return False, f"目录里没有模型权重: {path}"
         return True, f"本地 Transformers 模型: {path.name}"
@@ -130,7 +125,7 @@ class TransformersChat:
                 eos_token_id=self._tokenizer.eos_token_id,
             )
 
-        generated = output[0][inputs["input_ids"].shape[1]:]
+        generated = output[0][inputs["input_ids"].shape[1] :]
         return self._tokenizer.decode(generated, skip_special_tokens=True).strip()
 
     def unload(self) -> None:

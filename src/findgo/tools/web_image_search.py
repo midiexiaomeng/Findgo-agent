@@ -64,9 +64,7 @@ class WebImageSearchTool(BaseTool):
             self._cache = DownloadCache(root, cfg.download_max_gb)
         return self._cache
 
-    def run(
-        self, query: str, top_k: int = 20, index: bool = True
-    ) -> dict[str, Any]:
+    def run(self, query: str, top_k: int = 20, index: bool = True) -> dict[str, Any]:
         urls = self._search_urls(query, top_k)
         if not urls:
             return {
@@ -128,7 +126,7 @@ class WebImageSearchTool(BaseTool):
         )
         response.raise_for_status()
 
-        found = re.findall(r'murl&quot;:&quot;(https?://[^&]+?)&quot;', response.text)
+        found = re.findall(r"murl&quot;:&quot;(https?://[^&]+?)&quot;", response.text)
         unique = list(dict.fromkeys(found))
         return unique[: max(count * 2, 10)]
 

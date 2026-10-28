@@ -28,8 +28,15 @@ from .vectorstore.base import VectorStore
 logger = logging.getLogger(__name__)
 
 SUPPORTED_EXTENSIONS = {
-    ".jpg", ".jpeg", ".png", ".webp", ".bmp",
-    ".tif", ".tiff", ".gif", ".avif",
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".webp",
+    ".bmp",
+    ".tif",
+    ".tiff",
+    ".gif",
+    ".avif",
 }
 
 ProgressFn = Callable[[int, int, str], None]
@@ -254,9 +261,7 @@ class Indexer:
 
     # ── 批处理 ──────────────────────────────────────────────────────────────
 
-    def _index_batch(
-        self, paths: Sequence[Path], with_caption: bool | None = None
-    ) -> dict:
+    def _index_batch(self, paths: Sequence[Path], with_caption: bool | None = None) -> dict:
         result = {"indexed": 0, "failed": 0, "captioned": 0, "errors": []}
 
         # 1) 校验 + 读取元信息

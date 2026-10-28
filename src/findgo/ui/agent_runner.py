@@ -144,17 +144,13 @@ class AgentRunnerMixin:
                 [],
             )
 
-        results = agent.run_tasks(
-            tasks, write_memory=False, should_stop=lambda: self._cancel
-        )
+        results = agent.run_tasks(tasks, write_memory=False, should_stop=lambda: self._cancel)
         self._maybe_web_fill(agent, tasks, results)
         return self._pack_results(agent, tasks, results)
 
     def _run_existing_tasks(self, tasks):
         agent = self._get_agent()
-        results = agent.run_tasks(
-            tasks, write_memory=False, should_stop=lambda: self._cancel
-        )
+        results = agent.run_tasks(tasks, write_memory=False, should_stop=lambda: self._cancel)
         self._maybe_web_fill(agent, tasks, results)
         return self._pack_results(agent, tasks, results)
 
@@ -172,11 +168,7 @@ class AgentRunnerMixin:
             if tool is None:
                 return
             query = tasks[0].query if tasks and tasks[0].query else ""
-            count = (
-                max(short, 10)
-                if self._search_mode == "hybrid"
-                else max(need, 20)
-            )
+            count = max(short, 10) if self._search_mode == "hybrid" else max(need, 20)
             web = tool.run(query=query, top_k=min(count, 100))
             self.append_log(f">>> 联网补充：{web.get('summary', '')}")
 
@@ -205,9 +197,7 @@ class AgentRunnerMixin:
             self._add_task_item(task)
 
         self.last_results = images
-        self.state_label.setText(
-            f"完成 {len(results)} 条任务，共 {len(images)} 张图片"
-        )
+        self.state_label.setText(f"完成 {len(results)} 条任务，共 {len(images)} 张图片")
         self._refresh_sessions()
 
     def on_worker_failed(self, error: str) -> None:
@@ -245,9 +235,7 @@ class AgentRunnerMixin:
             try:
                 from findgo.agent.recommender import score_dynamic_tool
 
-                recommendation = score_dynamic_tool(
-                    spec, agent.memory.list_traces(name)
-                )
+                recommendation = score_dynamic_tool(spec, agent.memory.list_traces(name))
             except Exception:
                 recommendation = {}
 

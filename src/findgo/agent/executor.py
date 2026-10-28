@@ -33,9 +33,7 @@ class ToolExecutor:
     ):
         self.max_output_chars = max_output_chars
         self.default_timeout = default_timeout
-        self._pool = ThreadPoolExecutor(
-            max_workers=max_workers, thread_name_prefix="tool"
-        )
+        self._pool = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="tool")
 
     def execute(
         self,

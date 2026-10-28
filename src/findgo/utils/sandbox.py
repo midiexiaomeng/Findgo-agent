@@ -58,9 +58,7 @@ class Sandbox:
 
         self.image_roots = self._resolve_all(image)
         self.workspace_roots = self._resolve_all(workspace)
-        self.forbidden = self._resolve_all(
-            _FORBIDDEN + [Path(p) for p in (forbidden_roots or [])]
-        )
+        self.forbidden = self._resolve_all(_FORBIDDEN + [Path(p) for p in (forbidden_roots or [])])
 
     @staticmethod
     def _resolve_all(items) -> list[Path]:

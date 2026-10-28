@@ -21,9 +21,7 @@ def thumb_path(path: str, size: int = 112) -> str:
     except OSError:
         return ""
 
-    key = hashlib.md5(
-        f"{source.resolve()}|{stat.st_mtime}|{size}".encode("utf-8")
-    ).hexdigest()
+    key = hashlib.md5(f"{source.resolve()}|{stat.st_mtime}|{size}".encode("utf-8")).hexdigest()
     target_dir = cache_dir()
     target_dir.mkdir(parents=True, exist_ok=True)
     target = target_dir / f"{key}.jpg"

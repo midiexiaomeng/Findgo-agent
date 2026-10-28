@@ -45,13 +45,9 @@ class AgentConfig:
 
         # 只读素材目录：优先 sandbox.image_roots，兼容旧的 security.allowed_roots
         self.image_roots = [
-            str(r)
-            for r in (sandbox.get("image_roots") or security.get("allowed_roots") or [])
-            if r
+            str(r) for r in (sandbox.get("image_roots") or security.get("allowed_roots") or []) if r
         ]
-        self.workspace_roots = [
-            str(r) for r in (sandbox.get("workspace_roots") or []) if r
-        ]
+        self.workspace_roots = [str(r) for r in (sandbox.get("workspace_roots") or []) if r]
         # 旧字段保留，供界面与日志读取
         self.allowed_roots = list(self.image_roots)
 

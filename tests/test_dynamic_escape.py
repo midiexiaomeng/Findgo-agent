@@ -35,7 +35,7 @@ def test_write_text_blocked_in_image_root(tmp_path):
     images.mkdir()
     code = (
         "def run(self, args):\n"
-        "    p = Path(r'" + str(images.resolve()).replace('\\', '\\\\') + "')\n"
+        "    p = Path(r'" + str(images.resolve()).replace("\\", "\\\\") + "')\n"
         "    (p / 'x.txt').write_text('x')\n"
         "    return {'ok': True}\n"
     )
@@ -55,7 +55,7 @@ def test_read_inside_root_allowed(tmp_path):
 
     code = (
         "def run(self, args):\n"
-        "    return {'ok': Path(r'" + str(target).replace('\\', '\\\\') + "').exists()}\n"
+        "    return {'ok': Path(r'" + str(target).replace("\\", "\\\\") + "').exists()}\n"
     )
     tool = build_dynamic_tool(make_spec(code), Sandbox(image_roots=[str(images)]))
     assert tool.run()["ok"] is True
@@ -69,7 +69,7 @@ def test_unlink_blocked(tmp_path):
 
     code = (
         "def run(self, args):\n"
-        "    Path(r'" + str(target).replace('\\', '\\\\') + "').unlink()\n"
+        "    Path(r'" + str(target).replace("\\", "\\\\") + "').unlink()\n"
         "    return {'ok': True}\n"
     )
     tool = build_dynamic_tool(

@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..utils.path_guard import PathSecurityError, PathGuard
+from ..utils.path_guard import PathGuard, PathSecurityError
 from .base_tool import BaseTool
 
 logger = logging.getLogger("findgo.find_duplicates")
@@ -59,11 +59,7 @@ class FindDuplicatesTool(BaseTool):
                     "total_images": 0,
                     "summary": f"路径不安全，已拒绝：{e}",
                 }
-            records = [
-                r
-                for r in records
-                if str(r[2].get("path", "")).lower().startswith(scope)
-            ]
+            records = [r for r in records if str(r[2].get("path", "")).lower().startswith(scope)]
 
         if len(records) < 2:
             return {

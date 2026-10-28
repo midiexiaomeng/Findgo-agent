@@ -52,9 +52,7 @@ class ListIndexedFoldersTool(BaseTool):
 
         items = [
             {"folder": folder, "count": count}
-            for folder, count in sorted(
-                folders.items(), key=lambda kv: (-kv[1], kv[0].lower())
-            )
+            for folder, count in sorted(folders.items(), key=lambda kv: (-kv[1], kv[0].lower()))
         ]
         return {
             "folders": items,

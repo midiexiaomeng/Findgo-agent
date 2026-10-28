@@ -22,9 +22,7 @@ class RemoveIndexArgs(BaseModel):
 
     folder_path: str = Field("", description="要移除索引的文件夹；留空时需开启 missing_only")
     dry_run: bool = Field(True, description="True 只统计不删除，False 真正删除")
-    missing_only: bool = Field(
-        False, description="只清理原图已不存在的孤儿向量"
-    )
+    missing_only: bool = Field(False, description="只清理原图已不存在的孤儿向量")
 
 
 class RemoveIndexTool(BaseTool):
@@ -54,11 +52,7 @@ class RemoveIndexTool(BaseTool):
         hits = self.pipeline.store.get(limit=200000)
 
         if missing_only:
-            targets = [
-                hit
-                for hit in hits
-                if hit.path and not Path(hit.path).exists()
-            ]
+            targets = [hit for hit in hits if hit.path and not Path(hit.path).exists()]
             label = "原图已不存在的孤儿向量"
         else:
             if not folder_path:
@@ -77,11 +71,7 @@ class RemoveIndexTool(BaseTool):
                 }
 
             prefix = str(folder).lower()
-            targets = [
-                hit
-                for hit in hits
-                if str(hit.path).lower().startswith(prefix)
-            ]
+            targets = [hit for hit in hits if str(hit.path).lower().startswith(prefix)]
             label = f"{folder} 下的索引"
 
         if not targets:
@@ -97,8 +87,7 @@ class RemoveIndexTool(BaseTool):
                 "deleted": False,
                 "dry_run": True,
                 "summary": (
-                    f"{label}：将删除 {len(targets)} 条（dry_run，未真正删除）。"
-                    "确认后用 dry_run=False 执行。"
+                    f"{label}：将删除 {len(targets)} 条（dry_run，未真正删除）。" "确认后用 dry_run=False 执行。"
                 ),
             }
 

@@ -11,7 +11,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..utils.path_guard import PathSecurityError, PathGuard
+from ..utils.path_guard import PathGuard, PathSecurityError
 from .base_tool import BaseTool
 
 
@@ -52,9 +52,7 @@ class CountIndexedImagesTool(BaseTool):
                     "staged": 0,
                     "summary": f"路径不安全，已拒绝：{e}",
                 }
-            hits = [
-                h for h in hits if str(h.path).lower().startswith(scope)
-            ]
+            hits = [h for h in hits if str(h.path).lower().startswith(scope)]
 
         staged = sum(1 for h in hits if h.metadata.get("is_staged"))
         missing = sum(1 for h in hits if h.path and not _exists(h.path))
@@ -66,8 +64,7 @@ class CountIndexedImagesTool(BaseTool):
             "missing_files": missing,
             "summary": (
                 f"索引内 {len(hits)} 条，已暂存 {staged} 条，"
-                f"有效 {len(hits) - staged} 条"
-                + (f"，原图缺失 {missing} 条" if missing else "")
+                f"有效 {len(hits) - staged} 条" + (f"，原图缺失 {missing} 条" if missing else "")
             ),
         }
 

@@ -45,3 +45,14 @@ line-length = 100
 [tool.ruff]
 line-length = 100
 target-version = "py39"
+
+[tool.ruff.lint]
+# 只保留能真实发现 bug 的规则；风格交给 black
+select = ["E4", "E7", "E9", "F", "I"]
+ignore = [
+    "E501", # 行长由 black 控制
+    "F401", # 重新导出会在 __init__ 里用到
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["F841"]

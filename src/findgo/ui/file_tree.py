@@ -34,9 +34,7 @@ class FileTreeMixin:
         self.tree.clear()
 
         try:
-            entries = sorted(
-                root.iterdir(), key=lambda p: (p.is_file(), p.name.lower())
-            )
+            entries = sorted(root.iterdir(), key=lambda p: (p.is_file(), p.name.lower()))
         except OSError:
             entries = []
 
@@ -72,9 +70,7 @@ class FileTreeMixin:
         pixmap = QPixmap(str(p))
         if pixmap.isNull():
             return
-        self.preview.setPixmap(
-            pixmap.scaled(200, 130, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        )
+        self.preview.setPixmap(pixmap.scaled(200, 130, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         self.preview.setToolTip(str(p))
 
     def _show_results(self) -> None:
@@ -85,9 +81,7 @@ class FileTreeMixin:
             self.tree.addTopLevelItem(QTreeWidgetItem(["（暂无结果）"]))
             return
         for img in self.last_results:
-            path = (
-                img.get("path", "") if isinstance(img, dict) else getattr(img, "path", "")
-            )
+            path = img.get("path", "") if isinstance(img, dict) else getattr(img, "path", "")
             if not path or not Path(path).exists():
                 continue
             item = QTreeWidgetItem([Path(path).name])

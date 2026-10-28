@@ -65,12 +65,8 @@ class TrashStaging:
                 )
                 """
             )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_status ON staged(status)"
-            )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_task ON staged(task_id)"
-            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_status ON staged(status)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_task ON staged(task_id)")
 
     # ── 暂存 ────────────────────────────────────────────────────────────────
 
@@ -297,8 +293,7 @@ class TrashStaging:
             "expired_purged": ttl_result.get("purged", 0),
             "size_purged": over_result.get("purged", 0),
             "orphans_cleaned": orphans,
-            "freed_bytes": ttl_result.get("freed_bytes", 0)
-            + over_result.get("freed_bytes", 0),
+            "freed_bytes": ttl_result.get("freed_bytes", 0) + over_result.get("freed_bytes", 0),
             "total_purged": ttl_result.get("purged", 0) + over_result.get("purged", 0),
         }
 

@@ -17,8 +17,7 @@ def highlight_paths(text: str) -> str:
     escaped = html.escape(str(text))
     return _PATH_PATTERN.sub(
         '<span style="color:#4E7A63;background:#EAF3EE;'
-        'padding:1px 4px;border-radius:3px;">'
-        + chr(92) + "1</span>",
+        'padding:1px 4px;border-radius:3px;">' + chr(92) + "1</span>",
         escaped,
     )
 
@@ -64,11 +63,7 @@ def message_html(
     if not parts:
         return safe
 
-    thumbs = (
-        '<div style="margin-top:10px;margin-bottom:6px;">'
-        + "".join(parts)
-        + "</div>"
-    )
+    thumbs = '<div style="margin-top:10px;margin-bottom:6px;">' + "".join(parts) + "</div>"
     rest = len(images) - shown
     if rest > 0:
         gid = f"g{len(galleries)}"

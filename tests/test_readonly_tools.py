@@ -96,9 +96,7 @@ def test_count_indexed_excludes_staged(tmp_path):
         _Hit(str(tmp_path / "2.jpg")),
         _Hit(str(tmp_path / "3.jpg"), staged=True),
     ]
-    tool = CountIndexedImagesTool(
-        _Pipeline(hits), Sandbox(image_roots=[str(tmp_path)])
-    )
+    tool = CountIndexedImagesTool(_Pipeline(hits), Sandbox(image_roots=[str(tmp_path)]))
     result = tool.run()
     assert result["total"] == 3
     assert result["staged"] == 1
@@ -110,8 +108,6 @@ def test_count_indexed_by_folder(tmp_path):
         _Hit(str(tmp_path / "a" / "1.jpg")),
         _Hit(str(tmp_path / "b" / "2.jpg")),
     ]
-    tool = CountIndexedImagesTool(
-        _Pipeline(hits), Sandbox(image_roots=[str(tmp_path)])
-    )
+    tool = CountIndexedImagesTool(_Pipeline(hits), Sandbox(image_roots=[str(tmp_path)]))
     result = tool.run(str(tmp_path / "a"))
     assert result["total"] == 1

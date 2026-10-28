@@ -7,9 +7,7 @@ from findgo.model_store import ModelStore
 
 def test_add_and_active(tmp_path):
     store = ModelStore(tmp_path / "models.json")
-    entry = store.add(
-        "deepseek", "deepseek-flash", "https://api.deepseek.com/v1", "sk-1"
-    )
+    entry = store.add("deepseek", "deepseek-flash", "https://api.deepseek.com/v1", "sk-1")
     assert store.active == entry["id"]
     assert len(store.models) == 1
     assert store.get_active()["model"] == "deepseek-flash"
@@ -44,9 +42,7 @@ def test_remove_updates_active(tmp_path):
 
 
 def test_to_llm_config():
-    cfg = ModelStore.to_llm_config(
-        {"model": "m", "base_url": "https://x/v1", "api_key": "k"}
-    )
+    cfg = ModelStore.to_llm_config({"model": "m", "base_url": "https://x/v1", "api_key": "k"})
     assert cfg["backend"] == "openai"
     assert cfg["model"] == "m"
     assert cfg["base_url"] == "https://x/v1"

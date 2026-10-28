@@ -101,9 +101,7 @@ class LongTermMemory:
         if not all_ids:
             return 0
         records = self.store.get(ids=all_ids)
-        targets = [
-            r.id for r in records if str(r.metadata.get("user_id", "")) == user_id
-        ]
+        targets = [r.id for r in records if str(r.metadata.get("user_id", "")) == user_id]
         if targets:
             self.store.delete(targets)
         logger.info("清除用户 %s 的长期记忆 %d 条", user_id, len(targets))

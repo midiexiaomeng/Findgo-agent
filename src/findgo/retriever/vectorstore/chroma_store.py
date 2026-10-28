@@ -40,9 +40,7 @@ class ChromaVectorStore(VectorStore):
             import chromadb
             from chromadb.config import Settings
         except ImportError as e:  # pragma: no cover
-            raise VectorStoreError(
-                "未安装 chromadb，请执行: pip install chromadb"
-            ) from e
+            raise VectorStoreError("未安装 chromadb，请执行: pip install chromadb") from e
 
         try:
             self._client = chromadb.PersistentClient(
@@ -72,8 +70,7 @@ class ChromaVectorStore(VectorStore):
             actual_dim = None
         if actual_dim and int(actual_dim) != self.embedding_dim:
             logger.warning(
-                "collection %s 记录维度 %s 与当前配置 %s 不一致，检索可能失败；"
-                "换模型后请重建索引",
+                "collection %s 记录维度 %s 与当前配置 %s 不一致，检索可能失败；" "换模型后请重建索引",
                 self.collection,
                 actual_dim,
                 self.embedding_dim,

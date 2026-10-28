@@ -39,9 +39,7 @@ class ImageSearchByImageTool(BaseTool):
             self._pipeline = build_pipeline()
         return self._pipeline
 
-    def run(
-        self, image_path: str, top_k: int = 8, folder_path: str = ""
-    ) -> dict[str, Any]:
+    def run(self, image_path: str, top_k: int = 8, folder_path: str = "") -> dict[str, Any]:
         try:
             image = self.guard.check(image_path, "read")
         except PathSecurityError as e:
@@ -72,9 +70,7 @@ class ImageSearchByImageTool(BaseTool):
                     summary=f"路径不安全，已拒绝：{e}",
                 ).model_dump()
 
-        resp = self.pipeline.searcher.search_image(
-            str(image), top_k=top_k, scope=scope or None
-        )
+        resp = self.pipeline.searcher.search_image(str(image), top_k=top_k, scope=scope or None)
         images = [
             RetrievedImage(
                 rank=r.rank,

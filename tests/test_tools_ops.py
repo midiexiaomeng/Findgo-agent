@@ -35,9 +35,7 @@ class _ExportPipeline:
 
 def test_export_csv(tmp_path, monkeypatch):
     target = tmp_path / "exports"
-    monkeypatch.setattr(
-        "findgo.retriever.runtime.PROJECT_ROOT", str(tmp_path)
-    )
+    monkeypatch.setattr("findgo.retriever.runtime.PROJECT_ROOT", str(tmp_path))
 
     tool = ExportResultsTool(
         _ExportPipeline(),
@@ -121,6 +119,7 @@ def test_remove_index_empty(tmp_path):
     result = tool.run(str(tmp_path / "photos" / "x" / "nested"))
     assert result["count"] == 0
     assert "没有" in result["summary"]
+
 
 def test_remove_missing_only(tmp_path):
     guard, folder = _guard(tmp_path)

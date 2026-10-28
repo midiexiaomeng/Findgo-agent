@@ -91,15 +91,11 @@ class ExportResultsTool(BaseTool):
         try:
             if suffix == "csv":
                 with target.open("w", encoding="utf-8-sig", newline="") as fh:
-                    writer = csv.DictWriter(
-                        fh, fieldnames=["rank", "path", "score", "caption"]
-                    )
+                    writer = csv.DictWriter(fh, fieldnames=["rank", "path", "score", "caption"])
                     writer.writeheader()
                     writer.writerows(rows)
             else:
-                lines = [
-                    f"{row['rank']}\t{row['score']}\t{row['path']}" for row in rows
-                ]
+                lines = [f"{row['rank']}\t{row['score']}\t{row['path']}" for row in rows]
                 target.write_text("\n".join(lines), encoding="utf-8")
         except OSError as e:
             logger.warning("导出失败: %s", e)

@@ -74,9 +74,7 @@ def test_cleanup_by_ttl(tmp_path):
 
     # 手动把时间拨到 30 天前
     with staging._connect() as conn:
-        conn.execute(
-            "UPDATE staged SET staged_at = ?", (time.time() - 30 * 86400,)
-        )
+        conn.execute("UPDATE staged SET staged_at = ?", (time.time() - 30 * 86400,))
 
     result = staging.cleanup(max_days=14, max_total_gb=100)
     assert result["expired_purged"] == 1
@@ -91,6 +89,7 @@ def test_stats(tmp_path):
     stats = staging.stats()
     assert stats["count"] == 1
     assert stats["total_bytes"] == 256
+
 
 def test_stage_rolls_back_when_manifest_write_fails(tmp_path, monkeypatch):
     src = make_image(tmp_path)

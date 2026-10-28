@@ -54,9 +54,7 @@ def test_accept_valid_args():
 
 def test_index_folder_mtime_cache(tmp_path, monkeypatch):
     cache_file = tmp_path.parent / "index_mtime.json"
-    monkeypatch.setattr(
-        IndexFolderTool, "_cache_file", staticmethod(lambda: cache_file)
-    )
+    monkeypatch.setattr(IndexFolderTool, "_cache_file", staticmethod(lambda: cache_file))
 
     pipeline = _FakePipeline()
     tool = IndexFolderTool(pipeline, PathGuard(allowed_roots=[str(tmp_path)]))

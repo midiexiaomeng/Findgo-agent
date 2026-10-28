@@ -63,22 +63,12 @@ class SessionMixin:
             return
         keep = max(1, int(self.agent.config.memory_max_sessions))
         for item_data in self.agent.memory.list_sessions(limit=keep):
-            mark = (
-                "● "
-                if item_data["session_id"] == self.agent.memory.session_id
-                else "○ "
-            )
+            mark = "● " if item_data["session_id"] == self.agent.memory.session_id else "○ "
             line = QListWidgetItem(
-                mark
-                + item_data["title"][:16]
-                + "  ("
-                + str(item_data["count"])
-                + ")"
+                mark + item_data["title"][:16] + "  (" + str(item_data["count"]) + ")"
             )
             line.setData(Qt.UserRole, item_data["session_id"])
-            line.setToolTip(
-                item_data["updated_at"] + "\n" + item_data["session_id"]
-            )
+            line.setToolTip(item_data["updated_at"] + "\n" + item_data["session_id"])
             self.session_list.addItem(line)
 
     def on_new_chat(self) -> None:
@@ -86,9 +76,7 @@ class SessionMixin:
             agent = self._get_agent()
             agent.memory.new_session()
             agent.memory.save_tasks([])
-            agent.memory.prune_sessions(
-                keep=max(1, int(agent.config.memory_max_sessions))
-            )
+            agent.memory.prune_sessions(keep=max(1, int(agent.config.memory_max_sessions)))
             self.conversation = []
             self.last_results = []
             self._clear_chat_view()
@@ -122,9 +110,7 @@ class SessionMixin:
         current = self.agent.memory.get_title(sid)
         if not current:
             current = item.text().lstrip("●○ ").split("  (")[0]
-        title, ok = QInputDialog.getText(
-            self, "重命名会话", "会话名称：", text=current
-        )
+        title, ok = QInputDialog.getText(self, "重命名会话", "会话名称：", text=current)
         if not ok:
             return
         self.agent.memory.rename_session(title.strip(), sid)
@@ -146,9 +132,7 @@ class SessionMixin:
             pending = [t for t in tasks if t.status == "pending" and t.query]
             if pending and hasattr(self, "resume_btn"):
                 self.resume_btn.setVisible(True)
-                self.state_label.setText(
-                    f"有 {len(pending)} 个未完成任务，点「继续」开始执行"
-                )
+                self.state_label.setText(f"有 {len(pending)} 个未完成任务，点「继续」开始执行")
                 self.append_log(f">>> 发现 {len(pending)} 个未完成任务，等待确认")
 
             self.append_log(">>> 已恢复会话 " + agent.memory.session_id)

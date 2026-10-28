@@ -135,7 +135,6 @@ def build_ui() -> gr.Blocks:
 
 
 def main() -> None:
-    config = AgentConfig()
     demo = build_ui()
     demo.launch(
         server_name="127.0.0.1",

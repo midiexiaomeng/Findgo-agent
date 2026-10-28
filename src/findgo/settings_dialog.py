@@ -15,15 +15,15 @@ from PyQt5.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
-    QFileDialog,
     QDoubleSpinBox,
+    QFileDialog,
     QFormLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QMessageBox,
     QListWidget,
     QListWidgetItem,
+    QMessageBox,
     QPushButton,
     QSpinBox,
     QStackedWidget,
@@ -32,8 +32,8 @@ from PyQt5.QtWidgets import (
 )
 
 from .llm.client import ChatClient
-from .theme import DIALOG_QSS
 from .model_store import PROVIDERS, ModelStore
+from .theme import DIALOG_QSS
 
 
 class TestWorker(QThread):
@@ -46,9 +46,7 @@ class TestWorker(QThread):
     def run(self) -> None:
         try:
             client = ChatClient(self.cfg)
-            reply = client.chat(
-                [{"role": "user", "content": "只回复两个字：正常"}], max_tokens=32
-            )
+            reply = client.chat([{"role": "user", "content": "只回复两个字：正常"}], max_tokens=32)
             self.done.emit(True, reply.strip()[:60])
         except Exception as e:
             self.done.emit(False, str(e))
@@ -147,10 +145,7 @@ class SettingsDialog(QDialog):
         layout.setContentsMargins(16, 14, 16, 14)
         layout.setSpacing(10)
 
-        tip = QLabel(
-            "选择服务商后会自动填入接口地址和常用模型。"
-            "填写 API Key 并「测试连接」，成功后才会计入已添加模型。"
-        )
+        tip = QLabel("选择服务商后会自动填入接口地址和常用模型。" "填写 API Key 并「测试连接」，成功后才会计入已添加模型。")
         tip.setWordWrap(True)
         tip.setStyleSheet("color:#8A8A8A; font-size:12px;")
         layout.addWidget(tip)
@@ -281,9 +276,7 @@ class SettingsDialog(QDialog):
         layout.setContentsMargins(16, 14, 16, 14)
         layout.setSpacing(10)
 
-        tip = QLabel(
-            "切换向量库只更换连接，两个后端的数据不共享，切换后需要重新建索引。"
-        )
+        tip = QLabel("切换向量库只更换连接，两个后端的数据不共享，切换后需要重新建索引。")
         tip.setWordWrap(True)
         tip.setStyleSheet("color:#8A8A8A; font-size:12px;")
         layout.addWidget(tip)
@@ -374,10 +367,7 @@ class SettingsDialog(QDialog):
         layout.setContentsMargins(16, 14, 16, 14)
         layout.setSpacing(10)
 
-        tip = QLabel(
-            "待删除的图片先进入暂存区，用硬链接保留，不占额外空间。"
-            "超过留存天数或容量上限后，才会被永久删除。"
-        )
+        tip = QLabel("待删除的图片先进入暂存区，用硬链接保留，不占额外空间。" "超过留存天数或容量上限后，才会被永久删除。")
         tip.setWordWrap(True)
         tip.setStyleSheet("color:#8A8A8A; font-size:12px;")
         layout.addWidget(tip)
@@ -475,15 +465,13 @@ class SettingsDialog(QDialog):
 
     def _refresh_trash_info(self) -> None:
         try:
-            from .trash import TrashStaging
             from .config import PROJECT_ROOT
+            from .trash import TrashStaging
 
             staging = TrashStaging(PROJECT_ROOT / "data" / "trash_staging")
             stats = staging.stats()
             mb = stats["total_bytes"] / 1024**2
-            self.trash_info.setText(
-                f"暂存区现有 {stats['count']} 张，占用 {mb:.1f} MB"
-            )
+            self.trash_info.setText(f"暂存区现有 {stats['count']} 张，占用 {mb:.1f} MB")
         except Exception as e:
             self.trash_info.setText(f"读取暂存区失败：{e}")
 
@@ -564,9 +552,7 @@ class SettingsDialog(QDialog):
             data.setdefault("trash_staging", {})
             data["trash_staging"]["path"] = self.trash_path_edit.text().strip()
             data["trash_staging"]["max_keep_days"] = self.trash_days.value()
-            data["trash_staging"]["max_total_size_gb"] = round(
-                self.trash_gb.value(), 1
-            )
+            data["trash_staging"]["max_total_size_gb"] = round(self.trash_gb.value(), 1)
             data["trash_staging"]["auto_clean"] = self.trash_auto.isChecked()
             path.write_text(
                 yaml.safe_dump(data, allow_unicode=True, sort_keys=False),
@@ -585,10 +571,7 @@ class SettingsDialog(QDialog):
         layout.setContentsMargins(16, 14, 16, 14)
         layout.setSpacing(10)
 
-        tip = QLabel(
-            "从动态工具审核时勾选保存下来的全局工具，存在 configs/custom_tools.yaml，"
-            "和内置工具完全隔离，可以单独备份或清空。"
-        )
+        tip = QLabel("从动态工具审核时勾选保存下来的全局工具，存在 configs/custom_tools.yaml，" "和内置工具完全隔离，可以单独备份或清空。")
         tip.setWordWrap(True)
         tip.setStyleSheet("color:#8A8A8A; font-size:12px;")
         layout.addWidget(tip)
@@ -672,9 +655,7 @@ class SettingsDialog(QDialog):
         layout.setContentsMargins(16, 14, 16, 14)
         layout.setSpacing(10)
 
-        tip = QLabel(
-            "只读探测：不加载模型、不连接向量库，检查依赖、显卡、模型文件与配置。"
-        )
+        tip = QLabel("只读探测：不加载模型、不连接向量库，检查依赖、显卡、模型文件与配置。")
         tip.setWordWrap(True)
         tip.setStyleSheet("color:#8A8A8A; font-size:12px;")
         layout.addWidget(tip)
@@ -708,9 +689,7 @@ class SettingsDialog(QDialog):
             self.diag_list.clear()
             for check in checks:
                 mark = "✓" if check["ok"] else "✗"
-                item = QListWidgetItem(
-                    f"{mark}  {check['name']}：{check['detail']}"
-                )
+                item = QListWidgetItem(f"{mark}  {check['name']}：{check['detail']}")
                 item.setForeground(QColor("#16a34a" if check["ok"] else "#dc2626"))
                 self.diag_list.addItem(item)
             self.diag_status.setText(summarize(checks))

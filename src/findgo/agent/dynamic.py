@@ -197,8 +197,6 @@ def _build_namespace(sandbox):
         "abs": abs,
         "round": round,
         "isinstance": isinstance,
-        "Exception": Exception,
-        "ValueError": ValueError,
         "print": print,
     }
 

@@ -40,8 +40,7 @@ class DynamicToolDialog(QDialog):
         note = QLabel(spec.get("safety_note") or "未提供安全说明")
         note.setWordWrap(True)
         note.setStyleSheet(
-            "color:#C97B6E; background:#FDF4F2; border-radius:6px;"
-            "padding:8px; font-size:12px;"
+            "color:#C97B6E; background:#FDF4F2; border-radius:6px;" "padding:8px; font-size:12px;"
         )
         layout.addWidget(note)
 
@@ -51,19 +50,14 @@ class DynamicToolDialog(QDialog):
             "QPlainTextEdit{background:#F8F7F3;border:1px solid #EDEBE6;"
             "border-radius:8px;padding:8px;font-family:Consolas;font-size:12px;}"
         )
-        code.setPlainText(
-            spec.get("args_schema_code", "")
-            + "\n\n"
-            + spec.get("run_func_code", "")
-        )
+        code.setPlainText(spec.get("args_schema_code", "") + "\n\n" + spec.get("run_func_code", ""))
         layout.addWidget(code, 1)
 
         self.save_check = QCheckBox("保存到自定义全局工具库（custom_tools.yaml）")
         if self.recommendation.get("recommend"):
             self.save_check.setChecked(True)
         self.save_check.setToolTip(
-            "；".join(self.recommendation.get("reasons", []))
-            or "首次生成，默认不推荐保存"
+            "；".join(self.recommendation.get("reasons", [])) or "首次生成，默认不推荐保存"
         )
         layout.addWidget(self.save_check)
 

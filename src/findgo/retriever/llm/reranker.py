@@ -35,10 +35,10 @@ class ScoredCandidate:
     """重排后的单个候选，保留两路分数便于解释和调试。"""
 
     hit: VectorHit
-    vec_score: float          # 原始余弦相似度
-    vec_norm: float           # min-max 归一化后的向量分
-    llm_score: float | None   # 0~1，None 表示这一条没拿到 LLM 分
-    final_score: float        # 融合分
+    vec_score: float  # 原始余弦相似度
+    vec_norm: float  # min-max 归一化后的向量分
+    llm_score: float | None  # 0~1，None 表示这一条没拿到 LLM 分
+    final_score: float  # 融合分
 
     @property
     def id(self) -> str:
@@ -166,13 +166,13 @@ class LLMReranker:
             return self._finish(scored, top_k, tail), report
 
         # ── 分批打分 ──
-        llm_scores, used, errors = self._score_batches(
-            query, candidates, should_stop
-        )
+        llm_scores, used, errors = self._score_batches(query, candidates, should_stop)
         report.errors.extend(errors)
         report.llm_scored = len(llm_scores)
         report.used = used
-        report.batches = (len(candidates) + self.cfg.rerank.batch_size - 1) // self.cfg.rerank.batch_size
+        report.batches = (
+            len(candidates) + self.cfg.rerank.batch_size - 1
+        ) // self.cfg.rerank.batch_size
 
         if llm_scores:
             for cand in scored:
@@ -255,10 +255,7 @@ class LLMReranker:
                 caption = "（无描述）"
             lines.append(f"[{i}] 文件：{filename}\n    描述：{caption}")
 
-        system = (
-            "你是图像检索系统的相关性评估器。你只输出 JSON，不输出任何解释、"
-            "markdown 代码块或多余文字。"
-        )
+        system = "你是图像检索系统的相关性评估器。你只输出 JSON，不输出任何解释、" "markdown 代码块或多余文字。"
         user = (
             f"用户想找的图片：{query}\n\n"
             "下面是候选图片的内容描述（由图像描述模型生成，可能是英文，请照常理解）：\n\n"
@@ -313,9 +310,7 @@ class LLMReranker:
                     continue
         if data is None:
             # 退路：直接抓 "index": n, "score": s 这种片段
-            pairs = re.findall(
-                r'"index"\s*:\s*(\d+)\s*,\s*"score"\s*:\s*(\d+(?:\.\d+)?)', cleaned
-            )
+            pairs = re.findall(r'"index"\s*:\s*(\d+)\s*,\s*"score"\s*:\s*(\d+(?:\.\d+)?)', cleaned)
             if not pairs:
                 logger.warning("无法解析 LLM 打分结果: %s", cleaned[:200])
                 return {}

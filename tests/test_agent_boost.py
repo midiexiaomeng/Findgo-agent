@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import inspect
 
+from findgo.agent.orchestrator import FindgoAgent
 from findgo.agent.path_extractor import PathExtractor
 from findgo.agent.planner import assess_risk
-from findgo.agent.orchestrator import FindgoAgent
 from findgo.utils.schemas import TaskSpec
 
 

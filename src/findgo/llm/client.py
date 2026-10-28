@@ -159,9 +159,7 @@ class ChatClient:
         if json_mode:
             payload["format"] = "json"
 
-        resp = requests.post(
-            f"{self.base_url}/api/chat", json=payload, timeout=self.timeout
-        )
+        resp = requests.post(f"{self.base_url}/api/chat", json=payload, timeout=self.timeout)
         if resp.status_code >= 400:
             raise RuntimeError(f"Ollama 返回 {resp.status_code}: {resp.text[:300]}")
         data = resp.json()

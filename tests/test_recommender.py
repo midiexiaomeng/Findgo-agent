@@ -8,21 +8,16 @@ SPEC = {
     "name": "count_jpg",
     "tags": ["read-only"],
     "run_func_code": (
-        "def run(self, args):\n"
-        '    path = sandbox_check_path(args["folder"], "read")\n'
+        "def run(self, args):\n" '    path = sandbox_check_path(args["folder"], "read")\n'
     ),
 }
 
-HARDCODED_CODE = (
-    "def run(self, args):\n"
-    '    path = r"D:\\photos\\fixed"\n'
-)
+HARDCODED_CODE = "def run(self, args):\n" '    path = r"D:\\photos\\fixed"\n'
 
 
 def traces(n, sessions=1, errors=0):
     return [
-        {"session_id": f"s{i % sessions}", "error": "x" if i < errors else None}
-        for i in range(n)
+        {"session_id": f"s{i % sessions}", "error": "x" if i < errors else None} for i in range(n)
     ]
 
 

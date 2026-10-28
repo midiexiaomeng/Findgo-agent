@@ -47,27 +47,21 @@ def test_describe_image(tmp_path):
     image = tmp_path / "cat.jpg"
     Image.new("RGB", (8, 8), (200, 120, 60)).save(image)
 
-    tool = DescribeImageTool(
-        _DescribePipeline(), PathGuard(allowed_roots=[str(tmp_path)])
-    )
+    tool = DescribeImageTool(_DescribePipeline(), PathGuard(allowed_roots=[str(tmp_path)]))
     result = tool.run(str(image))
     assert result["caption"] == "一只橘猫趴在窗台上"
     assert "橘猫" in result["summary"]
 
 
 def test_describe_image_unsafe(tmp_path):
-    tool = DescribeImageTool(
-        _DescribePipeline(), PathGuard(allowed_roots=[str(tmp_path)])
-    )
+    tool = DescribeImageTool(_DescribePipeline(), PathGuard(allowed_roots=[str(tmp_path)]))
     result = tool.run("C:/Windows/win.ini")
     assert result["caption"] == ""
     assert "不安全" in result["summary"]
 
 
 def test_describe_image_missing(tmp_path):
-    tool = DescribeImageTool(
-        _DescribePipeline(), PathGuard(allowed_roots=[str(tmp_path)])
-    )
+    tool = DescribeImageTool(_DescribePipeline(), PathGuard(allowed_roots=[str(tmp_path)]))
     result = tool.run(str(tmp_path / "nope.jpg"))
     assert result["caption"] == ""
     assert "不是文件" in result["summary"]

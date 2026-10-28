@@ -26,7 +26,9 @@ class FakeSearcher:
     def __init__(self, pipeline):
         self.pipeline = pipeline
 
-    def search_text(self, query, top_k=8, scope=None, all_results=False, should_stop=None, exclude_paths=None):
+    def search_text(
+        self, query, top_k=8, scope=None, all_results=False, should_stop=None, exclude_paths=None
+    ):
         self.pipeline.calls += 1
         return FakeResp(self.pipeline.score)
 
@@ -41,8 +43,7 @@ class FakePipeline:
 class FakeClient:
     def __init__(self, action=None):
         self.action = action or (
-            '{"action_type":"tool_call","tool_name":"image_retrieval",'
-            '"tool_args":{"query":"猫"}}'
+            '{"action_type":"tool_call","tool_name":"image_retrieval",' '"tool_args":{"query":"猫"}}'
         )
         self.calls: list[str] = []
 
@@ -106,9 +107,7 @@ def test_low_confidence_triggers_retry():
 
 
 def test_unknown_tool_handled():
-    client = FakeClient(
-        '{"action_type":"tool_call","tool_name":"nonexistent","tool_args":{}}'
-    )
+    client = FakeClient('{"action_type":"tool_call","tool_name":"nonexistent","tool_args":{}}')
     agent = make_agent(client, FakePipeline())
     result = agent.run("随便")
     assert "没有找到可用的工具" in result.reply

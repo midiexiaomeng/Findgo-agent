@@ -38,9 +38,7 @@ def build(tmp_path, count=2):
     pipeline = _Pipeline()
     tool = TrashManageTool(
         pipeline=pipeline,
-        guard=Sandbox(
-            image_roots=[str(images)], workspace_roots=[str(tmp_path)]
-        ),
+        guard=Sandbox(image_roots=[str(images)], workspace_roots=[str(tmp_path)]),
         staging=TrashStaging(tmp_path / "trash"),
     )
     return tool, pipeline, paths

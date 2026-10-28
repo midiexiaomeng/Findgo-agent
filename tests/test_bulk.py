@@ -50,7 +50,9 @@ class _RecordingSearcher:
     def __init__(self):
         self.last: dict = {}
 
-    def search_text(self, query, top_k=8, scope=None, all_results=False, should_stop=None, exclude_paths=None):
+    def search_text(
+        self, query, top_k=8, scope=None, all_results=False, should_stop=None, exclude_paths=None
+    ):
         self.last = {
             "query": query,
             "top_k": top_k,

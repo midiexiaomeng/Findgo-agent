@@ -262,9 +262,7 @@ class Memory:
             return
         try:
             for table in ("messages", "traces", "tasks", "facts", "summaries", "sessions"):
-                self._db.execute(
-                    f"DELETE FROM {table} WHERE session_id = ?", (session_id,)
-                )
+                self._db.execute(f"DELETE FROM {table} WHERE session_id = ?", (session_id,))
             self._db.commit()
         except Exception as e:
             logger.warning("删除会话失败: %s", e)
@@ -343,9 +341,7 @@ class Memory:
         self._messages.append(item)
         if self._db is not None:
             try:
-                images_json = (
-                    json.dumps(images, ensure_ascii=False) if images else None
-                )
+                images_json = json.dumps(images, ensure_ascii=False) if images else None
                 self._db.execute(
                     "INSERT INTO messages(session_id, role, content, images, created_at) "
                     "VALUES (?, ?, ?, ?, ?)",
@@ -359,9 +355,7 @@ class Memory:
             except Exception as e:
                 logger.warning("写入消息失败: %s", e)
 
-    def list_traces(
-        self, tool_name: str | None = None, limit: int = 500
-    ) -> list[dict]:
+    def list_traces(self, tool_name: str | None = None, limit: int = 500) -> list[dict]:
         """按工具名读取历史轨迹，供留存推荐打分。"""
         if self._db is None:
             return []
@@ -416,9 +410,7 @@ class Memory:
             return {}
         sid = session_id or self.session_id
         try:
-            row = self._db.execute(
-                "SELECT data FROM facts WHERE session_id = ?", (sid,)
-            ).fetchone()
+            row = self._db.execute("SELECT data FROM facts WHERE session_id = ?", (sid,)).fetchone()
             return json.loads(row[0]) if row and row[0] else {}
         except Exception:
             return {}
@@ -429,17 +421,14 @@ class Memory:
         sid = session_id or self.session_id
         try:
             self._db.execute(
-                "INSERT OR REPLACE INTO facts(session_id, data, updated_at) "
-                "VALUES (?, ?, ?)",
+                "INSERT OR REPLACE INTO facts(session_id, data, updated_at) " "VALUES (?, ?, ?)",
                 (sid, json.dumps(data, ensure_ascii=False), _now()),
             )
             self._db.commit()
         except Exception as e:
             logger.warning("写入结构化事实失败: %s", e)
 
-    def patch_facts(
-        self, patch: dict[str, Any], session_id: str | None = None
-    ) -> dict[str, Any]:
+    def patch_facts(self, patch: dict[str, Any], session_id: str | None = None) -> dict[str, Any]:
         """按 patch 增量更新事实：值为 null 表示删除该字段。"""
         current = self.get_facts(session_id)
         merged = _deep_merge(current, patch or {})
@@ -490,10 +479,7 @@ class Memory:
 
     def recent(self, n: int = 20) -> list[dict[str, str]]:
         if self._messages:
-            return [
-                {"role": m["role"], "content": m["content"]}
-                for m in self._messages[-n:]
-            ]
+            return [{"role": m["role"], "content": m["content"]} for m in self._messages[-n:]]
         if self._db is not None:
             rows = self._db.execute(
                 "SELECT role, content FROM messages WHERE session_id = ? "

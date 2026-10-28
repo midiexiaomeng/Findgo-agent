@@ -30,9 +30,7 @@ class LLMClient:
         self.backend = (cfg.rerank.backend or "none").lower()
         self.model = cfg.rerank.model
         self._timeout = int(
-            cfg.rerank.ollama.timeout
-            if self.backend == "ollama"
-            else cfg.rerank.openai.timeout
+            cfg.rerank.ollama.timeout if self.backend == "ollama" else cfg.rerank.openai.timeout
         )
         # 可用性探测缓存：(时间戳, 结果)，避免每次检索都发探测请求
         self._avail_cache: tuple[float, tuple[bool, str]] = (0.0, (False, "未检查"))
@@ -143,9 +141,7 @@ class LLMClient:
             payload["format"] = "json"
 
         try:
-            resp = requests.post(
-                f"{base}/api/chat", json=payload, timeout=self._timeout
-            )
+            resp = requests.post(f"{base}/api/chat", json=payload, timeout=self._timeout)
         except requests.RequestException as e:
             raise LLMError(f"请求 Ollama 失败: {e}") from e
 

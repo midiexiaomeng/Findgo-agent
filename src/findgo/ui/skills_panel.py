@@ -30,8 +30,7 @@ class SkillDropZone(QFrame):
         self.setAcceptDrops(True)
         self.setMinimumHeight(110)
         self.setStyleSheet(
-            "QFrame{background:#F8FBF9;border:2px dashed #A8C9B8;"
-            "border-radius:16px;}"
+            "QFrame{background:#F8FBF9;border:2px dashed #A8C9B8;" "border-radius:16px;}"
         )
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
@@ -101,9 +100,7 @@ class SkillsPopup(QFrame):
         items = sorted(p.name for p in root.iterdir() if p.is_dir())
         for name in items:
             self.list.addItem(name)
-        self.status.setText(
-            f"已安装 {len(items)} 个技能" if items else "尚未安装技能"
-        )
+        self.status.setText(f"已安装 {len(items)} 个技能" if items else "尚未安装技能")
 
     def on_dropped(self, path: str) -> None:
         source = Path(path)

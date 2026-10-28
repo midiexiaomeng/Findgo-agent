@@ -34,7 +34,9 @@ def store(request, tmp_path):
 def test_add_query_count(store):
     ids = [str(uuid.uuid5(uuid.NAMESPACE_URL, f"img-{i}")) for i in range(5)]
     vectors = l2_normalize(np.random.RandomState(0).rand(5, 8).astype("float32"))
-    metas = [{"path": f"D:/p/{i}.jpg", "filename": f"{i}.jpg", "caption": f"图片{i}"} for i in range(5)]
+    metas = [
+        {"path": f"D:/p/{i}.jpg", "filename": f"{i}.jpg", "caption": f"图片{i}"} for i in range(5)
+    ]
 
     store.add(ids, vectors, metas)
     assert store.count() == 5
