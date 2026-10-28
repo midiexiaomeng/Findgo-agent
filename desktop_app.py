@@ -897,9 +897,13 @@ class MainWindow(QMainWindow):
             self._handle_timer.timeout.connect(self._layout_handles)
         self._handle_timer.start(40)
 
-        # 只在侧栏收起（中间宽度锁定）时重算填充块，正常缩放交给布局自适应
+        # 只在侧栏收起（中间宽度锁定）时重算填充块，且防抖避免连续触发
         if getattr(self, "_locked_center", None):
-            self._balance_spacer()
+            if not hasattr(self, "_balance_timer"):
+                self._balance_timer = QTimer(self)
+                self._balance_timer.setSingleShot(True)
+                self._balance_timer.timeout.connect(self._balance_spacer)
+            self._balance_timer.start(80)
 
     # ── 左侧 ──────────────────────────────────────────────────────────────
 
@@ -1705,7 +1709,17 @@ class MainWindow(QMainWindow):
         """侧栏收起时把中间宽度锁住，多余空间交给对应占位块。"""
         if not hasattr(self, "spacer"):
             return
+        # setSizes 会触发新的 resizeEvent，必须防止递归
+        if getattr(self, "_balancing", False):
+            return
+        self._balancing = True
 
+        try:
+            self._do_balance()
+        finally:
+            self._balancing = False
+
+    def _do_balance(self) -> None:
         sizes = list(self.main_split.sizes())
         if len(sizes) < 5:
             return
