@@ -25,6 +25,9 @@ class ImageRetrievalArgs(BaseModel):
     top_k: int = Field(8, ge=1, le=1000, description="返回数量，最大 1000")
     folder_path: str = Field("", description="限定检索的文件夹路径，空表示全库")
     all_results: bool = Field(False, description="返回全部匹配结果，忽略 top_k")
+    exclude_paths: list[str] = Field(
+        default_factory=list, description="本轮要排除的图片路径（上一轮已返回过）"
+    )
     dedupe: bool = Field(True, description="过滤掉彼此高度相似的重复图")
     dedupe_threshold: float = Field(
         0.95, ge=0.5, le=1.0, description="相似度阈值，超过视为重复"
@@ -123,6 +126,7 @@ class ImageRetrievalTool(BaseTool):
         should_stop=None,
         dedupe: bool = True,
         dedupe_threshold: float = 0.95,
+        exclude_paths: list[str] | None = None,
     ) -> dict[str, Any]:
         target = folder_path or path
         scope = ""
@@ -147,6 +151,7 @@ class ImageRetrievalTool(BaseTool):
             scope=scope or None,
             all_results=all_results,
             should_stop=should_stop,
+            exclude_paths=exclude_paths,
         )
         images = [
             RetrievedImage(

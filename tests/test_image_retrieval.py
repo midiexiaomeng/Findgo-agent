@@ -22,7 +22,7 @@ class FakeResp:
 
 
 class FakeSearcher:
-    def search_text(self, query, top_k=8, scope=None, all_results=False, should_stop=None):
+    def search_text(self, query, top_k=8, scope=None, all_results=False, should_stop=None, exclude_paths=None):
         return FakeResp()
 
 

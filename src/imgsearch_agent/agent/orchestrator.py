@@ -79,6 +79,8 @@ class ImageSearchAgent:
         persist = self.config.resolve_db_path() if self.config.memory_persist else None
         self.memory = Memory(persist_path=persist, resume=True)
         self.executor = ToolExecutor()
+        # 上一轮返回过的图片，下一轮默认排除，避免重复推荐
+        self._last_paths: set[str] = set()
 
         if tools is not None:
             self.tools = tools
@@ -200,6 +202,8 @@ class ImageSearchAgent:
         write_memory=False 时由调用方统一写入对话记忆，避免一轮多任务产生重复消息。
         """
         results: list[AgentResult] = []
+        previous_paths = set(self._last_paths)
+        this_round_paths: set[str] = set()
         steps = 0
         for task in tasks:
             if task.status == "skipped":
@@ -244,6 +248,7 @@ class ImageSearchAgent:
                         "top_k": task.top_k if task.top_k > 0 else self.config.top_k,
                         "folder_path": task.path or "",
                         "all_results": bool(task.all_results),
+                        "exclude_paths": list(previous_paths),
                     }
 
             result, retries = self._execute_with_retry(
@@ -282,6 +287,11 @@ class ImageSearchAgent:
                 self.memory.add("user", task.query or task.description)
                 self.memory.add("assistant", reply)
 
+            for item in images:
+                path = item.get("path", "") if isinstance(item, dict) else getattr(item, "path", "")
+                if path:
+                    this_round_paths.add(str(path).lower())
+
             steps += 1
             results.append(
                 AgentResult(
@@ -293,6 +303,8 @@ class ImageSearchAgent:
                     retries=retries,
                 )
             )
+
+        self._last_paths = this_round_paths
         return results
 
     # ── 动态工具 ──────────────────────────────────────────────────────────

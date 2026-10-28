@@ -127,6 +127,7 @@ class Searcher:
         scope: str | None = None,
         all_results: bool = False,
         should_stop=None,
+        exclude_paths: set[str] | None = None,
     ) -> SearchResponse:
         query = (query or "").strip()
         started = time.time()
@@ -149,7 +150,9 @@ class Searcher:
         recall_k = max(recall_k, min(top_k * 2, 5000))
 
         query_vec = self.encoder.encode_text(query)
-        hits = self._recall(query_vec, recall_k, min_score, scope)
+        hits = self._recall(
+            query_vec, recall_k, min_score, scope, exclude_paths
+        )
 
         candidates, report = self.reranker.rerank(
             query, hits, top_k=top_k, use_llm=use_rerank, should_stop=should_stop
@@ -241,14 +244,22 @@ class Searcher:
         recall_k: int,
         min_score: float,
         scope: str | None = None,
+        exclude_paths: set[str] | None = None,
     ):
         # 指定目录时多召回一些，过滤后再截断；软删除记录也占名额，留出余量
         limit = recall_k * 3 if scope else recall_k
         limit = int(limit * 1.5) + 20
+        if exclude_paths:
+            limit += len(exclude_paths)
         hits = self.store.query(query_vec, top_k=max(1, limit))
 
         # 已暂存待删的图片不再参与检索
         hits = [h for h in hits if not h.metadata.get("is_staged")]
+
+        # 上一轮已经返回过的图片，本轮排除
+        if exclude_paths:
+            normalized = {str(p).lower() for p in exclude_paths}
+            hits = [h for h in hits if str(h.path).lower() not in normalized]
 
         if scope:
             try:
