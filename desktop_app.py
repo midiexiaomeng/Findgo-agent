@@ -1154,9 +1154,9 @@ class MainWindow(QMainWindow):
 
         main.setSizes([240, 900, 225, 0])
         main.setStretchFactor(0, 0)
-        main.setStretchFactor(1, 0)
+        main.setStretchFactor(1, 1)   # 中间跟随窗口自适应
         main.setStretchFactor(2, 0)
-        main.setStretchFactor(3, 1)
+        main.setStretchFactor(3, 0)   # 填充块只在侧栏收起时吸收空白
         main.setChildrenCollapsible(False)
 
         # 分割条只保留可拖区域，视觉上隐藏
@@ -1175,7 +1175,7 @@ class MainWindow(QMainWindow):
 
         container = QWidget()
         vbox = QVBoxLayout(container)
-        vbox.setContentsMargins(0, 0, 0, 0)
+        vbox.setContentsMargins(8, 0, 8, 0)
         vbox.setSpacing(0)
         vbox.addWidget(self.title_bar)
         vbox.addWidget(main, 1)
@@ -1671,20 +1671,40 @@ class MainWindow(QMainWindow):
         self._balance_spacer()
 
     def _balance_spacer(self) -> None:
-        """把多余宽度交给填充块，保证中间和右栏不被撑开。"""
+        """侧栏收起时把中间宽度锁住，多余空间交给填充块。
+
+        两侧都在时中间正常自适应，拖侧边栏仍然可以挤压它。
+        """
+        if not hasattr(self, "spacer"):
+            return
+
         sizes = list(self.main_split.sizes())
         if len(sizes) < 4:
             return
+
         left = self.main_split.widget(0)
         center = self.main_split.widget(1)
         right = self.main_split.widget(2)
+        collapsed = left.isHidden() or right.isHidden()
 
-        total = sum(sizes)
-        left_w = 0 if left.isHidden() else sizes[0]
-        center_w = sizes[1]
-        right_w = 0 if right.isHidden() else sizes[2]
-        spacer = max(0, total - left_w - center_w - right_w)
-        self.main_split.setSizes([left_w, center_w, right_w, spacer])
+        if collapsed:
+            if getattr(self, "_locked_center", None) is None:
+                self._locked_center = max(sizes[1], center.minimumWidth())
+            center.setMaximumWidth(self._locked_center)
+
+            total = sum(sizes)
+            left_w = 0 if left.isHidden() else sizes[0]
+            right_w = 0 if right.isHidden() else sizes[2]
+            spacer_w = max(0, total - left_w - self._locked_center - right_w)
+            self.main_split.setSizes([left_w, self._locked_center, right_w, spacer_w])
+        else:
+            self._locked_center = None
+            center.setMaximumWidth(16777215)
+            spacer_w = sizes[3]
+            if spacer_w and spacer_w > 0:
+                self.main_split.setSizes(
+                    [sizes[0], sizes[1] + spacer_w, sizes[2], 0]
+                )
 
     def reset_left(self) -> None:
         widget = self.main_split.widget(0)
