@@ -875,12 +875,16 @@ class MainWindow(QMainWindow):
         super().showEvent(event)
         self._apply_round_mask()
         self._layout_handles()
+        if hasattr(self, "spacer"):
+            self._balance_spacer()
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         self._adjust_input_height()
         self._apply_round_mask()
         self._layout_handles()
+        if hasattr(self, "spacer"):
+            self._balance_spacer()
 
     # ── 左侧 ──────────────────────────────────────────────────────────────
 
@@ -1140,11 +1144,27 @@ class MainWindow(QMainWindow):
         main.addWidget(left)
         main.addWidget(center)
         main.addWidget(right)
-        main.setSizes([240, 900, 225])
+
+        # 末尾的填充块：窗口变宽或收起侧栏时吸收多余空间，
+        # 中间对话区保持用户拖出来的宽度，不会自动撑开
+        self.spacer = QWidget()
+        self.spacer.setStyleSheet("background:#FBFAF7;")
+        self.spacer.setMinimumWidth(0)
+        main.addWidget(self.spacer)
+
+        main.setSizes([240, 900, 225, 0])
         main.setStretchFactor(0, 0)
-        main.setStretchFactor(1, 1)
+        main.setStretchFactor(1, 0)
         main.setStretchFactor(2, 0)
+        main.setStretchFactor(3, 1)
         main.setChildrenCollapsible(False)
+
+        # 分割条只保留可拖区域，视觉上隐藏
+        main.setHandleWidth(5)
+        main.setStyleSheet(
+            "QSplitter::handle{background:transparent;}"
+            "QSplitter::handle:hover{background:#E3EFE7;}"
+        )
 
         left.setMinimumWidth(160)
         center.setMinimumWidth(320)
@@ -1634,6 +1654,7 @@ class MainWindow(QMainWindow):
             if len(sizes) > 0:
                 sizes[0] = self._left_width or 240
                 self.main_split.setSizes(sizes)
+        self._balance_spacer()
 
     def toggle_right(self) -> None:
         widget = self.main_split.widget(2)
@@ -1647,6 +1668,23 @@ class MainWindow(QMainWindow):
             if len(sizes) > 2:
                 sizes[2] = self._right_width or 225
                 self.main_split.setSizes(sizes)
+        self._balance_spacer()
+
+    def _balance_spacer(self) -> None:
+        """把多余宽度交给填充块，保证中间和右栏不被撑开。"""
+        sizes = list(self.main_split.sizes())
+        if len(sizes) < 4:
+            return
+        left = self.main_split.widget(0)
+        center = self.main_split.widget(1)
+        right = self.main_split.widget(2)
+
+        total = sum(sizes)
+        left_w = 0 if left.isHidden() else sizes[0]
+        center_w = sizes[1]
+        right_w = 0 if right.isHidden() else sizes[2]
+        spacer = max(0, total - left_w - center_w - right_w)
+        self.main_split.setSizes([left_w, center_w, right_w, spacer])
 
     def reset_left(self) -> None:
         widget = self.main_split.widget(0)
