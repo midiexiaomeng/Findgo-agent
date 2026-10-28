@@ -875,7 +875,9 @@ class MainWindow(QMainWindow):
         super().showEvent(event)
         self._apply_round_mask()
         self._layout_handles()
-        if hasattr(self, "spacer"):
+        # 只在侧栏收起（中间宽度锁定）时重算填充块，正常缩放交给布局自适应，
+        # 否则每次 resize 都改分割器会让窗口高度抖动
+        if getattr(self, "_locked_center", None):
             self._balance_spacer()
 
     def resizeEvent(self, event) -> None:
@@ -883,7 +885,9 @@ class MainWindow(QMainWindow):
         self._adjust_input_height()
         self._apply_round_mask()
         self._layout_handles()
-        if hasattr(self, "spacer"):
+        # 只在侧栏收起（中间宽度锁定）时重算填充块，正常缩放交给布局自适应，
+        # 否则每次 resize 都改分割器会让窗口高度抖动
+        if getattr(self, "_locked_center", None):
             self._balance_spacer()
 
     # ── 左侧 ──────────────────────────────────────────────────────────────
