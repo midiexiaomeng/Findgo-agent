@@ -1,55 +1,71 @@
-# Python
+# ── Python ─────────────────────────────────────────────
 __pycache__/
 *.py[cod]
-*.egg-info/
-dist/
-build/
+*.so
 *.egg
-
-.env
+*.egg-info/
+.eggs/
+build/
+dist/
 .venv/
 venv/
 env/
 .venv-local/
 .venv-api/
 
+# ── 测试与工具缓存 ─────────────────────────────────────
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.hypothesis/
+
+# ── 本地配置（含个人路径与密钥）─────────────────────────
+.env
+.env.*
 config.local.yaml
 config.api.yaml
 configs/agent.yaml
 configs/models.json
+configs/custom_tools.yaml
 
-# IDE
+# ── 运行时数据 ─────────────────────────────────────────
+data/
+datasets/
+logs/
+*.log
+*.sqlite
+*.sqlite3
+*.db
+*.tmp
+
+# ── 模型与第三方 ───────────────────────────────────────
+models/
+!models/README.txt
+ollama/
+_vendor/
+
+# ── 编辑器与系统 ───────────────────────────────────────
 .vscode/
 .idea/
 *.swp
 *.swo
-
-models/
-!models/README.txt
-
-ollama/
-
-data/
-datasets/
-*.sqlite
-*.sqlite3
-*.log
-
-dist/
-*.zip
-VERSION
-
-legacy/
-
-_vendor/
-
-!examples/test_images/*.jpg
-!examples/test_images/*.png
-
 .DS_Store
 Thumbs.db
-configs/custom_tools.yaml
 
-dist/
+# ── 打包产物 ───────────────────────────────────────────
+*.zip
+*.exe
+*.spec
+
+# ── 个人文件（不入库）──────────────────────────────────
+毕业论文*.docx
+*.docx
+*.pdf
+!docs/**/*.pdf
 tmp_*.py
-*.tmp
+
+# ── 保留示例素材 ───────────────────────────────────────
+!examples/test_images/*.jpg
+!examples/test_images/*.png
