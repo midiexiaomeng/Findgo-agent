@@ -38,6 +38,7 @@ from ..utils.logger import TraceLogger
 from ..utils.exceptions import ValidationError
 from ..utils.schemas import AgentAction, TaskSpec
 from .critic import Critic
+from .custom_tools import load_custom_tools
 from .executor import ToolExecutor
 from .memory import Memory
 from .planner import Planner
@@ -113,6 +114,10 @@ class ImageSearchAgent:
                 "trash_manage": TrashManageTool(pipeline, guard=guard),
                 "folder_scan": FolderScanTool(guard=guard),
             }
+
+            # 自定义全局工具加载在内置之后，同名不覆盖内置
+            for name, tool in load_custom_tools(guard).items():
+                self.tools.setdefault(name, tool)
 
         self.trace = TraceLogger()
 

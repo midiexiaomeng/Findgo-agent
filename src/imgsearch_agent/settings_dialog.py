@@ -63,8 +63,9 @@ class SettingsDialog(QDialog):
     PAGE_VECTOR = 2
     PAGE_PATHS = 3
     PAGE_TRASH = 4
-    PAGE_DIAG = 5
-    PAGE_ABOUT = 6
+    PAGE_CUSTOM = 5
+    PAGE_DIAG = 6
+    PAGE_ABOUT = 7
 
     def __init__(
         self,
@@ -89,6 +90,7 @@ class SettingsDialog(QDialog):
         self._load_vector()
         self._load_paths()
         self._load_trash()
+        self._load_custom_tools()
 
     # ── 界面骨架 ──────────────────────────────────────────────────────────
 
@@ -105,7 +107,16 @@ class SettingsDialog(QDialog):
             "QListWidget::item:selected{background:#E3EFE7;color:#2E2E2E;}"
         )
         self.nav.addItems(
-            ["添加模型", "检索参数", "向量库", "目录与安全", "暂存区", "环境自检", "关于"]
+            [
+                "添加模型",
+                "检索参数",
+                "向量库",
+                "目录与安全",
+                "暂存区",
+                "自定义工具",
+                "环境自检",
+                "关于",
+            ]
         )
         self.nav.currentRowChanged.connect(self._on_nav_changed)
 
@@ -115,6 +126,7 @@ class SettingsDialog(QDialog):
         self.stack.addWidget(self._build_vector_page())
         self.stack.addWidget(self._build_paths_page())
         self.stack.addWidget(self._build_trash_page())
+        self.stack.addWidget(self._build_custom_page())
         self.stack.addWidget(self._build_diag_page())
         self.stack.addWidget(self._build_about_page())
 
@@ -507,6 +519,93 @@ class SettingsDialog(QDialog):
             self.config_changed.emit()
         except Exception as e:
             self.trash_status.setText(f"保存失败：{e}")
+
+    # ── 自定义工具页 ──────────────────────────────────────────────────────
+
+    def _build_custom_page(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(16, 14, 16, 14)
+        layout.setSpacing(10)
+
+        tip = QLabel(
+            "从动态工具审核时勾选保存下来的全局工具，存在 configs/custom_tools.yaml，"
+            "和内置工具完全隔离，可以单独备份或清空。"
+        )
+        tip.setWordWrap(True)
+        tip.setStyleSheet("color:#8A8A8A; font-size:12px;")
+        layout.addWidget(tip)
+
+        self.custom_list = QListWidget()
+        self.custom_list.setStyleSheet(
+            "QListWidget{border:1px solid #EDEBE6;border-radius:8px;"
+            "background:#FFFFFF;padding:4px;font-size:12.5px;}"
+        )
+        layout.addWidget(self.custom_list, 1)
+
+        row = QHBoxLayout()
+        refresh = QPushButton("刷新")
+        refresh.clicked.connect(self._load_custom_tools)
+        delete = QPushButton("删除选中")
+        delete.setStyleSheet(
+            "QPushButton{background:#C97B6E;color:white;border:none;"
+            "border-radius:6px;padding:6px 14px;}"
+        )
+        delete.clicked.connect(self.on_delete_custom)
+        row.addWidget(refresh)
+        row.addStretch(1)
+        row.addWidget(delete)
+        layout.addLayout(row)
+
+        self.custom_status = QLabel("")
+        self.custom_status.setStyleSheet("color:#8A8A8A; font-size:12px;")
+        layout.addWidget(self.custom_status)
+        return page
+
+    def _load_custom_tools(self) -> None:
+        try:
+            from .agent.custom_tools import list_custom_tools
+
+            items = list_custom_tools()
+        except Exception as e:
+            self.custom_status.setText(f"读取失败：{e}")
+            return
+
+        self.custom_list.clear()
+        for item in items:
+            label = f"{item.get('name', '')} — {str(item.get('description', ''))[:36]}"
+            li = QListWidgetItem(label)
+            li.setData(Qt.UserRole, item.get("name"))
+            li.setToolTip(item.get("safety_note", ""))
+            self.custom_list.addItem(li)
+
+        self.custom_status.setText(f"共 {len(items)} 个自定义工具")
+
+    def on_delete_custom(self) -> None:
+        item = self.custom_list.currentItem()
+        if item is None:
+            self.custom_status.setText("先选中一个工具")
+            return
+
+        name = str(item.data(Qt.UserRole))
+        reply = QMessageBox.question(
+            self,
+            "删除自定义工具",
+            f"确定删除「{name}」吗？删除后需要重新生成和审核。",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if reply != QMessageBox.Yes:
+            return
+
+        try:
+            from .agent.custom_tools import delete_custom_tool
+
+            delete_custom_tool(name)
+            self.custom_status.setText(f"已删除 {name}")
+            self._load_custom_tools()
+        except Exception as e:
+            self.custom_status.setText(f"删除失败：{e}")
 
     # ── 环境自检页 ────────────────────────────────────────────────────────
 

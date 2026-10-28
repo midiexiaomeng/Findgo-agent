@@ -335,6 +335,26 @@ class Memory:
             except Exception as e:
                 logger.warning("写入消息失败: %s", e)
 
+    def list_traces(
+        self, tool_name: str | None = None, limit: int = 500
+    ) -> list[dict]:
+        """按工具名读取历史轨迹，供留存推荐打分。"""
+        if self._db is None:
+            return []
+        try:
+            if tool_name:
+                rows = self._db.execute(
+                    "SELECT * FROM traces WHERE tool_name = ? ORDER BY id DESC LIMIT ?",
+                    (tool_name, limit),
+                ).fetchall()
+            else:
+                rows = self._db.execute(
+                    "SELECT * FROM traces ORDER BY id DESC LIMIT ?", (limit,)
+                ).fetchall()
+            return [dict(row) for row in rows]
+        except Exception:
+            return []
+
     def add_trace(
         self,
         trace_id: str,

@@ -34,6 +34,7 @@ from PyQt5.QtCore import QObject, QPoint, QRect, Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QFont, QImage, QKeySequence, QPixmap
 from PyQt5.QtWidgets import (
     QApplication,
+    QCheckBox,
     QDialog,
     QFileDialog,
     QGridLayout,
@@ -209,11 +210,13 @@ class ImageGalleryDialog(QDialog):
 class DynamicToolDialog(QDialog):
     """动态工具审核：先看源码和安全提示，再决定是否允许。"""
 
-    def __init__(self, spec: dict, parent=None):
+    def __init__(self, spec: dict, parent=None, recommendation: dict | None = None):
         super().__init__(parent)
         self.setWindowTitle("动态工具审核")
         self.resize(720, 520)
         self.approved = False
+        self.save_to_global = False
+        self.recommendation = recommendation or {}
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 14, 16, 14)
@@ -249,6 +252,15 @@ class DynamicToolDialog(QDialog):
         )
         layout.addWidget(code, 1)
 
+        self.save_check = QCheckBox("保存到自定义全局工具库（custom_tools.yaml）")
+        if self.recommendation.get("recommend"):
+            self.save_check.setChecked(True)
+        self.save_check.setToolTip(
+            "；".join(self.recommendation.get("reasons", []))
+            or "首次生成，默认不推荐保存"
+        )
+        layout.addWidget(self.save_check)
+
         row = QHBoxLayout()
         deny = QPushButton("拒绝")
         deny.clicked.connect(self.reject)
@@ -265,6 +277,7 @@ class DynamicToolDialog(QDialog):
 
     def _on_allow(self) -> None:
         self.approved = True
+        self.save_to_global = self.save_check.isChecked()
         self.accept()
 
 
@@ -1458,7 +1471,15 @@ class MainWindow(QMainWindow):
             if name in agent.tools:
                 continue
 
-            dialog = DynamicToolDialog(spec, self)
+            try:
+                from imgsearch_agent.agent.recommender import score_dynamic_tool
+
+                traces = agent.memory.list_traces(name)
+                recommendation = score_dynamic_tool(spec, traces)
+            except Exception:
+                recommendation = {}
+
+            dialog = DynamicToolDialog(spec, self, recommendation)
             dialog.exec_()
             if not dialog.approved:
                 task.status = "skipped"
@@ -1468,6 +1489,11 @@ class MainWindow(QMainWindow):
             try:
                 agent.register_dynamic_tool(spec)
                 self.append_log(f">>> 已允许动态工具 {name}")
+                if dialog.save_to_global:
+                    from imgsearch_agent.agent.custom_tools import save_custom_tool
+
+                    save_custom_tool(spec)
+                    self.append_log(f">>> 已保存到全局工具库：{name}")
             except Exception as e:
                 task.status = "skipped"
                 self.append_log(f"!!! 动态工具加载失败：{e}")

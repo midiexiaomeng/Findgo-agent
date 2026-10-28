@@ -58,3 +58,5 @@ _vendor/
 # 系统
 .DS_Store
 Thumbs.db
+# 用户自定义工具（含个人路径逻辑）
+configs/custom_tools.yaml
