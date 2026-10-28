@@ -1,14 +1,12 @@
-"""设置对话框：左侧分类导航，右侧具体设置。
+"""设置对话框：左侧搜索与分类导航，右侧具体设置。
 
-三个分类：
-- 添加模型：填写服务商、自动带出网址与常用模型，测试成功后写入
-- 检索参数：top_k、相似度阈值、重试次数
-- 关于：版本与路径
+无边框窗口，标题栏可拖拽，四边四角可拉伸。
+左侧顶部的搜索框可以按关键词定位到具体页面。
 """
 
 from __future__ import annotations
 
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtCore import Qt, QThread, QTimer, pyqtSignal
 from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import (
     QApplication,
@@ -34,6 +32,43 @@ from PyQt5.QtWidgets import (
 from .llm.client import ChatClient
 from .model_store import PROVIDERS, ModelStore
 from .theme import DIALOG_QSS
+from .ui.input_panel import ResizeHandle
+from .ui.title_bar import TitleBar
+
+# 搜索关键词：页面名 + 该页能调的主要设置项，用起来比只看标题快
+PAGE_SEARCH_TERMS = {
+    0: ["模型", "服务商", "api", "key", "deepseek", "openai", "ollama", "接口", "测试连接"],
+    1: [
+        "检索参数",
+        "阈值",
+        "相似度",
+        "重试",
+        "返回数",
+        "召回",
+        "重排",
+        "候选",
+        "温度",
+        "描述",
+        "会话",
+    ],
+    2: ["向量库", "qdrant", "chroma", "后端", "集合", "索引"],
+    3: ["运行环境", "设备", "cuda", "cpu", "gpu", "日志", "离线", "预热", "显存"],
+    4: ["目录", "安全", "沙箱", "素材", "授权", "导出", "路径"],
+    5: ["暂存区", "删除", "回收", "预览", "暂存", "留存", "容量"],
+    6: [
+        "高级",
+        "维度",
+        "embedding",
+        "clip",
+        "blip",
+        "远端",
+        "视觉",
+        "向量维度",
+    ],
+    7: ["自定义工具", "动态工具", "工具", "脚本", "保存"],
+    8: ["自检", "诊断", "环境", "检测", "依赖", "显卡"],
+    9: ["关于", "版本", "路径", "重置", "默认"],
+}
 
 
 class TestWorker(QThread):
@@ -78,11 +113,22 @@ class SettingsDialog(QDialog):
         self.store = store
         self.agent = agent
         self.worker: TestWorker | None = None
+        self._resizing = False
+        self._resize_handles: dict[str, ResizeHandle] = {}
 
         self.setWindowTitle("设置")
-        self.resize(640, 470)
-        self.setStyleSheet(DIALOG_QSS)
+        self.resize(680, 520)
+        self.setMinimumSize(560, 420)
+        self.setObjectName("SettingsDialog")
+        # 全局 QSS 给 QDialog 设了不透明背景，这里单独改成透明，让容器圆角露出来
+        self.setStyleSheet(DIALOG_QSS + "\n#SettingsDialog{background:transparent;}")
+
+        # 无边框：透明背景 + 容器圆角，四边四角挂可拖拽手柄
+        self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
+
         self._build_ui()
+        self._install_resize_handles()
         self.nav.setCurrentRow(page)
         self._on_provider_changed()
         self._refresh_list()
@@ -97,15 +143,50 @@ class SettingsDialog(QDialog):
     # ── 界面骨架 ──────────────────────────────────────────────────────────
 
     def _build_ui(self) -> None:
-        root = QHBoxLayout(self)
-        root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(0)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        self.container = QWidget()
+        self.container.setObjectName("settingsFrame")
+        self.container.setStyleSheet("#settingsFrame{background:#FBFAF7;border-radius:12px;}")
+        outer.addWidget(self.container)
+
+        inner = QVBoxLayout(self.container)
+        inner.setContentsMargins(0, 0, 0, 0)
+        inner.setSpacing(0)
+
+        self.title_bar = TitleBar(self, show_panels=False, title_text="设置")
+        inner.addWidget(self.title_bar)
+
+        body = QHBoxLayout()
+        body.setContentsMargins(0, 0, 0, 0)
+        body.setSpacing(0)
+
+        # 左列：搜索框 + 导航
+        left = QWidget()
+        left.setFixedWidth(168)
+        left.setStyleSheet("background:#F8F7F3;border-bottom-left-radius:12px;")
+        left_layout = QVBoxLayout(left)
+        left_layout.setContentsMargins(8, 8, 8, 8)
+        left_layout.setSpacing(6)
+
+        self.search_edit = QLineEdit()
+        self.search_edit.setPlaceholderText("搜索设置…")
+        self.search_edit.setClearButtonEnabled(True)
+        self.search_edit.setStyleSheet(
+            "QLineEdit{border:1px solid #E5E3DD;border-radius:8px;background:#FFFFFF;"
+            "padding:6px 10px;font-size:12.5px;color:#2E2E2E;}"
+            "QLineEdit:focus{border:1px solid #A8C9B8;}"
+        )
+        self.search_edit.textChanged.connect(self._on_search)
+        self.search_edit.returnPressed.connect(self._on_search_enter)
+        left_layout.addWidget(self.search_edit)
 
         self.nav = QListWidget()
-        self.nav.setFixedWidth(132)
         self.nav.setStyleSheet(
-            "QListWidget{border:none;background:#F8F7F3;padding:8px 4px;font-size:13px;}"
-            "QListWidget::item{padding:9px 12px;border-radius:6px;margin:2px 6px;}"
+            "QListWidget{border:none;background:transparent;padding:0;font-size:13px;}"
+            "QListWidget::item{padding:9px 12px;border-radius:6px;margin:2px 0;}"
             "QListWidget::item:selected{background:#E3EFE7;color:#2E2E2E;}"
         )
         self.nav.addItems(
@@ -123,8 +204,11 @@ class SettingsDialog(QDialog):
             ]
         )
         self.nav.currentRowChanged.connect(self._on_nav_changed)
+        left_layout.addWidget(self.nav, 1)
+        body.addWidget(left)
 
         self.stack = QStackedWidget()
+        self.stack.setStyleSheet("QStackedWidget{background:#FBFAF7;}")
         self.stack.addWidget(self._build_models_page())
         self.stack.addWidget(self._build_params_page())
         self.stack.addWidget(self._build_vector_page())
@@ -135,9 +219,100 @@ class SettingsDialog(QDialog):
         self.stack.addWidget(self._build_custom_page())
         self.stack.addWidget(self._build_diag_page())
         self.stack.addWidget(self._build_about_page())
+        body.addWidget(self.stack, 1)
 
-        root.addWidget(self.nav)
-        root.addWidget(self.stack, 1)
+        inner.addLayout(body, 1)
+
+    # ── 无边框拖拽 ────────────────────────────────────────────────────────
+
+    def _install_resize_handles(self) -> None:
+        for edge in (
+            "left",
+            "right",
+            "top",
+            "bottom",
+            "topleft",
+            "topright",
+            "bottomleft",
+            "bottomright",
+        ):
+            handle = ResizeHandle(self, edge)
+            handle.raise_()
+            self._resize_handles[edge] = handle
+
+    def _layout_handles(self) -> None:
+        if not self._resize_handles or self._resizing:
+            return
+
+        w, h = self.width(), self.height()
+        t = ResizeHandle.THICK
+        c = ResizeHandle.CORNER
+
+        self._resize_handles["left"].setGeometry(0, c, t, max(0, h - 2 * c))
+        self._resize_handles["right"].setGeometry(w - t, c, t, max(0, h - 2 * c))
+        self._resize_handles["top"].setGeometry(c, 0, max(0, w - 2 * c), t)
+        self._resize_handles["bottom"].setGeometry(c, h - t, max(0, w - 2 * c), t)
+
+        self._resize_handles["topleft"].setGeometry(0, 0, c, c)
+        self._resize_handles["topright"].setGeometry(w - c, 0, c, c)
+        self._resize_handles["bottomleft"].setGeometry(0, h - c, c, c)
+        self._resize_handles["bottomright"].setGeometry(w - c, h - c, c, c)
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        self._layout_handles()
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        # 拖动过程中不重排，否则鼠标会脱离手柄
+        if not hasattr(self, "_handle_timer"):
+            self._handle_timer = QTimer(self)
+            self._handle_timer.setSingleShot(True)
+            self._handle_timer.timeout.connect(self._layout_handles)
+        self._handle_timer.start(30)
+
+    def toggle_maximize(self) -> None:
+        if self.isMaximized():
+            self.showNormal()
+        else:
+            self.showMaximized()
+
+    # ── 设置搜索 ──────────────────────────────────────────────────────────
+
+    def _on_search(self, text: str) -> None:
+        query = text.strip().lower()
+        first_visible = -1
+
+        for row in range(self.nav.count()):
+            if not query:
+                self.nav.setRowHidden(row, False)
+                if first_visible < 0:
+                    first_visible = row
+                continue
+
+            terms = PAGE_SEARCH_TERMS.get(row, [])
+            name = self.nav.item(row).text()
+            hit = query in name.lower() or any(query in str(t).lower() for t in terms)
+
+            self.nav.setRowHidden(row, not hit)
+            if hit and first_visible < 0:
+                first_visible = row
+
+        if query and first_visible >= 0:
+            self.nav.setCurrentRow(first_visible)
+
+    def _on_search_enter(self) -> None:
+        """回车跳到第一个匹配项；无匹配时给个提示。"""
+        query = self.search_edit.text().strip()
+        if not query:
+            return
+
+        for row in range(self.nav.count()):
+            if not self.nav.isRowHidden(row):
+                self.nav.setCurrentRow(row)
+                return
+
+        self.search_edit.setPlaceholderText("没有匹配的设置项")
 
     def _on_nav_changed(self, index: int) -> None:
         if 0 <= index < self.stack.count():

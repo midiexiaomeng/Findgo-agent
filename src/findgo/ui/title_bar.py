@@ -7,33 +7,44 @@ from PyQt5.QtWidgets import QHBoxLayout, QLabel, QToolButton, QWidget
 
 
 class TitleBar(QWidget):
-    """拖拽移动、双击最大化、左右栏开关、最小化/最大化/关闭。"""
+    """拖拽移动、双击最大化、左右栏开关、最小化/最大化/关闭。
 
-    def __init__(self, window):
+    ``show_panels=False`` 时只保留标题与最小化/关闭，给对话框用。
+    """
+
+    def __init__(self, window, show_panels: bool = True, title_text: str = ""):
         super().__init__(window)
         self.window = window
+        self.show_panels = show_panels
         self._drag_offset = None
         self.setFixedHeight(38)
-        self.setStyleSheet("background:#FBFAF7;")
+        self.setStyleSheet("background:transparent;")
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(10, 0, 8, 0)
         layout.setSpacing(6)
 
-        self.left_btn = self._make_toggle("◧", "隐藏/显示左栏（双击恢复默认宽度）")
-        self.left_btn.clicked.connect(window.toggle_left)
-        self.left_btn.installEventFilter(self)
+        if show_panels:
+            self.left_btn = self._make_toggle("◧", "隐藏/显示左栏（双击恢复默认宽度）")
+            self.left_btn.clicked.connect(window.toggle_left)
+            self.left_btn.installEventFilter(self)
+        else:
+            self.left_btn = None
 
-        title = QLabel("findgo · 多模态图像检索")
+        title = QLabel(title_text or "findgo · 多模态图像检索")
         title.setStyleSheet("color:#2E2E2E; font-size:12.5px; font-weight:600;")
         title.setAlignment(Qt.AlignCenter)
 
-        self.right_btn = self._make_toggle("◨", "隐藏/显示右栏（双击恢复默认宽度）")
-        self.right_btn.clicked.connect(window.toggle_right)
-        self.right_btn.installEventFilter(self)
+        if show_panels:
+            self.right_btn = self._make_toggle("◨", "隐藏/显示右栏（双击恢复默认宽度）")
+            self.right_btn.clicked.connect(window.toggle_right)
+            self.right_btn.installEventFilter(self)
+        else:
+            self.right_btn = None
 
         self.max_btn = self._make_icon("□", "最大化 / 还原")
         self.max_btn.clicked.connect(window.toggle_maximize)
+        self.max_btn.setVisible(show_panels)
 
         self.min_btn = self._make_icon("—", "最小化")
         self.min_btn.clicked.connect(window.showMinimized)
@@ -46,12 +57,14 @@ class TitleBar(QWidget):
         )
         self.close_btn.clicked.connect(window.close)
 
-        layout.addWidget(self.left_btn)
+        if show_panels:
+            layout.addWidget(self.left_btn)
         layout.addStretch(1)
         layout.addWidget(title)
         layout.addStretch(1)
-        layout.addWidget(self.right_btn)
-        layout.addSpacing(8)
+        if show_panels:
+            layout.addWidget(self.right_btn)
+            layout.addSpacing(8)
         layout.addWidget(self.min_btn)
         layout.addWidget(self.max_btn)
         layout.addWidget(self.close_btn)
@@ -108,10 +121,10 @@ class TitleBar(QWidget):
     def eventFilter(self, obj, event) -> bool:
         # 双击左右切换按钮 = 恢复该栏预设宽度
         if event.type() == QEvent.MouseButtonDblClick:
-            if obj is self.left_btn:
+            if obj is self.left_btn and self.left_btn is not None:
                 self.window.reset_left()
                 return True
-            if obj is self.right_btn:
+            if obj is self.right_btn and self.right_btn is not None:
                 self.window.reset_right()
                 return True
         return super().eventFilter(obj, event)

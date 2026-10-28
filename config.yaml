@@ -1,15 +1,6 @@
-# findgo 配置
-# 修改后重启程序生效；所有相对路径都相对本文件所在目录。
-
-# 运行设备：auto | cpu | cuda | cuda:0 | mps
 device: auto
-
-# 离线模式：开启后不调云端 LLM、不联网搜图、不下载模型
 offline: false
-
-# 启动时后台加载 CLIP；不常用检索或显存紧张可关掉
 warmup_on_start: true
-
 app:
   title: 多模态图像检索
   host: 127.0.0.1
@@ -17,46 +8,36 @@ app:
   open_browser: true
   share: false
   log_level: INFO
-
 paths:
-  models_dir: ./models      # 模型权重目录（不入包，由下载脚本填充）
-  data_dir: ./data          # 向量库与缓存
-  export_dir: ./data/exports  # 检索结果导出目录
-
-# ── 第一级：跨模态嵌入 ────────────────────────────────────────────────
+  models_dir: ./models
+  data_dir: ./data
+  export_dir: ./data/exports
 embedding:
-  # 短名：优先 models/<短名>，找不到才回退 HuggingFace
   model: chinese-clip-vit-base-patch16
   fallback: OFA-Sys/chinese-clip-vit-base-patch16
   embedding_dim: 512
   normalize: true
   batch_size: 32
   max_text_length: 52
-  max_image_side: 1024      # 送入编码器前的最长边；控制显存
+  max_image_side: 1024
   use_fp16: true
-  device: auto              # LLM 走 API 后 CLIP 可以回到 GPU，加载和编码快很多
-  # local = 本地 Chinese-CLIP；api = 远端多模态 embedding 服务
-  # api 模式需兼容 Jina CLIP 格式：POST /embeddings，input 为 [{"text":..},{"image":base64}]
+  device: auto
   backend: local
-  api_base_url: ""
-  api_key: ""
-  api_model: ""
+  api_base_url: ''
+  api_key: ''
+  api_model: ''
   api_timeout: 30
-
-# ── 第二级：向量库（改 backend 一行即可切换）─────────────────────────
 vector_store:
-  backend: qdrant           # chromadb | qdrant
+  backend: qdrant
   collection: images
   chromadb:
     path: ./data/chromadb
   qdrant:
-    mode: local             # local 嵌入式（无需服务）| server
+    mode: local
     path: ./data/qdrant
     url: http://localhost:6333
-    api_key: ""
+    api_key: ''
     timeout: 30
-
-# ── 图像描述（BLIP）──────────────────────────────────────────────────
 caption:
   enabled: true
   model: blip-image-captioning-base
@@ -65,46 +46,39 @@ caption:
   max_new_tokens: 40
   beam_size: 3
   cache_db: ./data/captions.sqlite
-  max_cache_rows: 50000     # 描述缓存条数上限，超出按写入顺序淘汰
-  use_fp16: false           # BLIP 在 fp16 下偶尔生成不稳定，默认 fp32
-  unload_after_index: true  # 索引完释放显存，给 7B 模型让路
-  # local = 本地 BLIP（英文描述）；api = 兼容 OpenAI 的视觉模型（可直接出中文）
+  max_cache_rows: 50000
+  use_fp16: false
+  unload_after_index: true
   backend: local
-  api_base_url: ""
-  api_key: ""
-  api_model: ""
+  api_base_url: ''
+  api_key: ''
+  api_model: ''
   api_timeout: 60
-
-# ── 第三级：LLM 语义重排 ─────────────────────────────────────────────
 rerank:
   enabled: true
-  # 三种后端任选：openai（云端 API，快）/ ollama（本地服务）/ transformers（直接加载本地权重）
-  # 用 API 时 key 走环境变量 DEEPSEEK_API_KEY，不写进文件
   backend: openai
   model: deepseek-flash
-  max_candidates: 16        # 进入 LLM 的候选数下限；用户要更多时会自动放宽
-  batch_size: 4             # 每次请求评估几张
+  max_candidates: 16
+  batch_size: 4
   max_tokens: 256
-  temperature: 0.0
+  temperature: 0.5
   retries: 1
   ollama:
     base_url: http://localhost:11434
     timeout: 120
-  openai:                   # vLLM / LM Studio / llama.cpp server / 云端
+  openai:
     base_url: https://api.deepseek.com/v1
-    api_key: ""            # 留空，用环境变量 DEEPSEEK_API_KEY
+    api_key: ''
     timeout: 120
-  transformers:             # 直接用 transformers 加载本地权重，不需要任何服务
+  transformers:
     model_path: ./models/Qwen2.5-3B-Instruct
     device: auto
     dtype: float16
     max_input_tokens: 1536
-
-# ── 检索参数 ─────────────────────────────────────────────────────────
 search:
-  recall_k: 50              # ANN 召回数：宁多勿漏
-  top_k: 12                 # 最终展示数
-  max_all: 1000             # “全部结果”的上限，防止一次拉爆内存
+  recall_k: 50
+  top_k: 12
+  max_all: 1000
   min_score: 0.0
   fusion:
     vector_weight: 0.35
