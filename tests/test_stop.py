@@ -28,7 +28,7 @@ def test_bubble_has_larger_padding():
 
     for html in (user_html, agent_html):
         assert "padding:18px 24px" in html
-        assert "min-width:120px" in html
+        assert "width:640px" in html
         assert "border-radius:16px" in html
 
 

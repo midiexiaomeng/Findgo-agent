@@ -1360,9 +1360,9 @@ class MainWindow(QMainWindow):
         safe = self._highlight_paths(text).replace("\n", "<br/>")
         if role == "你":
             return (
-                '<div style="margin:18px 0;text-align:right;">'
+                '<div style="margin:28px 0 10px 0;text-align:right;">'
                 '<span style="display:inline-block;background:#E3EFE7;color:#2E2E2E;'
-                'padding:18px 24px;border-radius:16px;max-width:640px;min-width:120px;'
+                'padding:18px 24px;border-radius:16px;width:640px;'
                 'text-align:left;font-size:13px;line-height:1.65;">'
                 + safe + "</span></div>"
             )
@@ -1425,9 +1425,9 @@ class MainWindow(QMainWindow):
             )
 
         return (
-            '<div style="margin:18px 0;text-align:left;">'
+            '<div style="margin:10px 0;text-align:left;">'
             '<span style="display:inline-block;background:#F5F3EE;color:#2E2E2E;'
-            'padding:18px 24px;border-radius:16px;max-width:640px;min-width:120px;'
+            'padding:18px 24px;border-radius:16px;width:640px;'
             'font-size:13px;line-height:1.65;">'
             + safe + "</span></div>"
         )
