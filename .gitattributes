@@ -1,0 +1,27 @@
+# 默认按文本处理，仓库内统一 LF
+* text=auto eol=lf
+
+# Windows 脚本必须保留 CRLF，否则 cmd.exe 解析异常
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# 二进制文件不做换行转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.bmp binary
+*.ico binary
+*.zip binary
+*.exe binary
+*.dll binary
+*.pyd binary
+*.pt binary
+*.bin binary
+*.sqlite binary
+*.db binary
+
+# 锁文件与生成物不参与合并
+*.lock linguist-generated=true
