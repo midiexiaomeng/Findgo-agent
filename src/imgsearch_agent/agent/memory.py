@@ -58,6 +58,16 @@ CREATE TABLE IF NOT EXISTS tasks (
     status TEXT DEFAULT 'pending',
     created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS facts (
+    session_id TEXT PRIMARY KEY,
+    data       TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS summaries (
+    session_id TEXT PRIMARY KEY,
+    summary    TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
 CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
 CREATE INDEX IF NOT EXISTS idx_traces_session ON traces(session_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_session ON tasks(session_id);
@@ -66,6 +76,18 @@ CREATE INDEX IF NOT EXISTS idx_tasks_session ON tasks(session_id);
 
 def _now() -> str:
     return datetime.now().isoformat(timespec="seconds")
+
+
+def _deep_merge(base: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
+    """递归合并：值为 None 表示删除该字段，其余覆盖或新增。"""
+    for key, value in patch.items():
+        if value is None:
+            base.pop(key, None)
+        elif isinstance(value, dict) and isinstance(base.get(key), dict):
+            _deep_merge(base[key], value)
+        else:
+            base[key] = value
+    return base
 
 
 class Memory:
@@ -384,6 +406,83 @@ class Memory:
             self._db.commit()
         except Exception as e:
             logger.warning("写入 trace 失败: %s", e)
+
+    # ── 结构化事实（本会话的唯一生效约束源）──────────────────────
+
+    def get_facts(self, session_id: str | None = None) -> dict[str, Any]:
+        if self._db is None:
+            return {}
+        sid = session_id or self.session_id
+        try:
+            row = self._db.execute(
+                "SELECT data FROM facts WHERE session_id = ?", (sid,)
+            ).fetchone()
+            return json.loads(row[0]) if row and row[0] else {}
+        except Exception:
+            return {}
+
+    def set_facts(self, data: dict[str, Any], session_id: str | None = None) -> None:
+        if self._db is None:
+            return
+        sid = session_id or self.session_id
+        try:
+            self._db.execute(
+                "INSERT OR REPLACE INTO facts(session_id, data, updated_at) "
+                "VALUES (?, ?, ?)",
+                (sid, json.dumps(data, ensure_ascii=False), _now()),
+            )
+            self._db.commit()
+        except Exception as e:
+            logger.warning("写入结构化事实失败: %s", e)
+
+    def patch_facts(
+        self, patch: dict[str, Any], session_id: str | None = None
+    ) -> dict[str, Any]:
+        """按 patch 增量更新事实：值为 null 表示删除该字段。"""
+        current = self.get_facts(session_id)
+        merged = _deep_merge(current, patch or {})
+        self.set_facts(merged, session_id)
+        logger.info("结构化事实已更新，字段数=%d", len(merged))
+        return merged
+
+    def clear_facts(self, session_id: str | None = None) -> None:
+        if self._db is None:
+            return
+        sid = session_id or self.session_id
+        try:
+            self._db.execute("DELETE FROM facts WHERE session_id = ?", (sid,))
+            self._db.commit()
+            logger.info("已清空会话 %s 的结构化事实", sid)
+        except Exception as e:
+            logger.warning("清空事实失败: %s", e)
+
+    # ── 摘要 ────────────────────────────────────────────────────────────
+
+    def get_summary(self, session_id: str | None = None) -> str:
+        if self._db is None:
+            return ""
+        sid = session_id or self.session_id
+        try:
+            row = self._db.execute(
+                "SELECT summary FROM summaries WHERE session_id = ?", (sid,)
+            ).fetchone()
+            return str(row[0]) if row else ""
+        except Exception:
+            return ""
+
+    def set_summary(self, summary: str, session_id: str | None = None) -> None:
+        if self._db is None:
+            return
+        sid = session_id or self.session_id
+        try:
+            self._db.execute(
+                "INSERT OR REPLACE INTO summaries(session_id, summary, updated_at) "
+                "VALUES (?, ?, ?)",
+                (sid, summary, _now()),
+            )
+            self._db.commit()
+        except Exception as e:
+            logger.warning("写入摘要失败: %s", e)
 
     # ── 读 ────────────────────────────────────────────────────────────────
 

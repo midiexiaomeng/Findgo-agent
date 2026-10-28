@@ -57,6 +57,7 @@ class Planner:
         query: str,
         tools_desc: str,
         history: Sequence[dict[str, str]] = (),
+        extra_context: str = "",
     ) -> AgentAction:
         """生成一个动作。
 
@@ -64,12 +65,19 @@ class Planner:
             query: 用户本轮输入
             tools_desc: 工具清单文本
             history: 近期对话（可选，供多轮使用）
+            extra_context: 当前会话的结构化事实，优先级高于历史约束
         """
         template = self.prompts.get("react_template", "")
         if template:
             user_content = template.format(tools=tools_desc, query=query)
         else:
             user_content = f"可用工具：\n{tools_desc}\n\n用户请求：{query}"
+
+        if extra_context.strip():
+            user_content += (
+                "\n\n【当前会话生效约束（权威源，优先级高于历史对话）】\n"
+                + extra_context.strip()
+            )
 
         messages: list[dict[str, str]] = [
             {"role": "system", "content": self.prompts.get("system", "")},

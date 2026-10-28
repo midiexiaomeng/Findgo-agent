@@ -47,6 +47,21 @@ from .responder import Responder
 
 logger = logging.getLogger("imgsearch_agent.orchestrator")
 
+#: 事实 patch 抽取提示词（可在 agent.yaml 的 prompts.fact_patch 覆盖）
+FACT_PATCH_PROMPT = (
+    "判断本轮对话需要如何更新当前会话的结构化事实。\n"
+    "当前事实：{current}\n"
+    "用户：{user}\n助手：{assistant}\n\n"
+    "规则：\n"
+    "1. 用户修改/删除条件时，直接输出新值或 null，不要保留旧值\n"
+    "2. 用户新增条件时，只输出新增字段\n"
+    "3. 用户说清空/重置约束时，action 填 clear\n"
+    "4. 没有约束变化时，action 填 none\n"
+    "5. 不要编造用户没提过的字段\n\n"
+    '只输出 JSON：{{"action": "update|clear|none", "patch": {{"count": 3, '
+    '"filters": {{"color": null}}}}}}'
+)
+
 
 @dataclass
 class AgentResult:
@@ -137,8 +152,13 @@ class ImageSearchAgent:
         trace_id = uuid.uuid4().hex[:8]
 
         tools_desc = "\n".join(t.signature() for t in self.tools.values())
+
+        facts = self.memory.get_facts()
+        import json as _json
+
+        extra = _json.dumps(facts, ensure_ascii=False) if facts else ""
         action = self.planner.plan(
-            user_input, tools_desc, history=self.memory.recent(n=20)
+            user_input, tools_desc, history=self.memory.recent(n=20), extra_context=extra
         )
         self.trace.info(
             "planner", "decide", action_type=action.action_type, thought=action.thought[:80]
@@ -169,6 +189,7 @@ class ImageSearchAgent:
         result, retries = self._execute_with_retry(tool, args)
         reply = self.responder.compose(user_input, result)
         self.memory.add("assistant", reply)
+        self.update_facts(user_input, reply)
 
         return AgentResult(
             reply=reply,
@@ -359,6 +380,39 @@ class ImageSearchAgent:
                 if isinstance(item, dict)
             ]
         return results
+
+    # ── 结构化事实 ────────────────────────────────────────────────────
+
+    def update_facts(self, user_text: str, assistant_text: str) -> None:
+        """让 LLM 输出事实 patch，并应用回当前会话。"""
+        import json as _json
+
+        current = self.memory.get_facts()
+        prompt = FACT_PATCH_PROMPT.format(
+            current=_json.dumps(current, ensure_ascii=False),
+            user=(user_text or "")[:2000],
+            assistant=(assistant_text or "")[:2000],
+        )
+
+        try:
+            raw = self.client.chat(
+                [{"role": "user", "content": prompt}],
+                json_mode=True,
+                max_tokens=400,
+            )
+            data = _json.loads(raw.strip())
+        except Exception as e:
+            logger.debug("事实 patch 抽取失败: %s", e)
+            return
+
+        if not isinstance(data, dict):
+            return
+
+        action = str(data.get("action", "none")).lower()
+        if action == "clear":
+            self.memory.clear_facts()
+        elif action == "update" and isinstance(data.get("patch"), dict):
+            self.memory.patch_facts(data["patch"])
 
     # ── 动态工具 ──────────────────────────────────────────────────────────
 
