@@ -1301,7 +1301,7 @@ class MainWindow(QMainWindow):
             return (
                 '<div style="margin:10px 0;text-align:right;">'
                 '<span style="display:inline-block;background:#E3EFE7;color:#2E2E2E;'
-                'padding:14px 18px;border-radius:16px;max-width:76%;min-width:120px;'
+                'padding:14px 18px;border-radius:16px;max-width:520px;min-width:120px;'
                 'text-align:left;font-size:13px;line-height:1.65;">'
                 + safe + "</span></div>"
             )
@@ -1366,7 +1366,7 @@ class MainWindow(QMainWindow):
         return (
             '<div style="margin:10px 0;text-align:left;">'
             '<span style="display:inline-block;background:#F5F3EE;color:#2E2E2E;'
-            'padding:14px 18px;border-radius:16px;max-width:76%;min-width:120px;'
+            'padding:14px 18px;border-radius:16px;max-width:520px;min-width:120px;'
             'font-size:13px;line-height:1.65;">'
             + safe + "</span></div>"
         )
