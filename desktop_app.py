@@ -263,18 +263,19 @@ class ResizeHandle(QWidget):
         min_w = self.window.minimumWidth()
         min_h = self.window.minimumHeight()
 
+        # 左/上方向要同时移动原点：新尺寸钳制到下限后，位置按差值回推，
+        # 否则尺寸卡在旧值不变，鼠标一往回拖就会跳回拉伸前的高度
         if "left" in self.edge:
-            new_w = w - delta.x()
-            if new_w >= min_w:
-                x += delta.x()
-                w = new_w
+            new_w = max(min_w, w - delta.x())
+            x = geo.x() + (w - new_w)
+            w = new_w
         if "right" in self.edge:
             w = max(min_w, w + delta.x())
+
         if "top" in self.edge:
-            new_h = h - delta.y()
-            if new_h >= min_h:
-                y += delta.y()
-                h = new_h
+            new_h = max(min_h, h - delta.y())
+            y = geo.y() + (h - new_h)
+            h = new_h
         if "bottom" in self.edge:
             h = max(min_h, h + delta.y())
 
