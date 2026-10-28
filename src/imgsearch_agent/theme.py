@@ -55,11 +55,12 @@ QScrollBar::handle:vertical {
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
 
 QToolTip {
-    background: #FFFFFF;
+    background-color: #FFFFFF;
     color: #2E2E2E;
     border: 1px solid #EDEBE6;
     border-radius: 6px;
-    padding: 4px 8px;
+    padding: 5px 9px;
+    opacity: 250;
 }
 """
 

@@ -2325,6 +2325,7 @@ def main() -> int:
     QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
     app = QApplication(sys.argv)
     app.setApplicationName("imgsearch Agent")
+    app.setStyle("Fusion")
     app.setStyleSheet(GLOBAL_QSS)
 
     from PyQt5.QtCore import QDir, QLockFile
