@@ -235,6 +235,9 @@ class TitleBar(QWidget):
         self.right_btn.clicked.connect(window.toggle_right)
         self.right_btn.installEventFilter(self)
 
+        self.max_btn = self._make_icon("□", "最大化 / 还原")
+        self.max_btn.clicked.connect(window.toggle_maximize)
+
         self.min_btn = self._make_icon("—", "最小化")
         self.min_btn.clicked.connect(window.showMinimized)
 
@@ -252,6 +255,7 @@ class TitleBar(QWidget):
         layout.addStretch(1)
         layout.addWidget(self.right_btn)
         layout.addSpacing(8)
+        layout.addWidget(self.max_btn)
         layout.addWidget(self.min_btn)
         layout.addWidget(self.close_btn)
 
@@ -528,8 +532,20 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("imgsearch Agent · 多模态图像检索")
-        self.resize(1440, 880)
-        self.setMinimumSize(960, 620)
+        self.setMinimumSize(880, 560)
+
+        screen = QApplication.primaryScreen()
+        if screen is not None:
+            area = screen.availableGeometry()
+            width = min(1200, int(area.width() * 0.82))
+            height = min(760, int(area.height() * 0.82))
+            self.resize(max(width, 900), max(height, 600))
+            self.move(
+                area.x() + (area.width() - max(width, 900)) // 2,
+                area.y() + (area.height() - max(height, 600)) // 2,
+            )
+        else:
+            self.resize(1100, 700)
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.Window)
         self._left_width = 240
         self._right_width = 300
@@ -752,6 +768,10 @@ class MainWindow(QMainWindow):
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         self._adjust_input_height()
+        if hasattr(self, "size_grip") and hasattr(self, "_container"):
+            c = self._container
+            self.size_grip.move(c.width() - 18, c.height() - 18)
+            self.size_grip.raise_()
 
     # ── 左侧 ──────────────────────────────────────────────────────────────
 
@@ -1031,11 +1051,10 @@ class MainWindow(QMainWindow):
         vbox.addWidget(self.title_bar)
         vbox.addWidget(main, 1)
 
-        grip_row = QHBoxLayout()
-        grip_row.setContentsMargins(0, 0, 2, 2)
-        grip_row.addStretch(1)
-        grip_row.addWidget(QSizeGrip(container))
-        vbox.addLayout(grip_row)
+        self._container = container
+        self.size_grip = QSizeGrip(container)
+        self.size_grip.setFixedSize(16, 16)
+        self.size_grip.raise_()
 
         self.setCentralWidget(container)
         self.setStyleSheet("QMainWindow{background:#F2F0EA;}")
@@ -1437,6 +1456,14 @@ class MainWindow(QMainWindow):
             self.agent.set_llm(ModelStore.to_llm_config(entry))
         self.model_btn.setText(entry.get("label", entry.get("model", "")))
         self.append_log(">>> 切换模型：" + str(entry.get("label")))
+
+    def toggle_maximize(self) -> None:
+        if self.isMaximized():
+            self.showNormal()
+            self.title_bar.max_btn.setText("□")
+        else:
+            self.showMaximized()
+            self.title_bar.max_btn.setText("❐")
 
     def toggle_left(self) -> None:
         widget = self.main_split.widget(0)
