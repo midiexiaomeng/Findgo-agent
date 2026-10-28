@@ -1537,6 +1537,12 @@ class MainWindow(QMainWindow):
         )
 
     def on_chat_link(self, url) -> None:
+        # QLabel 的 linkActivated 传字符串，QTextBrowser 的 anchorClicked 传 QUrl
+        from PyQt5.QtCore import QUrl
+
+        if not isinstance(url, QUrl):
+            url = QUrl(str(url))
+
         if url.scheme() == "gallery":
             paths = self._galleries.get(url.path(), [])
             if paths:
