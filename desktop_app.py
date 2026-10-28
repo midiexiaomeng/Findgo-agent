@@ -878,11 +878,12 @@ class MainWindow(QMainWindow):
         rect = self.input.fontMetrics().boundingRect(
             QRect(0, 0, width, 10000), Qt.TextWordWrap, text
         )
-        content = rect.height() + 48 + 20
+        # 顶部内边距 14 + 底部按钮区 48，再加两行文本高度
+        content = rect.height() + 14 + 48 + 12
         window_h = self.height() or 880
-        max_h = max(150, int(window_h * 0.25))
-        # 最小高度抬到 88，保证两行提示语完整可见
-        target = int(min(max(content, 88), max_h))
+        max_h = max(170, int(window_h * 0.28))
+        # 最小 112：能完整显示两行提示语，不压到发送按钮
+        target = int(min(max(content, 112), max_h))
 
         if target != self.input.height():
             self.input.setFixedHeight(target)
@@ -1431,9 +1432,9 @@ class MainWindow(QMainWindow):
             gid = f"g{len(self._galleries)}"
             self._galleries[gid] = list(images)
             thumbs += (
-                '<div style="margin-top:8px;font-size:12px;">'
-                '<a href="gallery:' + gid + '">'
-                "查看全部 " + str(len(images)) + " 张</a></div>"
+                '<div style="text-align:right;margin-top:4px;">'
+                '<a href="gallery:' + gid + '" style="color:#4E7A63;'
+                'text-decoration:none;font-size:15px;font-weight:600;">…</a></div>'
             )
         return safe + thumbs
 
@@ -1488,9 +1489,9 @@ class MainWindow(QMainWindow):
                     gid = f"g{len(self._galleries)}"
                     self._galleries[gid] = list(images)
                     thumbs += (
-                        '<div style="margin-top:8px;font-size:12px;">'
-                        '<a href="gallery:' + gid + '">'
-                        "查看全部 " + str(len(images)) + " 张</a></div>"
+                        '<div style="text-align:right;margin-top:4px;">'
+                        '<a href="gallery:' + gid + '" style="color:#4E7A63;'
+                        'text-decoration:none;font-size:15px;font-weight:600;">…</a></div>'
                     )
 
         if thumbs:
