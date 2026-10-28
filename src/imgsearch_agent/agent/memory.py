@@ -261,7 +261,7 @@ class Memory:
         if self._db is None:
             return
         try:
-            for table in ("messages", "traces", "tasks", "sessions"):
+            for table in ("messages", "traces", "tasks", "facts", "summaries", "sessions"):
                 self._db.execute(
                     f"DELETE FROM {table} WHERE session_id = ?", (session_id,)
                 )
@@ -281,6 +281,8 @@ class Memory:
                 self._db.execute("DELETE FROM messages WHERE session_id = ?", (sid,))
                 self._db.execute("DELETE FROM traces WHERE session_id = ?", (sid,))
                 self._db.execute("DELETE FROM tasks WHERE session_id = ?", (sid,))
+                self._db.execute("DELETE FROM facts WHERE session_id = ?", (sid,))
+                self._db.execute("DELETE FROM summaries WHERE session_id = ?", (sid,))
                 self._db.execute("DELETE FROM sessions WHERE session_id = ?", (sid,))
             self._db.commit()
         except Exception:
