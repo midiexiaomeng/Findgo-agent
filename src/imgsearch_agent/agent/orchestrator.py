@@ -218,6 +218,7 @@ class ImageSearchAgent:
         should_stop=None,
         max_steps: int = 10,
         continue_on_failure: bool = True,
+        auto_update_facts: bool = False,
     ) -> list[AgentResult]:
         """按任务列表逐条执行，跳过 skipped。
 
@@ -370,6 +371,10 @@ class ImageSearchAgent:
                     retries=retries,
                 )
             )
+
+            # 仅交互式对话开启：批量任务默认关闭，避免多条独立任务互相污染事实
+            if auto_update_facts:
+                self.update_facts(task.query or task.description, reply)
 
         self._last_paths = this_round_paths
         if this_round_paths:
