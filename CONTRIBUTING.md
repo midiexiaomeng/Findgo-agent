@@ -38,12 +38,31 @@ python cli.py doctor
 | 命令 | 说明 |
 | --- | --- |
 | `pytest tests -q` | 跑全部测试，离线可跑 |
+| `python scripts/check_ci_env.py` | 模拟 CI 环境跑测试（屏蔽 torch / PyQt5） |
 | `pytest tests/test_sandbox.py -v` | 跑单个模块 |
 | `python cli.py doctor` | 环境自检 |
 | `python cli.py index "D:\Photos"` | 建索引 |
 | `python cli.py search "海边日落"` | 文本检索 |
 | `pre-commit run --all-files` | 代码检查 |
 | `start-app.bat` | 启动桌面应用 |
+
+### 提交前先跑一遍 CI 模拟
+
+CI 的 runner 不装 torch、transformers、PyQt5、gradio，依赖它们的测试靠
+`pytest.importorskip` 跳过。本地环境这些都装了，直接 `pytest` 覆盖不到
+「缺依赖」的分支，只能等推上去看 CI 报错。
+
+```powershell
+python scripts/check_ci_env.py
+```
+
+这个脚本在 import 阶段拦截上述包，行为与 CI 一致。二十秒内出结果，比等 CI 快得多。
+
+常见问题：
+
+- 模块级 `from PyQt5...` 放在 `importorskip` 之前，保护会失效
+- 新增模块若在 import 时碰 PyQt5，相应测试要加上 `importorskip`
+- 改过提示词的话，测试里的假客户端靠关键词分支，记得同步
 
 ### 关于测试不跑模型
 
