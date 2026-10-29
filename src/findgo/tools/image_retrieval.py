@@ -48,13 +48,25 @@ class ImageRetrievalTool(BaseTool):
     description = "用自然语言描述搜索本地图片库，返回图片路径、描述与相似度"
     args_schema = ImageRetrievalArgs
 
-    #: 实时检索的图片数上限，超过就要求先建库
+    #: 实时检索的图片数上限，超过就建库
     LIVE_LIMIT = 200
+    #: 超过这个数建库明显划算（一次编码，后续检索秒级）
+    INDEX_MIN = 200
 
     def __init__(self, pipeline=None, guard: PathGuard | None = None):
         self._pipeline = pipeline
         self._indexed: set[str] = set()
         self.guard = guard or PathGuard()
+        # 建库进度回调，由界面注入；签名 (done, total, name)
+        self._progress_hook = None
+        self._stop_hook = None
+        self._pause_hook = None
+
+    def set_hooks(self, progress=None, should_stop=None, should_pause=None) -> None:
+        """界面层注入进度、停止与暂停回调。"""
+        self._progress_hook = progress
+        self._stop_hook = should_stop
+        self._pause_hook = should_pause
 
     @property
     def pipeline(self):
@@ -79,6 +91,12 @@ class ImageRetrievalTool(BaseTool):
             if pct >= last["pct"] + 10 or done == total:
                 last["pct"] = pct
                 logger.info("索引进度 %d/%d (%d%%) %s", done, total, pct, name)
+            # 转给界面进度条
+            if self._progress_hook is not None:
+                try:
+                    self._progress_hook(done, total, name)
+                except Exception:
+                    pass
 
         try:
             stats = self.pipeline.index_folder(
@@ -86,6 +104,8 @@ class ImageRetrievalTool(BaseTool):
                 recursive=True,
                 skip_existing=True,
                 progress=progress,
+                should_stop=self._stop_hook,
+                should_pause=self._pause_hook,
             )
             if stats.locked:
                 logger.info("目录正在索引中，本次跳过")
@@ -134,19 +154,21 @@ class ImageRetrievalTool(BaseTool):
         query: str,
         top_k: int,
         should_stop=None,
+        paths: list | None = None,
     ) -> dict[str, Any] | None:
         """小目录直接现算向量，不写库。
 
-        适合临时一次性查询。超过 LIVE_LIMIT 张就拒绝，
-        因为逐张编码在 CPU 上会慢到不可接受。
+        适合临时一次性查询。超过 LIVE_LIMIT 张就返回 None，
+        由调用方改走建库路径。
         """
-        from ..utils.image_scan import scan_images
+        if paths is None:
+            from ..utils.image_scan import scan_images
 
-        try:
-            paths = scan_images(folder, recursive=True)
-        except Exception as e:
-            logger.warning("实时扫描失败 %s: %s", folder, e)
-            return None
+            try:
+                paths = scan_images(folder, recursive=True)
+            except Exception as e:
+                logger.warning("实时扫描失败 %s: %s", folder, e)
+                return None
 
         if not paths:
             return {
@@ -341,27 +363,38 @@ class ImageRetrievalTool(BaseTool):
             if folder.is_dir():
                 scope = str(folder)
 
-                # 建库与检索严格分开：
-                # 已索引 → 直接 ANN；未索引且目录小 → 实时检索；
-                # 未索引且目录大 → 告知先建库，不在检索链路里偷偷跑索引。
+                # 由工具自己判断该不该建库：
+                # 已索引 → 直接用；未索引 → 看规模，大的自建，小的实时算。
                 if not self._is_indexed(folder):
-                    if auto_index:
-                        self._ensure_indexed(folder)
-                    else:
-                        live = self._live_search(folder, query, top_k, should_stop=should_stop)
+                    from ..utils.image_scan import scan_images
+
+                    try:
+                        paths = scan_images(folder, recursive=True)
+                    except Exception as e:
+                        logger.warning("扫描失败 %s: %s", folder, e)
+                        paths = []
+
+                    need_index = auto_index or len(paths) > self.INDEX_MIN
+
+                    if not need_index:
+                        live = self._live_search(
+                            folder, query, top_k, should_stop=should_stop, paths=paths
+                        )
                         if live is not None:
                             return live
+                        need_index = True
 
-                        return RetrievalResult(
-                            query=query,
-                            images=[],
-                            confidence=0.0,
-                            summary=(
-                                f"目录还没建索引，且图片超过 {self.LIVE_LIMIT} 张，"
-                                "不适合实时逐张编码。\n"
-                                f"先告诉我「把 {folder} 加入索引库」，建完再搜会快很多。"
-                            ),
-                        ).model_dump()
+                    if need_index:
+                        logger.info("目录未索引且共 %d 张图片，自动建库后检索", len(paths))
+                        self._ensure_indexed(folder)
+
+                        if self._stop_hook is not None and self._stop_hook():
+                            return RetrievalResult(
+                                query=query,
+                                images=[],
+                                confidence=0.0,
+                                summary="建库被取消，本次没有检索。",
+                            ).model_dump()
 
         resp = self.pipeline.searcher.search_text(
             query,

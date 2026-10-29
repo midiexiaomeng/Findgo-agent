@@ -103,6 +103,9 @@ IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"}
 
 
 class MainWindow(AgentRunnerMixin, SessionMixin, FileTreeMixin, QMainWindow):
+    # 工具线程里的建库进度，通过信号转回 UI 线程
+    index_progress = pyqtSignal(int, int, str)
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Findgo · 多模态图像检索")
@@ -144,6 +147,7 @@ class MainWindow(AgentRunnerMixin, SessionMixin, FileTreeMixin, QMainWindow):
 
         self._build_ui()
         self._setup_logging()
+        self.index_progress.connect(self._on_index_progress)
         self._load_file_tree()
         self._refresh_model_button()
         self._adjust_input_height()
@@ -561,6 +565,13 @@ class MainWindow(AgentRunnerMixin, SessionMixin, FileTreeMixin, QMainWindow):
             should_stop=lambda: self._index_cancel,
             progress=report,
         )
+
+    def _index_progress_from_tool(self, done: int, total: int, name: str) -> None:
+        """从工具线程回调，转到 UI 线程更新进度条。"""
+        try:
+            self.index_progress.emit(int(done), int(total), str(name))
+        except Exception:
+            pass
 
     def _on_index_progress(self, payload) -> None:
         try:

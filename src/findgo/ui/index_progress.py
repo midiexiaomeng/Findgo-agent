@@ -19,6 +19,7 @@ class IndexProgressPanel(QWidget):
     """建库时浮在输入区上方的进度条。"""
 
     cancel_requested = pyqtSignal()
+    pause_toggled = pyqtSignal(bool)  # True = 请求暂停
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -38,6 +39,16 @@ class IndexProgressPanel(QWidget):
         self.detail = QLabel("")
         self.detail.setStyleSheet("color:#8A8A8A; font-size:11.5px;")
 
+        self.pause_btn = QPushButton("暂停")
+        self.pause_btn.setFixedSize(52, 24)
+        self.pause_btn.setCursor(Qt.PointingHandCursor)
+        self.pause_btn.setStyleSheet(
+            "QPushButton{border:1px solid #E5E3DD;border-radius:6px;background:#FFFFFF;"
+            "color:#4A4A4A;font-size:11.5px;}"
+            "QPushButton:hover{background:#F2F0EA;}"
+        )
+        self.pause_btn.clicked.connect(self._on_pause)
+
         self.cancel_btn = QPushButton("取消")
         self.cancel_btn.setFixedSize(52, 24)
         self.cancel_btn.setCursor(Qt.PointingHandCursor)
@@ -50,6 +61,7 @@ class IndexProgressPanel(QWidget):
 
         top.addWidget(self.title)
         top.addWidget(self.detail, 1)
+        top.addWidget(self.pause_btn)
         top.addWidget(self.cancel_btn)
 
         self.bar = QProgressBar()
@@ -67,6 +79,7 @@ class IndexProgressPanel(QWidget):
         self._last_done = 0
         self._last_time = 0.0
         self._speed = 0.0
+        self._paused = False
 
     # ── 状态 ──
 
@@ -74,6 +87,10 @@ class IndexProgressPanel(QWidget):
         self._started = time.time()
         self._last_done = 0
         self._last_time = self._started
+        self._speed = 0.0
+        self._paused = False
+        self.pause_btn.setText("暂停")
+        self.pause_btn.setEnabled(True)
         self.title.setText(text)
         self.detail.setText("准备中…")
         self.bar.setRange(0, 0)  # 未知总量时用滚动条
@@ -142,8 +159,25 @@ class IndexProgressPanel(QWidget):
 
     def _on_cancel(self) -> None:
         self.cancel_btn.setEnabled(False)
+        self.pause_btn.setEnabled(False)
         self.detail.setText("正在停止…")
         self.cancel_requested.emit()
+
+    def _on_pause(self) -> None:
+        self._paused = not self._paused
+        if self._paused:
+            self.pause_btn.setText("继续")
+            self.detail.setText("已暂停，点「继续」恢复")
+            self.bar.setRange(0, 0)
+        else:
+            self.pause_btn.setText("暂停")
+            self._last_time = time.time()
+            self._last_done = 0
+        self.pause_toggled.emit(self._paused)
+
+    @property
+    def paused(self) -> bool:
+        return self._paused
 
     @staticmethod
     def _fmt(seconds: float) -> str:

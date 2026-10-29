@@ -114,6 +114,7 @@ class Indexer:
         progress: ProgressFn | None = None,
         prune_missing: bool = False,
         should_stop: Callable[[], bool] | None = None,
+        should_pause: Callable[[], bool] | None = None,
     ) -> IndexStats:
         folder = Path(folder).expanduser()
         lock = self._folder_lock(folder)
@@ -132,6 +133,7 @@ class Indexer:
                 progress=progress,
                 prune_missing=prune_missing,
                 should_stop=should_stop,
+                should_pause=should_pause,
             )
         finally:
             lock.release()
@@ -146,6 +148,7 @@ class Indexer:
         progress: ProgressFn | None = None,
         prune_missing: bool = False,
         should_stop: Callable[[], bool] | None = None,
+        should_pause: Callable[[], bool] | None = None,
     ) -> IndexStats:
         if not folder.exists() or not folder.is_dir():
             raise FileNotFoundError(f"文件夹不存在: {folder}")
@@ -184,6 +187,22 @@ class Indexer:
             if should_stop is not None and should_stop():
                 stats.cancelled = True
                 logger.info("索引进度 %d/%d，收到停止信号", done, len(pending))
+                break
+
+            # 暂停：原地等，每 0.3 秒看一眼是否恢复或停止
+            paused_notified = False
+            while should_pause is not None and should_pause():
+                if not paused_notified:
+                    logger.info("索引进度 %d/%d，已暂停", done, len(pending))
+                    if progress:
+                        progress(done, len(pending), "已暂停")
+                    paused_notified = True
+                if should_stop is not None and should_stop():
+                    stats.cancelled = True
+                    break
+                time.sleep(0.3)
+
+            if stats.cancelled:
                 break
 
             batch = pending[start : start + bs]

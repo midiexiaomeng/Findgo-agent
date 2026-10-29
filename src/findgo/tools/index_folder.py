@@ -77,6 +77,7 @@ class IndexFolderTool(BaseTool):
         folder_path: str,
         rebuild: bool = False,
         should_stop=None,
+        should_pause=None,
         progress=None,
     ) -> dict[str, Any]:
         try:
@@ -120,6 +121,7 @@ class IndexFolderTool(BaseTool):
             reset=rebuild,
             skip_existing=not rebuild,
             should_stop=should_stop,
+            should_pause=should_pause,
             progress=progress,
         )
 

@@ -36,6 +36,12 @@ class AgentRunnerMixin:
             tool = agent.tools.get("image_retrieval")
             if tool is not None:
                 _ = tool.pipeline
+                # 检索时若要自动建库，把进度与停止回传给界面
+                tool.set_hooks(
+                    progress=self._index_progress_from_tool,
+                    should_stop=lambda: self._index_cancel,
+                    should_pause=lambda: self._index_pause,
+                )
         except Exception as e:
             self.append_log("初始化检索服务失败: " + str(e))
 
