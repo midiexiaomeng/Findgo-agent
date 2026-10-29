@@ -49,6 +49,33 @@ class Critic:
         self.threshold = threshold
         self.max_retries = max_retries
 
+    # ── 补救策略 ──────────────────────────────────────────────────────────
+
+    def choose_strategy(self, critique: Critique) -> str:
+        """根据问题类型选补救手段，而不是一律改写查询。
+
+        - expand_k   数量不够：扩大召回范围
+        - relax_must 约束太严：放宽 must，保留 must_not
+        - rewrite    语义偏了：改写查询
+        - none       无可用策略
+        """
+        if critique.passed:
+            return "none"
+
+        # 数量不够优先扩量，这是最直接的
+        if critique.missing_count > 0:
+            return "expand_k"
+
+        # 约束不命中：先放宽 must 试试，must_not 不能动
+        if critique.violated:
+            return "relax_must"
+
+        # 置信度低：换词重试
+        if critique.confidence < self.threshold:
+            return "rewrite"
+
+        return "none"
+
     # ── 校验 ──────────────────────────────────────────────────────────────
 
     def check(self, result: dict[str, Any], task=None) -> Critique:

@@ -100,6 +100,31 @@ def detect_refine(query: str) -> bool:
     return any(word in text for word in REFINE_KEYWORDS)
 
 
+#: 需要多轮探索才知道下一步的任务
+EXPLORE_KEYWORDS = (
+    "分类",
+    "整理",
+    "分组",
+    "按内容",
+    "按类型",
+    "逐个",
+    "归纳",
+    "归档",
+    "标注",
+    "遍历",
+    "汇总",
+    "有哪些",
+    "分别",
+    "一个个",
+)
+
+
+def needs_exploration(query: str) -> bool:
+    """任务是否无法一次拆解完，需要看中间结果再决定下一步。"""
+    text = (query or "").lower()
+    return any(word in text for word in EXPLORE_KEYWORDS)
+
+
 def assess_risk(query: str) -> str:
     """在规划阶段就标出高风险意图，供 UI 提前确认。"""
     text = (query or "").lower()
@@ -121,6 +146,7 @@ class Planner:
         tools_desc: str,
         history: Sequence[dict[str, str]] = (),
         extra_context: str = "",
+        steps: Sequence[dict] = (),
     ) -> AgentAction:
         """生成一个动作。
 
@@ -129,12 +155,28 @@ class Planner:
             tools_desc: 工具清单文本
             history: 近期对话（可选，供多轮使用）
             extra_context: 当前会话的结构化事实，优先级高于历史约束
+            steps: ReAct 已执行的步骤，每项含 thought / action / observation
         """
         template = self.prompts.get("react_template", "")
         if template:
             user_content = template.format(tools=tools_desc, query=query)
         else:
             user_content = f"可用工具：\n{tools_desc}\n\n用户请求：{query}"
+
+        if steps:
+            lines = []
+            for i, step in enumerate(steps, 1):
+                thought = str(step.get("thought", ""))[:120]
+                action = str(step.get("action", ""))[:120]
+                observation = str(step.get("observation", ""))[:400]
+                lines.append(
+                    f"步骤 {i}\n  思考：{thought}\n  动作：{action}\n  观察：{observation}"
+                )
+            user_content += (
+                "\n\n【已执行的步骤】\n"
+                + "\n".join(lines)
+                + "\n\n基于上面的观察决定下一步。信息够了就直接给 answer，不要重复已经做过的动作。"
+            )
 
         if extra_context.strip():
             user_content += (

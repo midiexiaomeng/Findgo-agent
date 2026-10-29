@@ -183,6 +183,24 @@ class AgentRunnerMixin:
         except Exception:
             pass
 
+        # 需要多轮探索的任务走 ReAct，其余走一次拆解的快路径
+        try:
+            from findgo.agent.planner import needs_exploration
+
+            explore = needs_exploration(text)
+        except Exception:
+            explore = False
+
+        if explore:
+            self.append_log(">>> 检测到探索型任务，使用 ReAct 循环")
+            self.state_label.setText("正在分步探索…")
+            result = agent.run_react(
+                text,
+                should_stop=lambda: self._cancel,
+                access_level=self._access_level(),
+            )
+            return [], [], result.reply, result.results
+
         tasks = agent.plan_tasks(text)
         if default_scope:
             for task in tasks:

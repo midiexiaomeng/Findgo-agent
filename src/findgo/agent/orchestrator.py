@@ -9,9 +9,11 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import uuid
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from ..config import AgentConfig
@@ -577,12 +579,36 @@ class FindgoAgent:
 
             if critique.passed or attempt >= self.critic.max_retries:
                 return result, attempt
-            if not critique.retryable:
-                # 约束不命中这类问题，改写也救不回来，直接返回
-                logger.info("问题不可通过改写修复：%s", critique.reason[:60])
+
+            # 选补救策略：扩量 / 放宽约束 / 改写查询
+            strategy = self.critic.choose_strategy(critique)
+            if strategy == "none":
+                logger.info("没有可用补救策略，直接返回：%s", critique.reason[:60])
                 return result, attempt
 
             attempt += 1
+            args = dict(args)
+
+            if strategy == "expand_k":
+                old_k = int(args.get("top_k", 0) or 0)
+                new_k = min(max(old_k * 3, 20), 500)
+                args["top_k"] = new_k
+                logger.info("策略 expand_k：top_k %s → %s", old_k, new_k)
+                self.trace.info(
+                    "critic", "expand_k", old_k=old_k, new_k=new_k, reason=critique.reason[:80]
+                )
+                continue
+
+            if strategy == "relax_must":
+                constraints = dict(args.get("constraints") or {})
+                dropped = list(constraints.get("must") or [])
+                constraints["must"] = []
+                args["constraints"] = constraints
+                logger.info("策略 relax_must：放宽 %s", dropped)
+                self.trace.info("critic", "relax_must", dropped=dropped)
+                continue
+
+            # strategy == "rewrite"
             new_query = self.critic.rewrite(query, critique.reason, critique)
             self.trace.info(
                 "critic",
@@ -595,8 +621,184 @@ class FindgoAgent:
             if new_query == query:
                 return result, attempt
             query = new_query
-            args = dict(args)
             args["query"] = new_query
+
+    def run_react(
+        self,
+        user_input: str,
+        max_steps: int = 8,
+        should_stop=None,
+        access_level: str = "auto",
+    ) -> AgentResult:
+        """ReAct 循环：想 → 做 → 看 → 再想。
+
+        用于无法一次拆解完的任务，比如「把文件夹里的图片按内容分类」。
+        每步看到观察后再决定下一步，信息够了就提前结束。
+        """
+        user_input = (user_input or "").strip()
+        if not user_input:
+            return AgentResult(reply="请告诉我你想做什么。")
+
+        self.memory.add("user", user_input)
+        trace_id = uuid.uuid4().hex[:8]
+        tools_desc = "\n".join(t.signature() for t in self.tools.values())
+
+        steps: list[dict] = []
+        seen: set[str] = set()
+        collected: list[dict] = []
+
+        for step_no in range(1, max_steps + 1):
+            if should_stop is not None and should_stop():
+                logger.info("ReAct 收到停止信号，第 %d 步退出", step_no)
+                break
+
+            action = self.planner.plan(
+                user_input,
+                tools_desc,
+                history=self.memory.recent(n=10),
+                extra_context=self._memory_context(),
+                steps=steps,
+            )
+            self.trace.info(
+                "planner",
+                "react_step",
+                step=step_no,
+                action_type=action.action_type,
+                tool=action.tool_name or "",
+                thought=action.thought[:100],
+            )
+
+            # 模型认为信息够了
+            if action.action_type in ("answer", "ask_user"):
+                reply = action.reply or "请补充一下需求。"
+                self.memory.add("assistant", reply)
+                if self.config.memory_persist:
+                    self.update_facts(user_input, reply)
+                return AgentResult(
+                    reply=reply,
+                    results=collected,
+                    tool="react",
+                    trace_id=trace_id,
+                )
+
+            if action.action_type != "tool_call":
+                break
+
+            tool = self.tools.get(action.tool_name or "")
+            if tool is None:
+                steps.append(
+                    {
+                        "thought": action.thought,
+                        "action": f"调用 {action.tool_name}",
+                        "observation": f"工具不存在：{action.tool_name}，换一个",
+                    }
+                )
+                continue
+
+            args = dict(action.tool_args or {})
+            if not args.get("query") and tool.name == "image_retrieval":
+                args["query"] = user_input
+            args.setdefault("top_k", self.config.top_k) if tool.name == "image_retrieval" else None
+
+            # 同一个工具 + 同一套参数做两次，说明模型在转圈
+            sig = f"{tool.name}:{json.dumps(args, sort_keys=True, ensure_ascii=False)}"
+            if sig in seen:
+                logger.info("检测到重复动作，提前结束")
+                steps.append(
+                    {
+                        "thought": action.thought,
+                        "action": f"{tool.name}（重复）",
+                        "observation": "这个动作已经做过，不要再重复",
+                    }
+                )
+                break
+            seen.add(sig)
+
+            result, retries = self._execute_with_retry(
+                tool,
+                args,
+                should_stop=should_stop,
+                access_level=access_level,
+            )
+
+            for img in result.get("images") or []:
+                if isinstance(img, dict) and img.get("path"):
+                    collected.append(img)
+
+            observation = self._compress_observation(result)
+            steps.append(
+                {
+                    "thought": action.thought,
+                    "action": f"{tool.name}({args})",
+                    "observation": observation,
+                }
+            )
+            logger.info("ReAct 第 %d 步：%s → %s", step_no, tool.name, observation[:80])
+
+        # 步数用完或提前退出，把已做的事总结掉
+        reply = self._summarize_steps(user_input, steps)
+        self.memory.add("assistant", reply)
+        return AgentResult(
+            reply=reply,
+            results=collected,
+            tool="react",
+            trace_id=trace_id,
+        )
+
+    def _compress_observation(self, result: dict, limit: int = 600) -> str:
+        """把工具结果压成一段话，避免 prompt 被候选列表撑爆。"""
+        images = result.get("images") or []
+        if images:
+            names = []
+            for img in images[:8]:
+                path = img.get("path", "") if isinstance(img, dict) else ""
+                if path:
+                    names.append(str(Path(path).name))
+            tail = "" if len(images) <= 8 else f" 等 {len(images)} 张"
+            return f"返回 {len(images)} 张图：{'、'.join(names)}{tail}"
+
+        summary = str(result.get("summary") or "").strip()
+        if summary:
+            return summary[:limit]
+
+        if result.get("error"):
+            return f"执行失败：{result.get('summary', result['error'])}"
+
+        return "无返回内容"
+
+    def _summarize_steps(self, query: str, steps: list[dict]) -> str:
+        """步数用完后，把已经完成的部分讲清楚。"""
+        if not steps:
+            return "这一步没有找到可用的做法，可以换个说法再试试。"
+
+        lines = [
+            f"第 {i} 步：{s.get('action', '')[:80]} → {s.get('observation', '')[:120]}"
+            for i, s in enumerate(steps, 1)
+        ]
+        detail = "\n".join(lines)
+
+        if self.client is None:
+            return f"执行了 {len(steps)} 步：\n{detail}"
+
+        try:
+            reply = self.client.chat(
+                [
+                    {
+                        "role": "user",
+                        "content": (
+                            f"用户需求：{query}\n\n"
+                            f"已执行的步骤：\n{detail}\n\n"
+                            "用中文简要说明已经完成了什么、还差什么。"
+                            "不要编造没做过的事，200 字以内。"
+                        ),
+                    }
+                ],
+                max_tokens=400,
+            ).strip()
+            return reply or detail
+        except Exception as e:
+            logger.warning("步骤总结失败: %s", e)
+            return f"执行了 {len(steps)} 步：\n{detail}"
 
     def close(self) -> None:
         self.memory.close()
