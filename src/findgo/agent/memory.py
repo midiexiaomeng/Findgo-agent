@@ -413,6 +413,25 @@ class Memory:
         rows = self.list_traces(limit=limit)
         return list(reversed(rows))
 
+    def messages_since(self, since: str) -> list[dict]:
+        """读某个时间点之后的全部消息，跨会话，按时间正序。
+
+        用于「写今天日记」：一天可能开几次应用，分属不同会话，
+        日记要把它们合起来看，不能只看当前这一个。
+        """
+        if self._db is None:
+            return []
+        try:
+            rows = self._db.execute(
+                "SELECT role, content, created_at, session_id FROM messages "
+                "WHERE created_at >= ? ORDER BY created_at, id",
+                (since,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+        except Exception as e:
+            logger.warning("读取跨会话消息失败: %s", e)
+            return []
+
     # ── 导出 ────────────────────────────────────────────────────────────
 
     def export_session(self, path: str | Path | None = None) -> Path:

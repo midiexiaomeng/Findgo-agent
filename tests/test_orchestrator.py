@@ -58,7 +58,7 @@ class FakeClient:
     def chat(self, messages, json_mode=False, max_tokens=512):
         content = messages[-1]["content"]
         self.calls.append(content)
-        if "结构化约束" in content or "拆解" in content:
+        if "硬性铁则" in content or "结构化约束" in content or "拆解" in content:
             return (
                 '{"tasks":[{"id":1,"description":"找猫","query":"猫"},'
                 '{"id":2,"description":"找狗","query":"狗"}]}'

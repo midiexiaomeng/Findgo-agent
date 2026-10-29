@@ -285,6 +285,7 @@ def test_compress_empty():
 
 
 def test_agent_runner_routes_to_react():
+    pytest.importorskip("PyQt5")
     import inspect
 
     from findgo.ui.agent_runner import AgentRunnerMixin

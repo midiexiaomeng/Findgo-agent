@@ -42,12 +42,12 @@ def is_command(text: str) -> bool:
 
 
 def run_diary(agent, args: str, session_id: str = "") -> str:
-    """/diary：以助手的第一人称写一篇工作日记，写入 data/diary/日期.md"""
-    history = _safe_history(agent)
+    """/diary：以助手的第一人称写今天的工作日记，写入 data/diary/日期.md"""
+    history = _today_history(agent)
     if not history:
-        raise CommandError("当前会话还没有内容，先聊几句再写日记。")
+        raise CommandError("今天还没有聊过什么，先聊几句再写日记。")
 
-    transcript = _format_transcript(history, limit=60)
+    transcript = _format_transcript(history, limit=200)
     extra = f"\n\n补充：{args}" if args else ""
 
     prompt = (
@@ -234,6 +234,23 @@ def _safe_history(agent) -> list[dict[str, str]]:
         return agent.memory.history()
     except Exception:
         return []
+
+
+def _today_history(agent) -> list[dict[str, str]]:
+    """取今天所有会话的消息。
+
+    一天可能开几次应用，每次是独立会话。日记要记的是这一天，
+    不是最后一次打开。读不到数据库时退回当前会话。
+    """
+    try:
+        start = datetime.now().strftime("%Y-%m-%d") + "T00:00:00"
+        rows = agent.memory.messages_since(start)
+        if rows:
+            return [{"role": r.get("role", ""), "content": r.get("content", "")} for r in rows]
+    except Exception as e:
+        logger.debug("读取今日消息失败，退回当前会话: %s", e)
+
+    return _safe_history(agent)
 
 
 def _format_transcript(history: list[dict[str, str]], limit: int = 60) -> str:

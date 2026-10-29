@@ -110,6 +110,7 @@ def test_unknown_level_behaves_like_auto(executor):
 
 
 def test_command_filter():
+    pytest.importorskip("PyQt5")
     from findgo.ui.command_panel import match_commands
 
     assert len(match_commands("")) == 6
@@ -118,9 +119,9 @@ def test_command_filter():
 
 
 def test_permission_cycle():
+    pytest.importorskip("PyQt5")
     from PyQt5.QtWidgets import QApplication
 
-    pytest.importorskip("PyQt5")
     app = QApplication.instance() or QApplication([])
 
     from findgo.ui.command_panel import PermissionButton

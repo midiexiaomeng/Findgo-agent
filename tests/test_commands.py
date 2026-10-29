@@ -93,7 +93,7 @@ def test_is_command(text, expected):
 def test_diary_requires_history(tmp_path, monkeypatch):
     agent = _FakeAgent(history=[])
     monkeypatch.setattr("findgo.agent.commands._data_dir", lambda _a: tmp_path)
-    with pytest.raises(CommandError, match="还没有内容"):
+    with pytest.raises(CommandError, match="还没有聊过"):
         run_diary(agent, "")
 
 
@@ -113,6 +113,68 @@ def test_diary_writes_file(tmp_path, monkeypatch):
     content = files[0].read_text(encoding="utf-8")
     assert "今天下午花了一小时整理图片库。" in content
     assert "日记" in result
+
+
+def test_messages_since_reads_across_sessions(tmp_path):
+    from findgo.agent.memory import Memory
+
+    db = tmp_path / "s.db"
+    first = Memory(persist_path=db)
+    first.add("user", "早上找猫")
+    first.add("assistant", "找到 3 张")
+    first.close()
+
+    second = Memory(persist_path=db)
+    second.add("user", "下午找狗")
+    second.add("assistant", "找到 2 张")
+
+    rows = second.messages_since("2000-01-01T00:00:00")
+    contents = [r["content"] for r in rows]
+
+    assert "早上找猫" in contents
+    assert "下午找狗" in contents
+    second.close()
+
+
+def test_messages_since_filters_by_time(tmp_path):
+    from findgo.agent.memory import Memory
+
+    m = Memory(persist_path=tmp_path / "s.db")
+    m.add("user", "很久以前")
+
+    # 未来时间点应该读不到
+    assert m.messages_since("2099-01-01T00:00:00") == []
+    m.close()
+
+
+def test_diary_uses_today_across_sessions(tmp_path, monkeypatch):
+    """日记要读今天所有会话，不是只看当前会话。"""
+    from findgo.agent.memory import Memory
+
+    db = tmp_path / "s.db"
+    first = Memory(persist_path=db)
+    first.add("user", "上午找猫")
+    first.add("assistant", "找到 3 张")
+    first.close()
+
+    second = Memory(persist_path=db)
+    second.add("user", "下午找狗")
+    second.add("assistant", "找到 2 张")
+
+    monkeypatch.setattr("findgo.agent.commands._data_dir", lambda _a: tmp_path)
+    monkeypatch.setattr("findgo.agent.commands._project_root", lambda _a: tmp_path)
+
+    agent = _FakeAgent(history=[])
+    agent.memory = second
+    agent.client = _FakeClient("今天很忙。")
+
+    run_diary(agent, "")
+
+    prompt = agent.client.calls[0][1]["content"]
+    # 两个会话的内容都要在里面
+    assert "上午找猫" in prompt
+    assert "下午找狗" in prompt
+    second.close()
 
 
 def test_diary_prompt_is_assistant_voice(tmp_path, monkeypatch):
