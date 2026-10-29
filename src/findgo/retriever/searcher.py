@@ -128,10 +128,11 @@ class Searcher:
         all_results: bool = False,
         should_stop=None,
         exclude_paths: set[str] | None = None,
+        constraints: dict | None = None,
     ) -> SearchResponse:
         query = (query or "").strip()
         started = time.time()
-        if not query:
+        if not query and not constraints:
             return SearchResponse(
                 query="",
                 mode="text",
@@ -156,7 +157,12 @@ class Searcher:
         hits = self._recall(query_vec, recall_k, min_score, scope, exclude_paths)
 
         candidates, report = self.reranker.rerank(
-            query, hits, top_k=top_k, use_llm=use_rerank, should_stop=should_stop
+            query,
+            hits,
+            top_k=top_k,
+            use_llm=use_rerank,
+            should_stop=should_stop,
+            constraints=constraints,
         )
 
         return SearchResponse(
@@ -248,6 +254,13 @@ class Searcher:
         limit = int(limit * 1.5) + 20
         if exclude_paths:
             limit += len(exclude_paths)
+
+        # 硬上限：排除列表很长时不要无限拉大查询，
+        # 多出来的部分靠二次检索补齐，而不是一次拉几千条进内存
+        search_cfg = getattr(getattr(self, "cfg", None), "search", None)
+        cap = int(getattr(search_cfg, "max_recall_limit", 800))
+        limit = min(limit, max(cap, recall_k))
+
         hits = self.store.query(query_vec, top_k=max(1, limit))
 
         # 已暂存待删的图片不再参与检索

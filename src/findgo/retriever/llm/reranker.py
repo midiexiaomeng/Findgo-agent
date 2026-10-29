@@ -32,13 +32,15 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ScoredCandidate:
-    """重排后的单个候选，保留两路分数便于解释和调试。"""
+    """重排后的单个候选，保留两路分数与理由，便于解释和调试。"""
 
     hit: VectorHit
     vec_score: float  # 原始余弦相似度
     vec_norm: float  # min-max 归一化后的向量分
     llm_score: float | None  # 0~1，None 表示这一条没拿到 LLM 分
     final_score: float  # 融合分
+    reason: str = ""  # LLM 给出的简短理由
+    dropped_by: str = ""  # 被哪条硬约束淘汰
 
     @property
     def id(self) -> str:
@@ -83,13 +85,15 @@ class LLMReranker:
         top_k: int | None = None,
         use_llm: bool = True,
         should_stop=None,
+        constraints: dict | None = None,
     ) -> tuple[list[ScoredCandidate], RerankReport]:
-        """对候选做语义重排。
+        """对候选做约束过滤与语义重排。
 
         Args:
-            query: 语义查询。以文搜图时是用户输入；以图搜图时是查询图的 BLIP 描述。
+            query: 语义查询。以文搜图时是 core_query；以图搜图时是查询图的 BLIP 描述。
             hits: 向量检索结果，按相似度降序。
             top_k: 最终返回数量，默认取配置。
+            constraints: 结构化约束（must / must_not / should）。
         """
         top_k = int(top_k or self.cfg.search.top_k)
         started = time.time()
@@ -98,15 +102,26 @@ class LLMReranker:
             model=self.client.model,
         )
 
-        if not hits:
-            report.elapsed = time.time() - started
-            return [], report
+        # 硬约束先淘汰，被扣掉的候选不参与后续打分
+        kept = list(hits)
+        dropped: list[ScoredCandidate] = []
+        if constraints:
+            must = [str(x) for x in (constraints.get("must") or []) if str(x).strip()]
+            must_not = [str(x) for x in (constraints.get("must_not") or []) if str(x).strip()]
+            if must or must_not:
+                kept, dropped = self._apply_hard_constraints(hits, must, must_not)
+                if dropped:
+                    report.errors.append(f"约束淘汰 {len(dropped)} 张")
 
-        # LLM 重排的成本按批线性增长，大结果集全量重排不现实。
-        # 头部做语义重排，超出部分保持向量分顺序补在后面。
-        head = max(1, int(self.cfg.rerank.max_candidates))
-        head = min(head, len(hits))
-        candidates = list(hits)[:head]
+        if not kept:
+            report.elapsed = time.time() - started
+            return dropped[:top_k], report
+
+        # 重排范围：候选不多时全部精排，多时只排头部。
+        # 不写死固定值，避免「正好 17 条时第 17 条永远拿不到语义分」。
+        base = max(1, int(self.cfg.rerank.max_candidates))
+        head = len(kept) if len(kept) <= base * 2 else base
+        candidates = list(kept)[:head]
         report.candidates = len(candidates)
 
         tail = []
@@ -119,7 +134,7 @@ class LLMReranker:
                     llm_score=None,
                     final_score=0.0,
                 )
-                for h in list(hits)[head:top_k]
+                for h in list(kept)[head:top_k]
             ]
 
         raw_scores = [float(h.score) for h in candidates]
@@ -166,7 +181,9 @@ class LLMReranker:
             return self._finish(scored, top_k, tail), report
 
         # ── 分批打分 ──
-        llm_scores, used, errors = self._score_batches(query, candidates, should_stop)
+        llm_scores, used, errors = self._score_batches(
+            query, candidates, should_stop, constraints=constraints
+        )
         report.errors.extend(errors)
         report.llm_scored = len(llm_scores)
         report.used = used
@@ -176,15 +193,74 @@ class LLMReranker:
 
         if llm_scores:
             for cand in scored:
-                value = llm_scores.get(cand.hit.id)
-                if value is not None:
+                entry = llm_scores.get(cand.hit.id)
+                if entry is not None:
+                    value = float(entry.get("score", 0.0))
                     cand.llm_score = value
+                    cand.reason = str(entry.get("reason", ""))
                     cand.final_score = self._fuse(cand.vec_norm, value)
 
         report.elapsed = time.time() - started
         if report.used:
             logger.info(report.summary())
         return self._finish(scored, top_k, tail), report
+
+    # ── 约束过滤 ────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _apply_hard_constraints(
+        hits: Sequence[VectorHit],
+        must: Sequence[str],
+        must_not: Sequence[str],
+    ) -> tuple[list[VectorHit], list[ScoredCandidate]]:
+        """按 must / must_not 提前淘汰，返回 (保留, 被剔除)。
+
+        没有描述的图片不参与硬过滤：无法判断就不淘汰，交给 LLM 处理。
+        """
+        from ...agent.constraints import matches_term
+
+        kept: list[VectorHit] = []
+        dropped: list[ScoredCandidate] = []
+
+        for hit in hits:
+            caption = str(hit.metadata.get("caption", "") or "")
+            if not caption.strip():
+                kept.append(hit)
+                continue
+
+            blocked = next((t for t in must_not if matches_term(caption, t)), None)
+            if blocked:
+                dropped.append(
+                    ScoredCandidate(
+                        hit=hit,
+                        vec_score=float(hit.score),
+                        vec_norm=0.0,
+                        llm_score=0.0,
+                        final_score=0.0,
+                        reason=f"命中排除条件：{blocked}",
+                        dropped_by=blocked,
+                    )
+                )
+                continue
+
+            missing = next((t for t in must if not matches_term(caption, t)), None)
+            if missing:
+                dropped.append(
+                    ScoredCandidate(
+                        hit=hit,
+                        vec_score=float(hit.score),
+                        vec_norm=0.0,
+                        llm_score=0.0,
+                        final_score=0.0,
+                        reason=f"缺少必需条件：{missing}",
+                        dropped_by=missing,
+                    )
+                )
+                continue
+
+            kept.append(hit)
+
+        return kept, dropped
 
     # ── 打分 ────────────────────────────────────────────────────────────────
 
@@ -193,8 +269,9 @@ class LLMReranker:
         query: str,
         candidates: Sequence[VectorHit],
         should_stop=None,
-    ) -> tuple[dict[str, float], bool, list[str]]:
-        scores: dict[str, float] = {}
+        constraints: dict | None = None,
+    ) -> tuple[dict[str, dict], bool, list[str]]:
+        scores: dict[str, dict] = {}
         errors: list[str] = []
         bs = max(1, int(self.cfg.rerank.batch_size))
         consecutive_failures = 0
@@ -204,7 +281,7 @@ class LLMReranker:
                 errors.append("已手动停止")
                 break
             batch = candidates[start : start + bs]
-            payload = self._build_prompt(query, batch)
+            payload = self._build_prompt(query, batch, constraints)
             answer = self._call_with_retry(payload)
 
             if answer is None:
@@ -246,7 +323,12 @@ class LLMReranker:
             logger.warning("本批重排放弃: %s", last_error)
         return None
 
-    def _build_prompt(self, query: str, batch: Sequence[VectorHit]) -> list[dict[str, str]]:
+    def _build_prompt(
+        self,
+        query: str,
+        batch: Sequence[VectorHit],
+        constraints: dict | None = None,
+    ) -> list[dict[str, str]]:
         lines = []
         for i, hit in enumerate(batch, start=1):
             filename = str(hit.metadata.get("filename", f"image_{i}"))
@@ -255,20 +337,35 @@ class LLMReranker:
                 caption = "（无描述）"
             lines.append(f"[{i}] 文件：{filename}\n    描述：{caption}")
 
+        must = [str(x) for x in (constraints or {}).get("must", []) if str(x).strip()]
+        must_not = [str(x) for x in (constraints or {}).get("must_not", []) if str(x).strip()]
+        should = [str(x) for x in (constraints or {}).get("should", []) if str(x).strip()]
+
+        rule_lines = []
+        if must:
+            rule_lines.append("必须满足（不满足就淘汰，给 0 分）：" + "、".join(must))
+        if must_not:
+            rule_lines.append("必须排除（命中就给 0 分）：" + "、".join(must_not))
+        if should:
+            rule_lines.append("加分项（有则提分，没有不淘汰）：" + "、".join(should))
+
         system = (
             "你是图像检索系统的相关性评估器。你只输出 JSON，不输出任何解释、"
             "markdown 代码块或多余文字。"
         )
         user = (
-            f"用户想找的图片：{query}\n\n"
-            "下面是候选图片的内容描述（由图像描述模型生成，可能是英文，请照常理解）：\n\n"
+            f"用户想找的图片：{query}\n"
+            + ("\n".join(rule_lines) + "\n" if rule_lines else "")
+            + "\n下面是候选图片的内容描述（由图像描述模型生成，可能是英文，请照常理解）：\n\n"
             + "\n".join(lines)
-            + "\n\n请判断每张图与用户查询的语义相关性，打 0-100 分：\n"
-            "  90-100 主体和场景都高度吻合\n"
+            + "\n\n请先检查约束，再按语义相关性打 0-100 分：\n"
+            "  90-100 主体和场景都高度吻合，且满足全部约束\n"
             "  60-89  主体相关，但场景/动作/细节有偏差\n"
             "  30-59  只有部分元素相关\n"
-            "  0-29   基本无关\n\n"
-            '只输出这个格式的 JSON：{"scores":[{"index":1,"score":85}]}，'
+            "  0-29   基本无关，或违反了必须排除的条件\n"
+            "  0      违反了必须满足的条件\n\n"
+            "同时用 10 个字以内说明理由，指出是否命中约束。\n"
+            '只输出这个格式的 JSON：{"scores":[{"index":1,"score":85,"reason":"白色猫躺着"}]}，'
             f"必须覆盖全部 {len(batch)} 张图，index 从 1 开始。"
         )
         return [{"role": "system", "content": system}, {"role": "user", "content": user}]
@@ -276,8 +373,8 @@ class LLMReranker:
     # ── 解析 ────────────────────────────────────────────────────────────────
 
     @staticmethod
-    def _parse_scores(text: str, expected: int) -> dict[int, float]:
-        """把模型输出的 JSON 解析成 {批内下标(0-based): 0~1 分数}。"""
+    def _parse_scores(text: str, expected: int) -> dict[int, dict]:
+        """把模型输出解析成 {批内下标(0-based): {"score": 0~1, "reason": str}}。"""
         if not text:
             return {}
 
@@ -319,22 +416,26 @@ class LLMReranker:
                 return {}
             data = [{"index": int(i), "score": float(s)} for i, s in pairs]
 
-        out: dict[int, float] = {}
+        out: dict[int, dict] = {}
 
-        def put(idx: int, score: float) -> None:
+        def put(idx: int, score: float, reason: str = "") -> None:
             if idx < 1 or idx > expected:
                 return
             if score > 1.0:  # 0-100 制
                 score = score / 100.0
-            out[idx - 1] = max(0.0, min(1.0, float(score)))
+            out[idx - 1] = {
+                "score": max(0.0, min(1.0, float(score))),
+                "reason": str(reason or "").strip()[:40],
+            }
 
         if isinstance(data, dict):
-            # 单条对象形式 {"index":1,"score":85}
+            # 单条对象形式 {"index":1,"score":85,"reason":"..."}
             if "score" in data or "relevance" in data:
                 try:
                     put(
                         int(data.get("index", data.get("id", data.get("rank", 1)))),
                         float(data.get("score", data.get("relevance"))),
+                        str(data.get("reason", data.get("why", ""))),
                     )
                 except (TypeError, ValueError):
                     pass
@@ -349,7 +450,11 @@ class LLMReranker:
                         if idx is None or score is None:
                             continue
                         try:
-                            put(int(idx), float(score))
+                            put(
+                                int(idx),
+                                float(score),
+                                str(item.get("reason", item.get("why", ""))),
+                            )
                         except (TypeError, ValueError):
                             continue
             else:
@@ -367,7 +472,11 @@ class LLMReranker:
                     if idx is None or score is None:
                         continue
                     try:
-                        put(int(idx), float(score))
+                        put(
+                            int(idx),
+                            float(score),
+                            str(item.get("reason", item.get("why", ""))),
+                        )
                     except (TypeError, ValueError):
                         continue
 

@@ -332,6 +332,7 @@ class FindgoAgent:
                     "folder_path": task.path or "",
                     "all_results": bool(task.all_results),
                     "exclude_paths": list(excluded_paths),
+                    "constraints": dict(task.constraints or {}),
                 }
 
             result, retries = self._execute_with_retry(

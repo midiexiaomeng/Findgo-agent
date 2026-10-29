@@ -109,8 +109,9 @@ def test_planner_query_instruction_excludes_count():
     src = inspect.getsource(
         __import__("findgo.agent.planner", fromlist=["Planner"]).Planner.plan_tasks
     )
-    assert "不要带数量词" in src
-    assert "与图片内容里有几个对象无关" in src
+    assert "约束优先于关键词" in src
+    assert "must_not" in src
+    assert "不带数量词" in src
 
 
 def test_memory_context_includes_diary(tmp_path, monkeypatch):

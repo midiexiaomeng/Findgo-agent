@@ -27,7 +27,14 @@ class FakeSearcher:
         self.pipeline = pipeline
 
     def search_text(
-        self, query, top_k=8, scope=None, all_results=False, should_stop=None, exclude_paths=None
+        self,
+        query,
+        top_k=8,
+        scope=None,
+        all_results=False,
+        should_stop=None,
+        exclude_paths=None,
+        constraints=None,
     ):
         self.pipeline.calls += 1
         return FakeResp(self.pipeline.score)
@@ -51,7 +58,7 @@ class FakeClient:
     def chat(self, messages, json_mode=False, max_tokens=512):
         content = messages[-1]["content"]
         self.calls.append(content)
-        if "拆解" in content:
+        if "结构化约束" in content or "拆解" in content:
             return (
                 '{"tasks":[{"id":1,"description":"找猫","query":"猫"},'
                 '{"id":2,"description":"找狗","query":"狗"}]}'

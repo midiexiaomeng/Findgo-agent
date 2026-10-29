@@ -12,6 +12,7 @@ import re
 from typing import Sequence
 
 from ..utils.schemas import AgentAction, TaskSpec
+from .constraints import Constraints, parse_from_text
 from .path_extractor import PathExtractor
 
 logger = logging.getLogger("findgo.planner")
@@ -149,34 +150,34 @@ class Planner:
             f"可用工具：\n{tools_desc}\n\n"
             f"用户需求：{query}\n"
             f"路径信息：{path_hint}\n\n"
-            "请先理解用户的语言，提取其中的明确约束（数量、场景、颜色、时间等），"
-            "再拆解为 1 到 3 个可在本地图片库执行的检索任务。\n"
-            "现有工具只覆盖：文本搜图、以图搜图、建/删索引、索引统计、导出清单、"
+            "请把用户的话拆成结构化约束。核心原则：**约束优先于关键词**。\n"
+            "否定、排除、偏好都要单独列出来，不要塞进 core_query 里。\n\n"
+            "字段说明：\n"
+            "- core_query：画面里有什么，只写正向内容，**不带数量词、不带否定词**。\n"
+            "  用户说「找两张白色的猫，不要黑的」，core_query 是「猫」，\n"
+            "  must 里放「白色」，must_not 里放「黑色」。\n"
+            "- must：必须满足的条件（颜色、动作、场景、题材），不满足就淘汰。\n"
+            "  用户说「一定要」「必须是」「只要」时放这里。\n"
+            "- must_not：必须排除的条件，命中就淘汰。\n"
+            "  用户说「不要」「别」「排除」「不是」时放这里。\n"
+            "  指代之前的图（「刚才那几张不要」）由系统自动处理，不用写进来。\n"
+            "- should：加分但非必需的偏好。用户说「最好」「尽量」「希望」时放这里。\n"
+            "- retrieve_count：要返回几张图。与图片内容里有几个对象无关。\n"
+            "  没提数量填 0。\n"
+            "- diversity：需要多样化结果时填 true（默认），\n"
+            "  用户说「就要同一种风格」「都差不多的」时填 false。\n"
+            "- path：用户提到的文件夹路径，原样保留。没提填空字符串。\n\n"
+            "现有工具覆盖：文本搜图、以图搜图、建/删索引、索引统计、导出清单、"
             "找重复图、暂存区管理、单图描述、目录扫描。\n"
-            "如果用户需求明显超出这些能力（例如统计图片宽高、按拍摄时间筛选、"
-            "按颜色聚类），并且能用简单的只读 Python 实现，"
-            "可以在任务里附加 dynamic_tool 字段，格式：\n"
+            "超出这些能力且能用简单只读 Python 实现时，可附加 dynamic_tool 字段：\n"
             '{"name":"...","description":"...","tags":["read-only"],'
             '"timeout":60,"args_schema_code":"class Args(BaseModel):\\n    ...",'
-            '"run_func_code":"def run(self, args):\\n    ...",'
-            '"safety_note":"..."}\n'
-            "动态工具禁止硬编码具体文件名或固定路径，路径一律从参数传入，"
-            '并用 sandbox_check_path(路径, "read") 校验。\n'
-            "能用现有工具完成时不要生成 dynamic_tool。\n"
-            "每个任务包含：\n"
-            "- description：一句话说明这次找什么\n"
-            "- query：图片内容的描述，只写画面里有什么，**不要带数量词**。\n"
-            "  用户说「找两张猫的图片」，query 应该是「猫」而不是「两张猫的图片」；\n"
-            "  说「五张夕阳下的海边」，query 是「夕阳下的海边」。\n"
-            "- top_k：要返回的图片张数。这里的数量指「给用户看几张图」，\n"
-            "  与图片内容里有几个对象无关。用户说“两张”就填 2，\n"
-            "  说“几张”或没提数量就填 0（表示用系统默认值）。\n"
-            "  用户明确说“一张图里有两只猫”这类才是内容约束，写进 query。\n"
-            "- path：用户提到的文件夹路径，原样保留（如 D:\\Photos）。"
-            "用户没提路径就填空字符串\n"
-            "- all_results：用户说“所有”“全部”“都要”“都找出来”时填 true，"
-            "表示返回全部匹配结果；否则填 false\n\n"
-            '只输出 JSON：{"tasks":[{"id":1,"description":"...","query":"...","top_k":2}]}'
+            '"run_func_code":"def run(self, args):\\n    ...","safety_note":"..."}\n'
+            "动态工具禁止硬编码具体路径，路径从参数传入并用 sandbox_check_path 校验。\n\n"
+            "只输出 JSON：\n"
+            '{"tasks":[{"id":1,"core_query":"猫","must":["白色"],'
+            '"must_not":["黑色"],"should":["躺着"],"retrieve_count":2,'
+            '"diversity":true,"description":"找两张白色的猫","path":""}]}'
         )
 
         if extra_context.strip():
@@ -203,11 +204,42 @@ class Planner:
         for i, item in enumerate(tasks[:3], 1):
             if not isinstance(item, dict):
                 continue
-            q = str(item.get("query") or item.get("description") or clean_query)
+
+            # 新结构：core_query + 三类约束；旧字段 query 兼容回退
+            core = str(item.get("core_query") or item.get("query") or clean_query)
             try:
-                top_k = int(item.get("top_k") or 0)
+                count = int(item.get("retrieve_count", item.get("top_k", 0)) or 0)
             except (TypeError, ValueError):
-                top_k = 0
+                count = 0
+
+            constraints = Constraints(
+                core_query=core,
+                must=(
+                    [str(x).strip() for x in item.get("must", []) if str(x).strip()]
+                    if isinstance(item.get("must"), list)
+                    else []
+                ),
+                must_not=(
+                    [str(x).strip() for x in item.get("must_not", []) if str(x).strip()]
+                    if isinstance(item.get("must_not"), list)
+                    else []
+                ),
+                should=(
+                    [str(x).strip() for x in item.get("should", []) if str(x).strip()]
+                    if isinstance(item.get("should"), list)
+                    else []
+                ),
+                diversity=bool(item.get("diversity", True)),
+                retrieve_count=max(0, min(count, 1000)),
+            )
+
+            # LLM 没给约束时，从原句里兜底抽「不要 X」「最好 X」
+            if not constraints.must and not constraints.must_not and not constraints.should:
+                fallback = parse_from_text(query)
+                constraints.must = fallback.must
+                constraints.must_not = fallback.must_not
+                constraints.should = fallback.should
+
             task_path = str(item.get("path") or "").strip()
             all_results = bool(item.get("all_results", False))
 
@@ -225,13 +257,14 @@ class Planner:
             result.append(
                 TaskSpec(
                     id=int(item.get("id", i)),
-                    description=str(item.get("description") or q),
-                    query=q,
-                    top_k=max(0, min(top_k, 1000)),
+                    description=str(item.get("description") or core),
+                    query=core,
+                    top_k=constraints.retrieve_count,
                     path=task_path or known_path,
                     all_results=all_results,
                     is_dynamic=is_dynamic,
                     dynamic_spec=dynamic_spec,
+                    constraints=constraints.to_dict(),
                 )
             )
         risk = assess_risk(query)

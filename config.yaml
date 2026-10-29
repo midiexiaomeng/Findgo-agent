@@ -79,6 +79,7 @@ search:
   recall_k: 50
   top_k: 12
   max_all: 1000
+  max_recall_limit: 800
   min_score: 0.0
   fusion:
     vector_weight: 0.35

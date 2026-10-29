@@ -114,6 +114,64 @@ class ImageRetrievalTool(BaseTool):
 
         return kept
 
+    def _diversify(self, images, limit: int, lam: float = 0.72):
+        """MMR 打散：既看相关度，也惩罚与已选图太像的候选。
+
+        去重只能干掉几乎同一张图；这里解决「同一只猫的十个角度」。
+        lam 越小越偏向多样性，0.72 是相关性与新颖度的折中。
+        """
+        import numpy as np
+
+        from ..retriever.indexer import Indexer
+
+        if len(images) <= 2:
+            return images
+
+        id_map = {Indexer.image_id(i.path): i for i in images}
+        try:
+            records = self.pipeline.store.get_vectors(ids=list(id_map.keys()))
+        except Exception:
+            return images
+
+        vectors = {str(r[0]): np.asarray(r[1], dtype=np.float32) for r in records}
+
+        units: dict[str, np.ndarray] = {}
+        for img in images:
+            vec = vectors.get(Indexer.image_id(img.path))
+            if vec is None:
+                continue
+            norm = max(float(np.linalg.norm(vec)), 1e-8)
+            units[img.path] = vec / norm
+
+        selected: list = []
+        remaining = list(images)
+        target = min(limit, len(images))
+
+        while remaining and len(selected) < target:
+            best = None
+            best_score = -1e9
+
+            for img in remaining:
+                relevance = float(img.score)
+                unit = units.get(img.path)
+
+                if not selected or unit is None:
+                    mmr = relevance
+                else:
+                    sims = [float(np.dot(unit, units[s.path])) for s in selected if s.path in units]
+                    max_sim = max(sims) if sims else 0.0
+                    mmr = lam * relevance - (1.0 - lam) * max_sim
+
+                if mmr > best_score:
+                    best, best_score = img, mmr
+
+            if best is None:
+                break
+            selected.append(best)
+            remaining.remove(best)
+
+        return selected
+
     def run(
         self,
         query: str,
@@ -125,6 +183,7 @@ class ImageRetrievalTool(BaseTool):
         dedupe: bool = True,
         dedupe_threshold: float = 0.95,
         exclude_paths: list[str] | None = None,
+        constraints: dict | None = None,
     ) -> dict[str, Any]:
         target = folder_path or path
         scope = ""
@@ -150,6 +209,7 @@ class ImageRetrievalTool(BaseTool):
             all_results=all_results,
             should_stop=should_stop,
             exclude_paths=exclude_paths,
+            constraints=constraints,
         )
         images = [
             RetrievedImage(
@@ -157,11 +217,20 @@ class ImageRetrievalTool(BaseTool):
                 path=r.path,
                 caption=r.caption or "",
                 score=round(float(r.score), 3),
+                reason=str(getattr(r, "reason", "") or ""),
             )
             for r in resp.results
         ]
         if dedupe and len(images) > 1:
             images = self._dedupe(images, dedupe_threshold)
+
+        # 多样性打散：去重只能干掉几乎一样的图，
+        # 同角度、同构图的扎堆需要另外拉开
+        if constraints and constraints.get("diversity", True) and len(images) > 2:
+            images = self._diversify(images, top_k)
+
+        for i, image in enumerate(images, start=1):
+            image.rank = i
 
         confidence = sum(i.score for i in images) / len(images) if images else 0.0
         result = RetrievalResult(

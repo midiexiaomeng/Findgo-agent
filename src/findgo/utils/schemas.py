@@ -35,6 +35,8 @@ class RetrievedImage(BaseModel):
     path: str = ""
     caption: str = ""
     score: float = 0.0
+    #: 重排模型给出的简短理由，用于向用户解释为什么选它
+    reason: str = ""
 
 
 class RetrievalResult(BaseModel):
@@ -72,4 +74,9 @@ class TaskSpec(BaseModel):
     is_dynamic: bool = Field(False, description="是否由动态工具执行")
     dynamic_spec: dict | None = Field(None, description="动态工具定义，需用户审核后才加载")
     dynamic_args: dict = Field(default_factory=dict, description="动态工具的实际入参")
+    # 结构化约束：must / must_not / should，优先于 query 字符串生效
+    constraints: dict = Field(
+        default_factory=dict,
+        description="core_query/must/must_not/should/diversity/retrieve_count",
+    )
     status: str = Field("pending", description="pending | done | skipped")

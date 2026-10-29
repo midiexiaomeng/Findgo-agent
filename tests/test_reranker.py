@@ -34,16 +34,27 @@ def make_cfg(**overrides) -> Config:
 
 def test_parse_variants():
     parse = LLMReranker._parse_scores
-    assert parse('{"scores":[{"index":1,"score":85},{"index":2,"score":30}]}', 2) == {
+
+    def scores(result: dict) -> dict:
+        return {k: v["score"] for k, v in result.items()}
+
+    assert scores(parse('{"scores":[{"index":1,"score":85},{"index":2,"score":30}]}', 2)) == {
         0: 0.85,
         1: 0.3,
     }
-    assert parse('```json\n{"scores":[{"index":1,"score":90}]}\n```', 2) == {0: 0.9}
-    assert parse('[{"id":1,"relevance":0.2}]', 1) == {0: 0.2}
-    assert parse('{"1": 70}', 1) == {0: 0.7}
+    assert scores(parse('```json\n{"scores":[{"index":1,"score":90}]}\n```', 2)) == {0: 0.9}
+    assert scores(parse('[{"id":1,"relevance":0.2}]', 1)) == {0: 0.2}
+    assert scores(parse('{"1": 70}', 1)) == {0: 0.7}
     assert parse("no json here", 2) == {}
     # 越界 index 应被忽略
     assert parse('{"scores":[{"index":9,"score":99}]}', 2) == {}
+
+
+def test_parse_reason():
+    parse = LLMReranker._parse_scores
+    got = parse('{"scores":[{"index":1,"score":85,"reason":"白色猫躺着"}]}', 2)
+    assert got[0]["score"] == 0.85
+    assert got[0]["reason"] == "白色猫躺着"
 
 
 def test_rerank_uses_llm_scores():

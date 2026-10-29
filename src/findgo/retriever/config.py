@@ -156,6 +156,7 @@ class SearchConfig:
     recall_k: int = 50  # 第一级 ANN 召回数，宁多勿漏
     top_k: int = 12  # 最终展示数
     max_all: int = 1000  # “全部结果”的上限，防止一次拉爆内存
+    max_recall_limit: int = 800  # 单次从向量库拉取的最大条数（防排除列表膨胀）
     min_score: float = 0.0
     fusion: FusionConfig = field(default_factory=FusionConfig)
 
