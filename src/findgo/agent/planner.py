@@ -207,6 +207,9 @@ class Planner:
 
             # 新结构：core_query + 三类约束；旧字段 query 兼容回退
             core = str(item.get("core_query") or item.get("query") or clean_query)
+            # LLM 偶尔返回空字符串，兜底用原句，否则检索直接空转
+            if not core.strip():
+                core = clean_query or query
             try:
                 count = int(item.get("retrieve_count", item.get("top_k", 0)) or 0)
             except (TypeError, ValueError):

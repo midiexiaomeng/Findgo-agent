@@ -114,8 +114,15 @@ class LLMReranker:
                     report.errors.append(f"约束淘汰 {len(dropped)} 张")
 
         if not kept:
+            # 约束过严会把候选全灭，宁可不过滤也不要给出空结果
+            logger.info("约束淘汰了全部 %d 个候选，回退到不过滤", len(dropped))
+            report.errors.append("约束淘汰了全部候选，已回退")
+            kept = list(hits)
+            dropped = []
+
+        if not kept:
             report.elapsed = time.time() - started
-            return dropped[:top_k], report
+            return [], report
 
         # 重排范围：候选不多时全部精排，多时只排头部。
         # 不写死固定值，避免「正好 17 条时第 17 条永远拿不到语义分」。
@@ -213,9 +220,13 @@ class LLMReranker:
         must: Sequence[str],
         must_not: Sequence[str],
     ) -> tuple[list[VectorHit], list[ScoredCandidate]]:
-        """按 must / must_not 提前淘汰，返回 (保留, 被剔除)。
+        """按 must_not 硬淘汰，must 只记录命中情况。
 
-        没有描述的图片不参与硬过滤：无法判断就不淘汰，交给 LLM 处理。
+        must 不淘汰的理由：BLIP 描述经常不写颜色、动作等属性，
+        用它做硬条件会把大量合格图误杀。must 命中会在重排 prompt
+        里作为强提示，由模型综合判断。
+
+        没有描述的图片不参与硬过滤：无法判断就不淘汰。
         """
         from ...agent.constraints import matches_term
 
@@ -239,21 +250,6 @@ class LLMReranker:
                         final_score=0.0,
                         reason=f"命中排除条件：{blocked}",
                         dropped_by=blocked,
-                    )
-                )
-                continue
-
-            missing = next((t for t in must if not matches_term(caption, t)), None)
-            if missing:
-                dropped.append(
-                    ScoredCandidate(
-                        hit=hit,
-                        vec_score=float(hit.score),
-                        vec_norm=0.0,
-                        llm_score=0.0,
-                        final_score=0.0,
-                        reason=f"缺少必需条件：{missing}",
-                        dropped_by=missing,
                     )
                 )
                 continue

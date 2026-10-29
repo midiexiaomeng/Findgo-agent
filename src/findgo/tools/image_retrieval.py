@@ -185,6 +185,16 @@ class ImageRetrievalTool(BaseTool):
         exclude_paths: list[str] | None = None,
         constraints: dict | None = None,
     ) -> dict[str, Any]:
+        # 查询为空时用约束里的核心词兜底，全空则直接返回
+        if not (query or "").strip() and constraints:
+            query = str(constraints.get("core_query", "") or "").strip()
+        if not (query or "").strip():
+            return RetrievalResult(
+                query="",
+                images=[],
+                confidence=0.0,
+                summary="查询内容为空，没能提取出要搜的东西",
+            ).model_dump()
         target = folder_path or path
         scope = ""
         if target:

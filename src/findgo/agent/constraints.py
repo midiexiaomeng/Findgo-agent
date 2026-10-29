@@ -164,8 +164,12 @@ def filter_by_constraints(
 ) -> tuple[list[dict], list[dict]]:
     """按硬约束过滤，返回 (保留, 被剔除)。
 
-    没有描述的图片不参与硬过滤：无法判断就不淘汰，
-    交给后面的语义重排处理。
+    只有 must_not 是真正的硬淘汰。must 不做淘汰，原因：
+    BLIP 的描述经常只写「a cat on a chair」，并不提颜色、动作；
+    拿中文约束去匹配不完整的描述，会把大量合格的图误杀。
+    must 命中作为加分标记，未命中交给后面的语义重排判断。
+
+    没有描述的图片不参与硬过滤：无法判断就不淘汰。
     """
     kept: list[dict] = []
     dropped: list[dict] = []
@@ -181,12 +185,12 @@ def filter_by_constraints(
             dropped.append({**item, "_drop_reason": f"命中排除条件：{blocked}"})
             continue
 
-        missing = next((t for t in must if not matches_term(caption, t)), None)
-        if missing:
-            dropped.append({**item, "_drop_reason": f"缺少必需条件：{missing}"})
-            continue
-
-        kept.append(item)
+        # must 只做标记，不淘汰
+        hit_must = [t for t in must if matches_term(caption, t)]
+        if hit_must:
+            kept.append({**item, "_must_hit": hit_must})
+        else:
+            kept.append(item)
 
     return kept, dropped
 

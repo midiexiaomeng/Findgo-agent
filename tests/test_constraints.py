@@ -100,11 +100,20 @@ def test_filter_must_not():
     assert "黑色" in dropped[0]["_drop_reason"]
 
 
-def test_filter_must():
+def test_filter_must_is_soft():
+    """must 不做淘汰，只标记命中：BLIP 描述常不写属性。"""
     kept, dropped = filter_by_constraints(_items(), must_not=[], must=["白色"])
-    assert [i["path"] for i in kept] == ["a.jpg", "c.jpg"]
+    assert [i["path"] for i in kept] == ["a.jpg", "b.jpg", "c.jpg"]
+    assert dropped == []
+
+    hit = next(i for i in kept if i["path"] == "a.jpg")
+    assert hit["_must_hit"] == ["白色"]
+
+
+def test_filter_must_not_still_hard():
+    kept, dropped = filter_by_constraints(_items(), must_not=["黑色"], must=["白色"])
+    assert "b.jpg" not in [i["path"] for i in kept]
     assert dropped[0]["path"] == "b.jpg"
-    assert "白色" in dropped[0]["_drop_reason"]
 
 
 def test_filter_keeps_uncaptioned():
