@@ -79,4 +79,9 @@ class TaskSpec(BaseModel):
         default_factory=dict,
         description="core_query/must/must_not/should/diversity/retrieve_count",
     )
+    # 检索的数据源：library 全库召回，last_results 在上一轮结果里再筛
+    input_source: str = Field(
+        "library",
+        description="library | last_results",
+    )
     status: str = Field("pending", description="pending | done | skipped")

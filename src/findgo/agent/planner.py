@@ -78,6 +78,28 @@ def has_index_intent(query: str) -> bool:
     return any(word in text for word in INDEX_INTENT)
 
 
+#: 在上一轮结果里继续筛的表述
+REFINE_KEYWORDS = (
+    "刚才的",
+    "上面这些",
+    "这些里面",
+    "从里面",
+    "在结果里",
+    "从中",
+    "这几个里",
+    "这几张里",
+    "里面挑",
+    "里面找",
+    "再筛",
+)
+
+
+def detect_refine(query: str) -> bool:
+    """用户是否要求基于上一轮结果继续筛，而不是重新全库检索。"""
+    text = (query or "").lower()
+    return any(word in text for word in REFINE_KEYWORDS)
+
+
 def assess_risk(query: str) -> str:
     """在规划阶段就标出高风险意图，供 UI 提前确认。"""
     text = (query or "").lower()
@@ -343,6 +365,7 @@ class Planner:
             )
         risk = assess_risk(query)
         reuse = detect_reuse(query)
+        refine = detect_refine(query)
         index_mode = has_index_intent(query)
         for task in result:
             if task.constraints:
@@ -356,6 +379,12 @@ class Planner:
                 )
             task.risk = "high" if task.is_dynamic else risk
             task.reuse_last = reuse
+
+            # 在上一轮结果里继续筛，不重新召回全库
+            if refine and not reuse:
+                task.input_source = "last_results"
+            else:
+                task.input_source = "library"
 
             # 建库是独立动作：只有用户明确要求，且有大目录时才转成 index
             if index_mode and task.path and not task.is_dynamic:

@@ -312,6 +312,26 @@ class FindgoAgent:
                 if tool is None or not task.path:
                     continue
                 args = {"folder_path": task.path}
+            elif task.input_source == "last_results":
+                # 在上一轮候选里再筛，不重新召回
+                if not previous_images:
+                    logger.info("没有上一轮结果可供筛选，退回全库检索")
+                    task.input_source = "library"
+                else:
+                    tool = self.tools.get("filter_results")
+                    if tool is None:
+                        task.input_source = "library"
+                    else:
+                        args = {
+                            "paths": [
+                                str(img.get("path", ""))
+                                for img in previous_images
+                                if isinstance(img, dict) and img.get("path")
+                            ],
+                            "constraints": dict(task.constraints or {}),
+                            "top_k": task.top_k if task.top_k > 0 else self.config.top_k,
+                        }
+                        logger.info("链式筛选：在上一轮 %d 张里再筛", len(previous_images))
             else:
                 if not task.query.strip():
                     continue
