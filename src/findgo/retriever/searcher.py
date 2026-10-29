@@ -262,6 +262,13 @@ class Searcher:
         limit = min(limit, max(cap, recall_k))
 
         hits = self.store.query(query_vec, top_k=max(1, limit))
+        logger.info(
+            "召回: query_top=%d 实际返回=%d 排除=%d limit=%d",
+            limit,
+            len(hits),
+            len(exclude_paths or ()),
+            limit,
+        )
 
         # 已暂存待删的图片不再参与检索
         hits = [h for h in hits if not h.metadata.get("is_staged")]
@@ -283,6 +290,7 @@ class Searcher:
 
         if min_score and min_score > 0:
             hits = [h for h in hits if float(h.score) >= min_score]
+        logger.info("召回过滤后: %d 条（scope=%s）", len(hits), scope or "全库")
         return hits
 
     @staticmethod

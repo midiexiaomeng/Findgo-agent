@@ -120,6 +120,13 @@ class LLMReranker:
             kept = list(hits)
             dropped = []
 
+        logger.info(
+            "重排输入: 共 %d 条，硬过滤保留 %d，淘汰 %d",
+            len(hits),
+            len(kept),
+            len(dropped),
+        )
+
         if not kept:
             report.elapsed = time.time() - started
             return [], report

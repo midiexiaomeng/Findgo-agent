@@ -273,6 +273,15 @@ class Planner:
         risk = assess_risk(query)
         reuse = detect_reuse(query)
         for task in result:
+            if task.constraints:
+                logger.info(
+                    "约束解析: core=%r must=%s must_not=%s should=%s count=%s",
+                    task.constraints.get("core_query"),
+                    task.constraints.get("must"),
+                    task.constraints.get("must_not"),
+                    task.constraints.get("should"),
+                    task.constraints.get("retrieve_count"),
+                )
             task.risk = "high" if task.is_dynamic else risk
             task.reuse_last = reuse
 
