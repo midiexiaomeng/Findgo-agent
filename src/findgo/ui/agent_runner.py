@@ -54,7 +54,7 @@ class AgentRunnerMixin:
 
             cfg = Config.from_yaml()
             if not cfg.warmup_on_start:
-                self.bridge.message.emit(">>> 预热已在设置中关闭")
+                self._emit_log(">>> 预热已在设置中关闭")
                 return
             # 远端编码不占本地显存，也没有权重可加载
             if (cfg.embedding.backend or "local").lower() == "api":
@@ -69,11 +69,19 @@ class AgentRunnerMixin:
                 if tool is None:
                     return
                 tool.pipeline.encoder.load()
-                self.bridge.message.emit(">>> CLIP 预热完成")
+                self._emit_log(">>> CLIP 预热完成")
             except Exception as e:
-                self.bridge.message.emit(f">>> CLIP 预热失败: {e}")
+                self._emit_log(f">>> CLIP 预热失败: {e}")
 
         threading.Thread(target=run, daemon=True).start()
+
+    def _emit_log(self, text: str) -> None:
+        """安全地往日志面板发一行，窗口已关闭时静默丢弃。"""
+        try:
+            self.bridge.message.emit(text)
+        except RuntimeError:
+            # 窗口已销毁，底层 C++ 对象没了，后台线程再发就会炸
+            pass
 
     # ── 状态 ──────────────────────────────────────────────────────────────
 
@@ -194,10 +202,20 @@ class AgentRunnerMixin:
         if explore:
             self.append_log(">>> 检测到探索型任务，使用 ReAct 循环")
             self.state_label.setText("正在分步探索…")
+
+            def report_step(step: dict) -> None:
+                worker = self.worker
+                if worker is not None:
+                    try:
+                        worker.progress.emit({"kind": "react_step", **step})
+                    except Exception:
+                        pass
+
             result = agent.run_react(
                 text,
                 should_stop=lambda: self._cancel,
                 access_level=self._access_level(),
+                on_step=report_step,
             )
             return [], [], result.reply, result.results
 
@@ -292,12 +310,18 @@ class AgentRunnerMixin:
         self._append_chat("Agent", combined, images)
         self._render_memory()
 
-        self.task_list.clear()
-        for task in tasks:
-            self._add_task_item(task)
+        # ReAct 模式下 tasks 为空，但步骤已经实时渲进任务链了，不能清掉
+        if tasks:
+            self.task_list.clear()
+            for task in tasks:
+                self._add_task_item(task)
 
         self.last_results = images
-        self.state_label.setText(f"完成 {len(results)} 条任务，共 {len(images)} 张图片")
+        if tasks:
+            self.state_label.setText(f"完成 {len(results)} 条任务，共 {len(images)} 张图片")
+        else:
+            steps = self.task_list.count()
+            self.state_label.setText(f"探索完成 {steps} 步，共 {len(images)} 张图片")
         self._refresh_sessions()
 
     def on_worker_failed(self, error: str) -> None:

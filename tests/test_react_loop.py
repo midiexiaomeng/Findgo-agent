@@ -301,3 +301,120 @@ def test_planner_accepts_steps():
 
     params = inspect.signature(Planner.plan).parameters
     assert "steps" in params
+
+
+def test_run_react_accepts_on_step():
+    import inspect
+
+    from findgo.agent.orchestrator import FindgoAgent
+
+    params = inspect.signature(FindgoAgent.run_react).parameters
+    assert "on_step" in params
+
+
+def test_on_step_fires_each_round():
+    agent, tool = _agent(
+        [
+            _Action("tool_call", "image_retrieval", {"query": "a"}),
+            _Action("tool_call", "image_retrieval", {"query": "b"}),
+            _Action("answer", reply="完"),
+        ]
+    )
+    seen = []
+    agent.run_react("找", max_steps=5, on_step=seen.append)
+
+    assert len(seen) == 2
+    assert seen[0]["index"] == 1
+    assert seen[1]["index"] == 2
+    assert "observation" in seen[0]
+    agent.executor._pool.shutdown(wait=False)
+
+
+# ── 界面渲染 ──────────────────────────────────────────────────────────────
+
+
+def test_react_step_renders_in_task_list():
+    pytest.importorskip("PyQt5")
+    from PyQt5.QtWidgets import QApplication
+
+    app = QApplication.instance() or QApplication([])
+
+    import desktop_app
+
+    win = desktop_app.MainWindow()
+    win.task_list.clear()
+
+    from findgo.utils.schemas import TaskSpec
+
+    win._add_task_item(TaskSpec(query="旧任务"))
+
+    win.on_tasks_ready(
+        {
+            "kind": "react_step",
+            "index": 1,
+            "thought": "先看看目录",
+            "tool": "folder_scan",
+            "observation": "扫描 120 张",
+        }
+    )
+
+    # 第一步会清掉旧任务
+    assert win.task_list.count() == 1
+    assert "①" in win.task_list.item(0).text()
+    assert "📁" in win.task_list.item(0).text()
+    win.close()
+
+
+def test_react_steps_accumulate():
+    pytest.importorskip("PyQt5")
+    from PyQt5.QtWidgets import QApplication
+
+    app = QApplication.instance() or QApplication([])
+
+    import desktop_app
+
+    win = desktop_app.MainWindow()
+    win.task_list.clear()
+
+    for i, tool in enumerate(["folder_scan", "image_retrieval", "describe_image"], 1):
+        win.on_tasks_ready(
+            {
+                "kind": "react_step",
+                "index": i,
+                "thought": f"第{i}步",
+                "tool": tool,
+                "observation": "ok",
+            }
+        )
+
+    assert win.task_list.count() == 3
+    assert "已完成 3 步" in win.state_label.text()
+    win.close()
+
+
+def test_turn_done_keeps_react_steps():
+    """ReAct 完成后 tasks 为空，步骤不能被清掉。"""
+    pytest.importorskip("PyQt5")
+    from PyQt5.QtWidgets import QApplication
+
+    app = QApplication.instance() or QApplication([])
+
+    import desktop_app
+
+    win = desktop_app.MainWindow()
+    win.task_list.clear()
+    win.on_tasks_ready(
+        {
+            "kind": "react_step",
+            "index": 1,
+            "thought": "x",
+            "tool": "folder_scan",
+            "observation": "ok",
+        }
+    )
+
+    win.on_turn_done(([], [], "完成", []))
+
+    assert win.task_list.count() == 1
+    assert "探索完成 1 步" in win.state_label.text()
+    win.close()

@@ -629,11 +629,14 @@ class FindgoAgent:
         max_steps: int = 8,
         should_stop=None,
         access_level: str = "auto",
+        on_step=None,
     ) -> AgentResult:
         """ReAct 循环：想 → 做 → 看 → 再想。
 
         用于无法一次拆解完的任务，比如「把文件夹里的图片按内容分类」。
         每步看到观察后再决定下一步，信息够了就提前结束。
+
+        on_step: 每步结束后的回调，参数是 {index, thought, action, observation}
         """
         user_input = (user_input or "").strip()
         if not user_input:
@@ -734,6 +737,21 @@ class FindgoAgent:
                 }
             )
             logger.info("ReAct 第 %d 步：%s → %s", step_no, tool.name, observation[:80])
+
+            if on_step is not None:
+                try:
+                    on_step(
+                        {
+                            "index": step_no,
+                            "thought": action.thought,
+                            "tool": tool.name,
+                            "action": f"{tool.name}",
+                            "observation": observation,
+                            "images": len(result.get("images") or []),
+                        }
+                    )
+                except Exception:
+                    pass
 
         # 步数用完或提前退出，把已做的事总结掉
         reply = self._summarize_steps(user_input, steps)

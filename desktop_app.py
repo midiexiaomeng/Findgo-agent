@@ -1189,19 +1189,66 @@ class MainWindow(AgentRunnerMixin, SessionMixin, FileTreeMixin, QMainWindow):
         layout.addWidget(label)
         dialog.exec_()
 
-    def on_tasks_ready(self, tasks) -> None:
+    def on_tasks_ready(self, payload) -> None:
+        # ReAct 步骤与规划任务共用右上角面板
+        if isinstance(payload, dict) and payload.get("kind") == "react_step":
+            self._add_react_step(payload)
+            return
+
         self.task_list.clear()
-        for t in tasks:
+        for t in payload:
             self._add_task_item(t)
 
-        risky = [t for t in tasks if getattr(t, "risk", "normal") == "high"]
+        risky = [t for t in payload if getattr(t, "risk", "normal") == "high"]
         if risky:
             self.state_label.setText(
-                f"已规划 {len(tasks)} 条任务，其中 {len(risky)} 条涉及删除/清理，请留意"
+                f"已规划 {len(payload)} 条任务，其中 {len(risky)} 条涉及删除/清理，请留意"
             )
             self.append_log(">>> 注意：本轮包含高风险操作，删除需在设置面板确认")
         else:
-            self.state_label.setText(f"已规划 {len(tasks)} 条任务，正在检索…")
+            self.state_label.setText(f"已规划 {len(payload)} 条任务，正在检索…")
+
+    def _add_react_step(self, step: dict) -> None:
+        """把一步 ReAct 渲染成可读的任务项。"""
+        index = int(step.get("index", self.task_list.count() + 1))
+
+        # 第一步开始前清掉上一轮的任务，避免新旧混在一起
+        if index == 1:
+            self.task_list.clear()
+
+        thought = str(step.get("thought", "") or "").strip()
+        tool = str(step.get("tool", "") or "")
+        observation = str(step.get("observation", "") or "")
+
+        mark = "①②③④⑤⑥⑦⑧⑨⑩"
+        prefix = mark[index - 1] if 1 <= index <= len(mark) else f"{index}."
+
+        icon = {
+            "image_retrieval": "🔍",
+            "folder_scan": "📁",
+            "index_folder": "🗂",
+            "describe_image": "🏷",
+            "filter_results": "🧹",
+            "find_duplicates": "🧩",
+        }.get(tool, "🔧")
+
+        head = thought[:40] if thought else tool or "执行"
+        label = f"{prefix} {icon} {head}"
+
+        item = QListWidgetItem(label)
+        item.setFlags(item.flags() & ~Qt.ItemIsUserCheckable)
+        item.setData(Qt.UserRole, {"react_step": step})
+
+        tip = observation[:200] or head
+        if thought:
+            tip = f"思考：{thought}\n观察：{observation[:300]}"
+        item.setToolTip(tip)
+
+        self.task_list.addItem(item)
+        self.task_list.scrollToBottom()
+
+        done = self.task_list.count()
+        self.state_label.setText(f"探索中：已完成 {done} 步")
 
     # ── 会话管理 ──────────────────────────────────────────────────────────
 
