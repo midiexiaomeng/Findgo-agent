@@ -19,4 +19,5 @@ chromadb>=0.4.22
 qdrant-client>=1.7
 
 # 界面
+PyQt5>=5.15
 gradio>=4.0
