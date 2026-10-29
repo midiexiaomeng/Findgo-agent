@@ -405,10 +405,13 @@ class MainWindow(AgentRunnerMixin, SessionMixin, FileTreeMixin, QMainWindow):
         self.slash_popup.move(popup_position(self.input, rect))
         self.slash_popup.show()
         self.slash_popup.raise_()
+        self.input.popup_open = True
 
     def _hide_slash_popup(self) -> None:
         if hasattr(self, "slash_popup") and self.slash_popup.isVisible():
             self.slash_popup.hide()
+        if hasattr(self, "input"):
+            self.input.popup_open = False
 
     def _slash_popup_visible(self) -> bool:
         return hasattr(self, "slash_popup") and self.slash_popup.isVisible()
@@ -422,19 +425,18 @@ class MainWindow(AgentRunnerMixin, SessionMixin, FileTreeMixin, QMainWindow):
             self.slash_popup.move_selection(1)
         elif key == Qt.Key_Up:
             self.slash_popup.move_selection(-1)
+        elif key in (Qt.Key_Return, Qt.Key_Enter):
+            name = self.slash_popup.current_command()
+            if name:
+                self._apply_command(name)
         elif key == Qt.Key_Escape:
             self._hide_slash_popup()
 
     def _apply_command(self, name: str) -> None:
-        cmd = command_by_name(name)
+        """选中命令后直接执行，不往输入框填提示词。"""
         self._hide_slash_popup()
-        if cmd is None:
-            return
-        self.input.setPlainText(str(cmd.get("prompt", "")))
-        self.input.setFocus()
-        cursor = self.input.textCursor()
-        cursor.movePosition(cursor.End)
-        self.input.setTextCursor(cursor)
+        self.input.setPlainText(name)
+        self.on_send()
 
     def _on_permission_changed(self, key: str) -> None:
         label = {

@@ -211,8 +211,35 @@ class CommandRow(QWidget):
         event.ignore()
 
 
+class PermissionMenu(QMenu):
+    """权限选择菜单：四项带符号、名称与说明，当前项打勾。"""
+
+    picked = pyqtSignal(str)
+
+    def __init__(self, current: str, parent=None):
+        super().__init__(parent)
+        self.setWindowFlags(self.windowFlags() | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint)
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.setStyleSheet(
+            "QMenu{background:#FFFFFF;border:1px solid #E5E3DD;border-radius:10px;padding:6px;}"
+            "QMenu::item{padding:8px 14px;border-radius:7px;}"
+            "QMenu::item:selected{background:#E3EFE7;}"
+            "QMenu::separator{height:1px;background:#EFEDE7;margin:4px 8px;}"
+        )
+        self._current = current
+        self._build()
+
+    def _build(self) -> None:
+        for p in PERMISSIONS:
+            mark = "● " if p["key"] == self._current else "   "
+            action = self.addAction(f"{mark}{p['symbol']}   {p['name']}")
+            action.setData(p["key"])
+            action.setToolTip(p["tip"])
+            action.triggered.connect(lambda _=False, k=p["key"]: self.picked.emit(k))
+
+
 class PermissionButton(QToolButton):
-    """循环切换权限等级，按钮文字就是当前权限符号。"""
+    """点击弹权限菜单，按钮文字就是当前等级符号。"""
 
     changed = pyqtSignal(str)
 
@@ -251,18 +278,26 @@ class PermissionButton(QToolButton):
         )
         self.setToolTip(f"{p['name']}：{p['tip']}\n点击切换")
 
-    def next(self) -> None:
-        self._index = (self._index + 1) % len(PERMISSIONS)
+    def open_menu(self) -> None:
+        menu = PermissionMenu(self.key(), self)
+        menu.picked.connect(self.set_key)
+        menu.exec_(self.mapToGlobal(QPoint(0, self.height() + 4)))
+
+    def set_key(self, key: str) -> None:
+        index = self._index_of(key)
+        if index == self._index:
+            return
+        self._index = index
         self._refresh()
         self.changed.emit(self.key())
 
-    def set_key(self, key: str) -> None:
-        self._index = self._index_of(key)
-        self._refresh()
+    def next(self) -> None:
+        """保留循环接口，供快捷键或其他入口使用。"""
+        self.set_key(PERMISSIONS[(self._index + 1) % len(PERMISSIONS)]["key"])
 
     def mousePressEvent(self, event) -> None:
         if event.button() == Qt.LeftButton:
-            self.next()
+            self.open_menu()
             return
         super().mousePressEvent(event)
 
@@ -300,6 +335,7 @@ __all__ = [
     "CommandMenu",
     "CommandRow",
     "PermissionButton",
+    "PermissionMenu",
     "SlashPopup",
     "command_by_name",
     "match_commands",

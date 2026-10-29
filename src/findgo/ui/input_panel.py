@@ -15,13 +15,23 @@ class ChatInput(QPlainTextEdit):
     image_pasted = pyqtSignal(str)
     send_requested = pyqtSignal()
     # 给宿主处理斜杠候选列表：上下选择 / 回车确认 / Esc 关闭
-    nav_key = pyqtSignal(int)  # Qt.Key_Up / Down / Return / Escape
+    nav_key = pyqtSignal(int)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        # 候选列表打开时，回车用于选中而不是直接发送
+        self.popup_open = False
 
     def keyPressEvent(self, event) -> None:
         key = event.key()
 
-        # 候选列表打开时，方向键与回车交给宿主处理
-        if key in (Qt.Key_Up, Qt.Key_Down, Qt.Key_Escape):
+        if self.popup_open and key in (
+            Qt.Key_Up,
+            Qt.Key_Down,
+            Qt.Key_Return,
+            Qt.Key_Enter,
+            Qt.Key_Escape,
+        ):
             self.nav_key.emit(key)
             return
 

@@ -110,6 +110,9 @@ class AgentRunnerMixin:
             worker_fn = self._run_image_turn
             worker_args = (self._attachment, text)
             self._clear_attachment()
+        elif self._is_slash_command(text):
+            worker_fn = self._run_command
+            worker_args = (text,)
         else:
             worker_fn = self._run_turn
             worker_args = (text,)
@@ -120,6 +123,36 @@ class AgentRunnerMixin:
         self.worker.failed.connect(self.on_worker_failed)
         self.worker.finished.connect(self._finish_worker)
         self.worker.start()
+
+    # ── 斜杠命令 ──────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _is_slash_command(text: str) -> bool:
+        try:
+            from findgo.agent.commands import is_command
+
+            return is_command(text)
+        except Exception:
+            return False
+
+    def _run_command(self, text: str):
+        """直接执行斜杠命令，不走任务规划。"""
+        from findgo.agent.commands import CommandError, dispatch
+
+        agent = self._get_agent()
+        agent.memory.add("user", text)
+
+        self.state_label.setText("正在执行命令…")
+        try:
+            reply = dispatch(text, agent)
+        except CommandError as e:
+            reply = str(e)
+        except Exception as e:
+            reply = f"命令执行失败：{e}"
+
+        reply = reply or "命令没有返回内容。"
+        agent.memory.add("assistant", reply)
+        return [], [], reply, []
 
     # ── 一轮完整执行 ──────────────────────────────────────────────────────
 
