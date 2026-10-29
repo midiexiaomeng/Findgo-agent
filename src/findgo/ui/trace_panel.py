@@ -20,9 +20,10 @@ from PyQt5.QtWidgets import (
 class TraceDialog(QDialog):
     """左侧时间线，右侧详情。只读，不做重新执行。"""
 
-    def __init__(self, traces: list[dict], parent=None):
+    def __init__(self, traces: list[dict], parent=None, exporter=None):
         super().__init__(parent)
         self.traces = traces
+        self.exporter = exporter
         self.setWindowTitle("执行轨迹")
         self.resize(820, 540)
         self.setStyleSheet(
@@ -46,6 +47,16 @@ class TraceDialog(QDialog):
         title.setStyleSheet("color:#4A4A4A;font-size:12px;font-weight:600;")
         top.addWidget(title)
         top.addStretch(1)
+
+        self.export_status = QLabel("")
+        self.export_status.setStyleSheet("color:#8A8A8A;font-size:11.5px;")
+        top.addWidget(self.export_status)
+
+        if self.exporter is not None:
+            export_btn = QPushButton("导出")
+            export_btn.setToolTip("导出完整会话快照（消息 + 任务 + 轨迹 + 事实），便于复现问题")
+            export_btn.clicked.connect(self._on_export)
+            top.addWidget(export_btn)
 
         close_btn = QPushButton("关闭")
         close_btn.clicked.connect(self.accept)
@@ -112,6 +123,13 @@ class TraceDialog(QDialog):
             self._pretty(tr.get("tool_result")),
         ]
         self.detail.setPlainText("\n".join(lines))
+
+    def _on_export(self) -> None:
+        try:
+            path = self.exporter()
+            self.export_status.setText(f"已导出：{path}")
+        except Exception as e:
+            self.export_status.setText(f"导出失败：{e}")
 
     @staticmethod
     def _pretty(raw) -> str:

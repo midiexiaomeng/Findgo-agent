@@ -101,6 +101,84 @@ def test_trace_dialog_empty():
     dialog.close()
 
 
+def test_export_session(tmp_path):
+    from findgo.agent.memory import Memory
+
+    m = Memory(persist_path=tmp_path / "s.db")
+    m.add("user", "找猫")
+    m.add("assistant", "找到 2 张")
+    m.add_trace("t1", "tool_call", "image_retrieval", {"query": "猫"}, {"images": 2})
+    m.patch_facts({"count": 2})
+
+    out = m.export_session(tmp_path / "snap.json")
+    data = __import__("json").loads(out.read_text(encoding="utf-8"))
+
+    assert data["session_id"] == m.session_id
+    assert len(data["messages"]) == 2
+    assert len(data["traces"]) == 1
+    assert data["facts"] == {"count": 2}
+    assert "version" in data
+    m.close()
+
+
+def test_export_default_path(tmp_path, monkeypatch):
+    from findgo.agent.memory import Memory
+
+    monkeypatch.chdir(tmp_path)
+    m = Memory(persist_path=tmp_path / "s.db")
+    out = m.export_session()
+
+    assert out.exists()
+    assert out.parent.name == "exports"
+    m.close()
+
+
+def test_export_empty_session(tmp_path):
+    from findgo.agent.memory import Memory
+
+    m = Memory(persist_path=tmp_path / "s.db")
+    out = m.export_session(tmp_path / "empty.json")
+    data = __import__("json").loads(out.read_text(encoding="utf-8"))
+
+    assert data["messages"] == []
+    assert data["traces"] == []
+    m.close()
+
+
+def test_trace_dialog_export_button():
+    pytest.importorskip("PyQt5")
+    from PyQt5.QtWidgets import QApplication, QPushButton
+
+    app = QApplication.instance() or QApplication([])
+
+    from findgo.ui.trace_panel import TraceDialog
+
+    called = []
+    dialog = TraceDialog([], exporter=lambda: called.append(1) or "x.json")
+
+    buttons = [b for b in dialog.findChildren(QPushButton) if b.text() == "导出"]
+    assert len(buttons) == 1
+
+    buttons[0].click()
+    assert called == [1]
+    assert "x.json" in dialog.export_status.text()
+    dialog.close()
+
+
+def test_trace_dialog_without_exporter():
+    pytest.importorskip("PyQt5")
+    from PyQt5.QtWidgets import QApplication, QPushButton
+
+    app = QApplication.instance() or QApplication([])
+
+    from findgo.ui.trace_panel import TraceDialog
+
+    dialog = TraceDialog([])
+    buttons = [b for b in dialog.findChildren(QPushButton) if b.text() == "导出"]
+    assert buttons == []
+    dialog.close()
+
+
 def test_trace_pretty_handles_bad_json():
     pytest.importorskip("PyQt5")
     from PyQt5.QtWidgets import QApplication

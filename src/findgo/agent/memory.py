@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
+import time
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -76,6 +77,15 @@ CREATE INDEX IF NOT EXISTS idx_tasks_session ON tasks(session_id);
 
 def _now() -> str:
     return datetime.now().isoformat(timespec="seconds")
+
+
+def _version() -> str:
+    try:
+        from .. import __version__
+
+        return __version__
+    except Exception:
+        return "unknown"
 
 
 def _deep_merge(base: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
@@ -402,6 +412,41 @@ class Memory:
         """当前会话的执行轨迹，按时间正序，供回放面板使用。"""
         rows = self.list_traces(limit=limit)
         return list(reversed(rows))
+
+    # ── 导出 ────────────────────────────────────────────────────────────
+
+    def export_session(self, path: str | Path | None = None) -> Path:
+        """把当前会话导出成一份可复现的 JSON 快照。
+
+        包含消息、任务链、轨迹、结构化事实、摘要。
+        密码类信息不在其中，但图路径会包含，提交 issue 前自己看一眼。
+        """
+        snapshot = {
+            "session_id": self.session_id,
+            "title": self.get_title(),
+            "exported_at": _now(),
+            "version": _version(),
+            "messages": self.history(),
+            "tasks": self.load_tasks(),
+            "traces": self.session_traces(limit=1000),
+            "facts": self.get_facts(),
+            "summary": self.get_summary(),
+        }
+
+        if path is None:
+            base = Path("data") / "exports"
+            base.mkdir(parents=True, exist_ok=True)
+            stamp = time.strftime("%Y%m%d_%H%M%S")
+            path = base / f"trace_{self.session_id[:8]}_{stamp}.json"
+
+        target = Path(path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(
+            json.dumps(snapshot, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        logger.info("会话已导出: %s", target)
+        return target
 
     def add_trace(
         self,

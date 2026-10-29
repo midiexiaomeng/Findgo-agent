@@ -610,8 +610,15 @@ class MainWindow(AgentRunnerMixin, SessionMixin, FileTreeMixin, QMainWindow):
             self.append_log("读取执行轨迹失败: " + str(e))
             return
 
-        dialog = TraceDialog(traces, self)
+        dialog = TraceDialog(traces, self, exporter=self._export_traces)
         dialog.exec_()
+
+    def _export_traces(self) -> str:
+        """导出当前会话快照，返回落盘路径。"""
+        agent = self._get_agent()
+        path = agent.memory.export_session()
+        self.append_log(f">>> 会话快照已导出：{path}")
+        return str(path)
 
     def _layout_handles(self) -> None:
         if not hasattr(self, "_resize_handles"):
