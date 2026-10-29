@@ -113,6 +113,8 @@ class Memory:
     def _connect(self, path: Path) -> sqlite3.Connection:
         path.parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(str(path), check_same_thread=False)
+        # 设为 Row：既支持下标，也能 dict(row)，供 trace 读取用
+        conn.row_factory = sqlite3.Row
         conn.executescript(_SCHEMA)
         conn.commit()
         self._migrate(conn)
@@ -355,23 +357,51 @@ class Memory:
             except Exception as e:
                 logger.warning("写入消息失败: %s", e)
 
-    def list_traces(self, tool_name: str | None = None, limit: int = 500) -> list[dict]:
-        """按工具名读取历史轨迹，供留存推荐打分。"""
+    def list_traces(
+        self,
+        tool_name: str | None = None,
+        limit: int = 500,
+        session_id: str | None = None,
+    ) -> list[dict]:
+        """按工具名读取历史轨迹，供留存推荐打分。
+
+        session_id 为空时按当前会话过滤；传 "*" 则跨会话读全部。
+        """
         if self._db is None:
             return []
+
+        scope = session_id if session_id is not None else self.session_id
+        all_sessions = scope == "*"
+
         try:
-            if tool_name:
+            if all_sessions and tool_name:
                 rows = self._db.execute(
                     "SELECT * FROM traces WHERE tool_name = ? ORDER BY id DESC LIMIT ?",
                     (tool_name, limit),
                 ).fetchall()
-            else:
+            elif all_sessions:
                 rows = self._db.execute(
                     "SELECT * FROM traces ORDER BY id DESC LIMIT ?", (limit,)
+                ).fetchall()
+            elif tool_name:
+                rows = self._db.execute(
+                    "SELECT * FROM traces WHERE session_id = ? AND tool_name = ? "
+                    "ORDER BY id DESC LIMIT ?",
+                    (scope, tool_name, limit),
+                ).fetchall()
+            else:
+                rows = self._db.execute(
+                    "SELECT * FROM traces WHERE session_id = ? ORDER BY id DESC LIMIT ?",
+                    (scope, limit),
                 ).fetchall()
             return [dict(row) for row in rows]
         except Exception:
             return []
+
+    def session_traces(self, limit: int = 200) -> list[dict]:
+        """当前会话的执行轨迹，按时间正序，供回放面板使用。"""
+        rows = self.list_traces(limit=limit)
+        return list(reversed(rows))
 
     def add_trace(
         self,

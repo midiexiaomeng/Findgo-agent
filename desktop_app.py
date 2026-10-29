@@ -53,6 +53,7 @@ from findgo.ui.session_panel import SessionMixin
 from findgo.ui.skills_panel import SkillDropZone, SkillsPopup
 from findgo.ui.thumbnail_cache import thumb_path
 from findgo.ui.title_bar import TitleBar
+from findgo.ui.trace_panel import TraceDialog
 from findgo.utils.schemas import TaskSpec
 from PyQt5.QtCore import (
     QEvent,
@@ -599,6 +600,19 @@ class MainWindow(AgentRunnerMixin, SessionMixin, FileTreeMixin, QMainWindow):
         self.index_panel.fail(error)
         self.append_log("!!! 建索引失败：" + error)
 
+    # ── 执行轨迹 ──────────────────────────────────────────────────────────
+
+    def on_show_traces(self) -> None:
+        try:
+            agent = self._get_agent()
+            traces = agent.memory.session_traces(limit=200)
+        except Exception as e:
+            self.append_log("读取执行轨迹失败: " + str(e))
+            return
+
+        dialog = TraceDialog(traces, self)
+        dialog.exec_()
+
     def _layout_handles(self) -> None:
         if not hasattr(self, "_resize_handles"):
             return
@@ -799,6 +813,17 @@ class MainWindow(AgentRunnerMixin, SessionMixin, FileTreeMixin, QMainWindow):
         self.run_btn.setToolTip("重跑：按当前编辑后的任务链重新执行")
         self.run_btn.clicked.connect(self.on_run_tasks)
 
+        # 执行轨迹回放：只看不跑
+        self.trace_btn = QPushButton("≡")
+        self.trace_btn.setFixedWidth(30)
+        self.trace_btn.setStyleSheet(
+            "QPushButton{border:1px solid #EDEBE6;border-radius:6px;"
+            "background:#FFFFFF;color:#4A4A4A;font-size:13px;padding:4px 0;}"
+            "QPushButton:hover{background:#F2F0EA;}"
+        )
+        self.trace_btn.setToolTip("查看本会话的执行轨迹（工具调用、Critic 判定、改写）")
+        self.trace_btn.clicked.connect(self.on_show_traces)
+
         self.stop_btn = QPushButton("■")
         self.stop_btn.setFixedWidth(30)
         self.stop_btn.setStyleSheet(
@@ -823,6 +848,7 @@ class MainWindow(AgentRunnerMixin, SessionMixin, FileTreeMixin, QMainWindow):
 
         btn_row.addStretch(1)
         btn_row.addWidget(self.resume_btn)
+        btn_row.addWidget(self.trace_btn)
         btn_row.addWidget(self.stop_btn)
         btn_row.addWidget(self.run_btn)
         layout.addLayout(btn_row)
