@@ -7,6 +7,8 @@ Agent 只看到 name / description / args_schema / run，
 from __future__ import annotations
 
 import logging
+import os
+from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -35,12 +37,19 @@ class ImageRetrievalArgs(BaseModel):
         default_factory=dict,
         description="结构化约束：core_query / must / must_not / should / retrieve_count",
     )
+    auto_index: bool = Field(
+        False,
+        description="目录未索引时是否先建库。默认关闭，建库应该单独触发",
+    )
 
 
 class ImageRetrievalTool(BaseTool):
     name = "image_retrieval"
     description = "用自然语言描述搜索本地图片库，返回图片路径、描述与相似度"
     args_schema = ImageRetrievalArgs
+
+    #: 实时检索的图片数上限，超过就要求先建库
+    LIVE_LIMIT = 200
 
     def __init__(self, pipeline=None, guard: PathGuard | None = None):
         self._pipeline = pipeline
@@ -57,12 +66,12 @@ class ImageRetrievalTool(BaseTool):
         return self._pipeline
 
     def _ensure_indexed(self, folder) -> None:
-        """用户指定新目录时自动建索引；已索引过的目录直接跳过。"""
+        """显式建库时才调用，不再由检索链路隐式触发。"""
         key = str(folder.resolve()).lower()
         if key in self._indexed:
             return
 
-        logger.info("新目录，开始增量索引: %s", folder)
+        logger.info("开始增量索引: %s", folder)
         last = {"pct": -1}
 
         def progress(done: int, total: int, name: str) -> None:
@@ -79,13 +88,129 @@ class ImageRetrievalTool(BaseTool):
                 progress=progress,
             )
             if stats.locked:
-                # 另一个任务正在索引同一个目录，本次不标记已完成
-                logger.info("目录正在索引中，本次自动索引跳过")
+                logger.info("目录正在索引中，本次跳过")
                 return
             logger.info("索引完成: %s", stats.summary())
         except Exception as e:
-            logger.warning("自动索引 %s 失败: %s", folder, e)
+            logger.warning("索引 %s 失败: %s", folder, e)
+            return
         self._indexed.add(key)
+
+    # ── 实时检索（不入库）────────────────────────────────────────────────
+
+    def _indexed_folders(self) -> set[str]:
+        """当前向量库里已覆盖的目录（小写）。"""
+        try:
+            hits = self.pipeline.store.get(limit=50000)
+        except Exception:
+            return set()
+
+        folders: set[str] = set()
+        for hit in hits:
+            path = getattr(hit, "path", "") or ""
+            if path:
+                folders.add(str(Path(path).parent).lower())
+        return folders
+
+    def _is_indexed(self, folder: Path) -> bool:
+        """目录本身或其子目录里已有索引条目就算已覆盖。"""
+        try:
+            prefix = str(folder.resolve()).lower()
+        except OSError:
+            prefix = str(folder).lower()
+
+        for known in self._indexed_folders():
+            if (
+                known == prefix
+                or known.startswith(prefix + os.sep)
+                or known.startswith(prefix + "/")
+            ):
+                return True
+        return False
+
+    def _live_search(
+        self,
+        folder: Path,
+        query: str,
+        top_k: int,
+        should_stop=None,
+    ) -> dict[str, Any] | None:
+        """小目录直接现算向量，不写库。
+
+        适合临时一次性查询。超过 LIVE_LIMIT 张就拒绝，
+        因为逐张编码在 CPU 上会慢到不可接受。
+        """
+        from ..utils.image_scan import scan_images
+
+        try:
+            paths = scan_images(folder, recursive=True)
+        except Exception as e:
+            logger.warning("实时扫描失败 %s: %s", folder, e)
+            return None
+
+        if not paths:
+            return {
+                "query": query,
+                "images": [],
+                "confidence": 0.0,
+                "summary": f"目录里没有图片：{folder}",
+            }
+
+        if len(paths) > self.LIVE_LIMIT:
+            return None
+
+        logger.info("实时检索 %d 张（不入库）", len(paths))
+
+        vectors = []
+        kept: list[str] = []
+        bs = 16
+        for i in range(0, len(paths), bs):
+            if should_stop is not None and should_stop():
+                break
+            batch = paths[i : i + bs]
+            try:
+                feats = self.pipeline.encoder.encode_images(batch)
+            except Exception as e:
+                logger.warning("实时编码失败: %s", e)
+                continue
+            for path, vec in zip(batch, feats):
+                vectors.append(vec)
+                kept.append(str(path))
+
+        if not vectors:
+            return {
+                "query": query,
+                "images": [],
+                "confidence": 0.0,
+                "summary": "实时编码失败，没有可用结果",
+            }
+
+        import numpy as np
+
+        q = self.pipeline.encoder.encode_text(query)
+        mat = np.stack(vectors)
+        scores = mat @ q.reshape(-1)
+        order = np.argsort(-scores)[: max(1, top_k)]
+
+        images = [
+            RetrievedImage(
+                rank=i + 1,
+                path=kept[idx],
+                caption="",
+                score=round(float(scores[idx]), 3),
+                reason="实时检索（未入库）",
+            )
+            for i, idx in enumerate(order)
+        ]
+        avg = sum(i.score for i in images) / len(images) if images else 0.0
+        return RetrievalResult(
+            query=query,
+            images=images,
+            confidence=round(avg, 3),
+            summary=(
+                f"实时检索 {len(kept)} 张（目录未入库，结果不持久）" f" · 返回 {len(images)} 张"
+            ),
+        ).model_dump()
 
     def _dedupe(self, images, threshold: float):
         """按向量相似度去重，保留排名靠前的那张。"""
@@ -188,6 +313,7 @@ class ImageRetrievalTool(BaseTool):
         dedupe_threshold: float = 0.95,
         exclude_paths: list[str] | None = None,
         constraints: dict | None = None,
+        auto_index: bool = False,
     ) -> dict[str, Any]:
         # 查询为空时用约束里的核心词兜底，全空则直接返回
         if not (query or "").strip() and constraints:
@@ -213,8 +339,29 @@ class ImageRetrievalTool(BaseTool):
                     summary=f"路径不安全，已拒绝：{e}",
                 ).model_dump()
             if folder.is_dir():
-                self._ensure_indexed(folder)
                 scope = str(folder)
+
+                # 建库与检索严格分开：
+                # 已索引 → 直接 ANN；未索引且目录小 → 实时检索；
+                # 未索引且目录大 → 告知先建库，不在检索链路里偷偷跑索引。
+                if not self._is_indexed(folder):
+                    if auto_index:
+                        self._ensure_indexed(folder)
+                    else:
+                        live = self._live_search(folder, query, top_k, should_stop=should_stop)
+                        if live is not None:
+                            return live
+
+                        return RetrievalResult(
+                            query=query,
+                            images=[],
+                            confidence=0.0,
+                            summary=(
+                                f"目录还没建索引，且图片超过 {self.LIVE_LIMIT} 张，"
+                                "不适合实时逐张编码。\n"
+                                f"先告诉我「把 {folder} 加入索引库」，建完再搜会快很多。"
+                            ),
+                        ).model_dump()
 
         resp = self.pipeline.searcher.search_text(
             query,
