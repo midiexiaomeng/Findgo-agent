@@ -343,7 +343,7 @@ class FindgoAgent:
                 }
 
             result, retries = self._execute_with_retry(
-                tool, args, should_stop=should_stop, access_level=access_level
+                tool, args, should_stop=should_stop, access_level=access_level, task=task
             )
 
             if result.get("error") and not continue_on_failure:
@@ -404,6 +404,11 @@ class FindgoAgent:
                     f"{reply}\n\n（本会话已经给过 {len(excluded_paths)} 张，库里符合条件的"
                     f"只剩下 {len(images)} 张。说「从头找」可以重新搜全库。）"
                 )
+
+            # 部分成功或失败时，把可执行的建议一并说出来
+            hint = str(result.get("hint", "") or "")
+            if hint and (result.get("partial") or result.get("error")):
+                reply = f"{reply}\n\n建议：{hint}"
 
             for item in images:
                 path = item.get("path", "") if isinstance(item, dict) else getattr(item, "path", "")
@@ -496,6 +501,7 @@ class FindgoAgent:
         args: dict[str, Any],
         should_stop=None,
         access_level: str = "auto",
+        task=None,
     ) -> tuple[dict[str, Any], int]:
         query = str(args.get("query", ""))
         attempt = 0
@@ -516,18 +522,29 @@ class FindgoAgent:
                 )
                 return result, 0
             if result.get("error") == "run_failed":
+                category = str(result.get("category", "unknown"))
                 result = {
                     "images": [],
                     "confidence": 0.0,
                     "summary": result.get("summary", "工具执行失败"),
+                    "partial": True,
+                    "category": category,
+                    "hint": result.get("hint", ""),
                 }
+                # 显存与网络类问题，改写查询重试也救不回来
+                if category in ("gpu_oom", "network", "memory", "vectorstore"):
+                    logger.info("错误类别 %s 不重试，直接返回", category)
+                    self.trace.error("tool", category, tool=tool.name)
+                    return result, 0
 
-            critique = self.critic.check(result)
+            critique = self.critic.check(result, task)
             self.trace.info(
                 "critic",
                 "check",
                 passed=critique.passed,
                 confidence=round(critique.confidence, 3),
+                severity=critique.severity,
+                issues=critique.issues[:3],
                 reason=critique.reason[:80],
             )
             self.memory.add_trace(
@@ -540,9 +557,13 @@ class FindgoAgent:
 
             if critique.passed or attempt >= self.critic.max_retries:
                 return result, attempt
+            if not critique.retryable:
+                # 约束不命中这类问题，改写也救不回来，直接返回
+                logger.info("问题不可通过改写修复：%s", critique.reason[:60])
+                return result, attempt
 
             attempt += 1
-            new_query = self.critic.rewrite(query, critique.reason)
+            new_query = self.critic.rewrite(query, critique.reason, critique)
             self.trace.info(
                 "critic",
                 "rewrite",

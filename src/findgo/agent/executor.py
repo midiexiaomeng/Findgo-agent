@@ -78,13 +78,17 @@ class ToolExecutor:
             logger.warning("工具超时 %s（%.0fs）", tool.name, limit)
             return {
                 "error": "timeout",
+                "category": "timeout",
                 "summary": f"{tool.name} 执行超时（{limit:.0f} 秒）",
             }, 0
         except Exception as e:
-            logger.warning("工具异常 %s: %s", tool.name, e)
+            category, hint = self._classify_error(e)
+            logger.warning("工具异常 %s [%s]: %s", tool.name, category, e)
             return {
                 "error": "run_failed",
+                "category": category,
                 "summary": f"{tool.name} 执行失败：{e}",
+                "hint": hint,
             }, 0
 
         if not isinstance(result, dict):
@@ -93,6 +97,43 @@ class ToolExecutor:
         elapsed = time.time() - started
         logger.info("工具 %s 完成，耗时 %.2fs", tool.name, elapsed)
         return self._truncate(result), 0
+
+    # ── 错误分类 ────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _classify_error(error: Exception) -> tuple[str, str]:
+        """把异常归到能看懂的一类，并给一条处理建议。
+
+        区分四类：模型/显存、向量库、网络、文件系统。
+        不细分就只能统一说「执行失败」，排查得翻日志。
+        """
+        name = type(error).__name__
+        text = str(error).lower()
+
+        # 显存不足
+        if "cuda out of memory" in text or "outofmemory" in text:
+            return "gpu_oom", "显存不足，把推理设备改成 CPU 或减少重排候选数"
+
+        # 向量库
+        if "vectorstore" in text or "qdrant" in text or "chroma" in text:
+            return "vectorstore", "向量库异常，检查是否被其他进程占用，或重建索引"
+
+        # 网络
+        if any(
+            key in text for key in ("connection", "timeout", "timed out", "ssl", "proxy", "http")
+        ) or name in ("ConnectionError", "Timeout", "ReadTimeout", "ConnectTimeout"):
+            return "network", "网络异常，检查 API 地址与代理设置"
+
+        # 文件
+        if isinstance(error, (FileNotFoundError, PermissionError, IsADirectoryError)):
+            return "io", "文件不可访问，检查路径是否存在、是否有读权限"
+        if isinstance(error, OSError):
+            return "io", "磁盘或文件系统异常"
+
+        if isinstance(error, MemoryError):
+            return "memory", "内存不足，减小批量大小"
+
+        return "unknown", "未知错误，详见日志"
 
     # ── 权限校验 ────────────────────────────────────────────────────────────
 
