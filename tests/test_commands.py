@@ -115,6 +115,24 @@ def test_diary_writes_file(tmp_path, monkeypatch):
     assert "日记" in result
 
 
+def test_diary_prompt_is_assistant_voice(tmp_path, monkeypatch):
+    """日记必须是助手口吻，不是用户自己的日记。"""
+    history = [
+        {"role": "user", "content": "找 5 张猫的图片"},
+        {"role": "assistant", "content": "找到 5 张"},
+    ]
+    agent = _FakeAgent(history=history)
+    monkeypatch.setattr("findgo.agent.commands._data_dir", lambda _a: tmp_path)
+    monkeypatch.setattr("findgo.agent.commands._project_root", lambda _a: tmp_path)
+
+    run_diary(agent, "")
+
+    prompt = agent.client.calls[0][1]["content"]
+    assert "我（助手）的第一人称视角" in prompt
+    assert "你是助手，不是主人" in prompt
+    assert "主人" in prompt
+
+
 def test_diary_prompt_forbids_fabrication(tmp_path, monkeypatch):
     """日记提示词必须明确禁止编造记录里没有的内容。"""
     history = [

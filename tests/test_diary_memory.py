@@ -137,7 +137,7 @@ def test_memory_context_includes_diary(tmp_path, monkeypatch):
     orch.tools = {}
 
     ctx = orch._memory_context()
-    assert "最近几天的日记" in ctx
+    assert "我自己写的日记" in ctx
     assert "今天找了几张猫的图片" in ctx
 
 

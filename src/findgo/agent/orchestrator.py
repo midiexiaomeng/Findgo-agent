@@ -237,7 +237,7 @@ class FindgoAgent:
 
             diary = recent_diary_text(days=3)
             if diary:
-                parts.append("【最近几天的日记（用户写过的，可在需要时引用）】\n" + diary)
+                parts.append("【我自己写的日记（记录了当时帮主人做过什么）】\n" + diary)
         except Exception:
             pass
 

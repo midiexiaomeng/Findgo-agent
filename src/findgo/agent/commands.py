@@ -42,25 +42,28 @@ def is_command(text: str) -> bool:
 
 
 def run_diary(agent, args: str, session_id: str = "") -> str:
-    """/diary：把当前会话的记录整理成一篇日记，写入 data/diary/日期.md"""
+    """/diary：以助手的第一人称写一篇工作日记，写入 data/diary/日期.md"""
     history = _safe_history(agent)
     if not history:
         raise CommandError("当前会话还没有内容，先聊几句再写日记。")
 
     transcript = _format_transcript(history, limit=60)
-    extra = f"\n\n我想补充一句：{args}" if args else ""
+    extra = f"\n\n补充：{args}" if args else ""
 
     prompt = (
-        "下面是我今天在这个程序里的操作记录。把它整理成一篇简短的日记。\n\n"
-        "硬规则：\n"
-        "1. 只能写记录里真实出现过的事。记录里没有的天气、地点、人物、心情、"
+        "下面是我（助手）今天和主人一起做事的对话记录。\n"
+        "请以**我（助手）的第一人称视角**写一篇简短的日记。\n\n"
+        "视角要求（很重要）：\n"
+        "1. 你是助手，不是主人。写的是「我帮主人做了什么」，不是「主人今天做了什么」。\n"
+        "2. 称呼对方为「主人」或「你」，不要自称主人，不要用「我（用户）」的口吻。\n"
+        "3. 可以写自己的观察和感受，比如某个需求不好处理、某个结果比预期好。\n\n"
+        "内容硬规则：\n"
+        "4. 只能写记录里真实出现过的事。记录里没有的天气、地点、人物、心情、"
         "买了什么、遇到谁、看到什么，一律不能写。\n"
-        "2. 不允许虚构情节，也不要用套话填字数。记录少就写短，一句话也可以。\n"
-        "3. 可以做的事：把零散的操作归成几件事，用“我先……然后……”这类平实句子串起来；"
-        "对结果补一句真实感受，但感受必须能对应到具体做过的事。\n"
-        "4. 第一人称，不要标题、不要分条、不要小标题。\n"
-        "5. 结尾不要写“明天要努力”这类空话，除非记录里确实提到了后续打算。\n\n"
-        f"操作记录：\n{transcript}{extra}"
+        "5. 不允许虚构情节，也不要用套话填字数。记录少就写短，一句话也可以。\n"
+        "6. 结尾不要写「明天要努力」这类空话，除非记录里确实提到了后续打算。\n\n"
+        "格式：不要标题、不要分条、不要小标题，一段话写到底。\n\n"
+        f"对话记录：\n{transcript}{extra}"
     )
 
     text = _ask_llm(agent, prompt, max_tokens=800)
@@ -77,7 +80,7 @@ def run_diary(agent, args: str, session_id: str = "") -> str:
     mode = "a" if path.exists() else "w"
     with path.open(mode, encoding="utf-8") as f:
         if mode == "w":
-            f.write(f"# {today} 日记\n")
+            f.write(f"# {today}\n")
         f.write(block)
 
     return f"日记已写入 {path.relative_to(_project_root(agent))}\n\n{text.strip()}"
