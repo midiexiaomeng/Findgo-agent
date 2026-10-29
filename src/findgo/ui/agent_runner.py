@@ -167,6 +167,16 @@ class AgentRunnerMixin:
         except Exception:
             default_scope = ""
 
+        # 用户说「从头找」「重新搜」时，把累积的排除记录清掉
+        try:
+            from findgo.agent.planner import detect_reset
+
+            if detect_reset(text):
+                agent.reset_recall_memory()
+                self.append_log(">>> 已清空排除记录，本次从全库重新检索")
+        except Exception:
+            pass
+
         tasks = agent.plan_tasks(text)
         if default_scope:
             for task in tasks:

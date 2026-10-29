@@ -77,6 +77,8 @@ class SessionMixin:
             agent.memory.new_session()
             agent.memory.save_tasks([])
             agent.memory.prune_sessions(keep=max(1, int(agent.config.memory_max_sessions)))
+            # 新会话重新开始，之前排除过的图片可以再出现
+            agent.reset_recall_memory()
             self.conversation = []
             self.last_results = []
             self._clear_chat_view()
@@ -94,6 +96,7 @@ class SessionMixin:
         try:
             agent = self._get_agent()
             agent.memory.switch_session(sid)
+            agent.reset_recall_memory()
             self._load_chat(sid)
             self.task_list.clear()
             for task in agent.memory.load_tasks(sid):

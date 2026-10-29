@@ -38,6 +38,24 @@ def detect_reuse(query: str) -> bool:
     return any(word in text for word in REUSE_KEYWORDS)
 
 
+RESET_KEYWORDS = (
+    "从头",
+    "重新找",
+    "重新搜",
+    "重新检索",
+    "忽略之前",
+    "不管之前",
+    "清空排除",
+    "重来",
+)
+
+
+def detect_reset(query: str) -> bool:
+    """用户是否要求忘掉之前给过的结果，从全库里重新找。"""
+    text = (query or "").lower()
+    return any(word in text for word in RESET_KEYWORDS)
+
+
 def assess_risk(query: str) -> str:
     """在规划阶段就标出高风险意图，供 UI 提前确认。"""
     text = (query or "").lower()

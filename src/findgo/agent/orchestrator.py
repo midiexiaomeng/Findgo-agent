@@ -90,9 +90,11 @@ class FindgoAgent:
         persist = self.config.resolve_db_path() if self.config.memory_persist else None
         self.memory = Memory(persist_path=persist, resume=True)
         self.executor = ToolExecutor()
-        # 上一轮返回过的图片，下一轮默认排除，避免重复推荐
+        # 上一轮返回过的图片，用于「再发一次」
         self._last_paths: set[str] = set()
         self._last_images: list[dict] = []
+        # 本会话累计出现过的图片，连续「再找」时全部排除
+        self._seen_paths: set[str] = set()
 
         if tools is not None:
             self.tools = tools
@@ -206,6 +208,13 @@ class FindgoAgent:
             extra_context=self._memory_context(),
         )
 
+    def reset_recall_memory(self) -> None:
+        """切会话或用户要求从头找时清空累计排除。"""
+        self._last_paths = set()
+        self._last_images = []
+        self._seen_paths = set()
+        logger.info("已清空本轮会话的排除记录")
+
     def _memory_context(self) -> str:
         """把结构化事实与最近日记拼成 Planner 的背景信息。"""
         parts: list[str] = []
@@ -247,6 +256,8 @@ class FindgoAgent:
         results: list[AgentResult] = []
         previous_paths = set(self._last_paths)
         previous_images = list(self._last_images)
+        # 累计排除：不只避上一轮，把本会话出现过的都扣掉
+        excluded_paths = set(self._seen_paths) | previous_paths
         this_round_paths: set[str] = set()
         steps = 0
         for task in tasks:
@@ -320,7 +331,7 @@ class FindgoAgent:
                     "top_k": task.top_k if task.top_k > 0 else self.config.top_k,
                     "folder_path": task.path or "",
                     "all_results": bool(task.all_results),
-                    "exclude_paths": list(previous_paths),
+                    "exclude_paths": list(excluded_paths),
                 }
 
             result, retries = self._execute_with_retry(
@@ -375,6 +386,14 @@ class FindgoAgent:
                 self.memory.add("user", task.query or task.description)
                 self.memory.add("assistant", reply)
 
+            # 排除后不够数时补一句，免得用户以为是没找到
+            want = task.top_k if task.top_k > 0 else 0
+            if want and len(images) < want and excluded_paths:
+                reply = (
+                    f"{reply}\n\n（本会话已经给过 {len(excluded_paths)} 张，库里符合条件的"
+                    f"只剩下 {len(images)} 张。说「从头找」可以重新搜全库。）"
+                )
+
             for item in images:
                 path = item.get("path", "") if isinstance(item, dict) else getattr(item, "path", "")
                 if path:
@@ -397,6 +416,7 @@ class FindgoAgent:
                 self.update_facts(task.query or task.description, reply)
 
         self._last_paths = this_round_paths
+        self._seen_paths |= this_round_paths
         if this_round_paths:
             self._last_images = [
                 item for result in results for item in result.results if isinstance(item, dict)
