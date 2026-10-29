@@ -112,6 +112,8 @@ class FindgoAgent:
                 self.config.workspace_roots or None,
             )
             self.sandbox = guard
+            # 路径校验前置：Planner 抽出的路径先用沙箱拦一道
+            self.planner.sandbox = guard
             self.tools = {
                 "image_retrieval": ImageRetrievalTool(pipeline, guard=guard),
                 "image_search_by_image": ImageSearchByImageTool(pipeline, guard=guard),
@@ -305,6 +307,11 @@ class FindgoAgent:
                 if tool is None or not task.path:
                     continue
                 args = {"path": task.path}
+            elif task.action == "index":
+                tool = self.tools.get("index_folder")
+                if tool is None or not task.path:
+                    continue
+                args = {"folder_path": task.path}
             else:
                 if not task.query.strip():
                     continue
@@ -378,6 +385,9 @@ class FindgoAgent:
                     continue
             elif task.action == "scan":
                 reply = str(result.get("summary") or "")
+                images = []
+            elif task.action == "index":
+                reply = str(result.get("summary") or "索引已更新。")
                 images = []
             else:
                 reply = self.responder.compose(task.query, result)

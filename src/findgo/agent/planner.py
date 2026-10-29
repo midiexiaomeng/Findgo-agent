@@ -57,6 +57,27 @@ def detect_reset(query: str) -> bool:
     return any(word in text for word in RESET_KEYWORDS)
 
 
+#: 只有出现这些词，才允许生成建库任务
+INDEX_INTENT = (
+    "建索引",
+    "建库",
+    "入库",
+    "加入图库",
+    "加入索引",
+    "生成向量库",
+    "收进索引",
+    "建立索引",
+    "更新索引",
+    "重建索引",
+)
+
+
+def has_index_intent(query: str) -> bool:
+    """用户是不是明确要求建库。没有这个意图就不该出现 index 任务。"""
+    text = (query or "").lower()
+    return any(word in text for word in INDEX_INTENT)
+
+
 def assess_risk(query: str) -> str:
     """在规划阶段就标出高风险意图，供 UI 提前确认。"""
     text = (query or "").lower()
@@ -64,10 +85,11 @@ def assess_risk(query: str) -> str:
 
 
 class Planner:
-    def __init__(self, client, prompts: dict[str, str], max_iterations: int = 5):
+    def __init__(self, client, prompts: dict[str, str], max_iterations: int = 5, sandbox=None):
         self.client = client
         self.prompts = prompts or {}
         self.max_iterations = max_iterations
+        self.sandbox = sandbox
 
     # ── 决策 ──────────────────────────────────────────────────────────────
 
@@ -134,10 +156,15 @@ class Planner:
     ) -> list[TaskSpec]:
         """把复杂需求拆成 1-3 个检索任务。"""
         # 正则优先提取路径，LLM 只做确认与语义拆解
-        extractor = PathExtractor()
+        extractor = PathExtractor(sandbox=getattr(self, "sandbox", None))
         candidates = extractor.candidates(query)
         known_path = extractor.resolve_with_llm(query, candidates, self.client)
         clean_query = extractor.strip_paths(query, candidates) if candidates else query
+
+        # 最后一道：LLM 确认的路径也要过沙箱
+        if known_path and not extractor._allowed(known_path):
+            logger.info("LLM 确认的路径被沙箱拒绝: %s", known_path)
+            known_path = ""
 
         if known_path:
             path_hint = f"已识别路径：{known_path}（请直接使用）"
@@ -147,49 +174,49 @@ class Planner:
             path_hint = "用户没有提到文件夹路径"
 
         prompt = (
+            "【硬性铁则，必须严格遵守】\n"
+            "1. 检索任务永远不生成 index 任务。只有用户亲口说出：\n"
+            "   「建索引」「入库」「加入图库」「生成向量库」「建库」时才可生成。\n"
+            "   用户说「在某个文件夹找图」时，只生成检索任务，不要预判目录状态。\n"
+            "   目录有没有索引、要不要建库，由执行层自己判断，不归你管。\n"
+            "2. 一条指令只能生成一类任务。检索与建库不能出现在同一个 tasks 里。\n"
+            "3. 字段隔离：core_query 只放正向主体名词。\n"
+            "   数量→retrieve_count；否定（不要/排除/不是）→must_not；\n"
+            "   硬条件（必须/只要/一定要）→must；软偏好（最好/尽量）→should。\n"
+            "   严禁把数字、否定词、数量词写进 core_query。\n\n"
             f"可用工具：\n{tools_desc}\n\n"
             f"用户需求：{query}\n"
             f"路径信息：{path_hint}\n\n"
-            "请把用户的话拆成结构化约束。核心原则：**约束优先于关键词**。\n"
-            "否定、排除、偏好都要单独列出来，不要塞进 core_query 里。\n\n"
             "字段说明：\n"
-            "- core_query：画面里有什么，只写正向内容，**不带数量词、不带否定词**。\n"
-            "  用户说「找两张白色的猫，不要黑的」，core_query 是「猫」，\n"
-            "  must 里放「白色」，must_not 里放「黑色」。\n"
-            "- must：必须满足的条件（颜色、动作、场景、题材），不满足就淘汰。\n"
-            "  用户说「一定要」「必须是」「只要」时放这里。\n"
-            "- must_not：必须排除的条件，命中就淘汰。\n"
-            "  用户说「不要」「别」「排除」「不是」时放这里。\n"
-            "  指代之前的图（「刚才那几张不要」）由系统自动处理，不用写进来。\n"
-            "- should：加分但非必需的偏好。用户说「最好」「尽量」「希望」时放这里。\n"
-            "- retrieve_count：要返回几张图。与图片内容里有几个对象无关。\n"
-            "  没提数量填 0。\n"
-            "- diversity：需要多样化结果时填 true（默认），\n"
-            "  用户说「就要同一种风格」「都差不多的」时填 false。\n"
-            "- path：用户提到的文件夹路径，原样保留。没提填空字符串。\n\n"
-            "现有工具覆盖：文本搜图、以图搜图、建/删索引、索引统计、导出清单、"
-            "找重复图、暂存区管理、单图描述、目录扫描。\n\n"
-            "【建库与检索是两件事，不要混在一起】\n"
-            "- 用户说「建索引」「加入库」「把这个目录收进来」→ 单独一个 index 任务，\n"
-            "  不要同时带检索。\n"
-            "- 用户说「在某个目录里找图」→ 只做检索。系统会自动判断该目录\n"
-            "  是否已建索引：已建直接搜，未建且图片少就实时检索，\n"
-            "  未建且图片多会提示先建库。\n"
-            "- 用户提到一个全新的目录又想搜，判断不了大小时，\n"
-            "  先返回一个 index 任务让用户确认，不要默认去建。\n\n"
-            "超出这些能力且能用简单只读 Python 实现时，可附加 dynamic_tool 字段：\n"
+            "- core_query：画面里有什么，只写正向内容。\n"
+            "  「找两张白色的猫，不要黑的」→ core_query 是「猫」\n"
+            "- must：不满足就淘汰的硬条件\n"
+            "- must_not：命中就淘汰的排除条件。指代之前的图由系统处理，不用写\n"
+            "- should：加分但非必需\n"
+            "- retrieve_count：返回几张图，没提填 0\n"
+            "- diversity：需要多样化填 true，用户说「就要差不多的」填 false\n"
+            "- path：文件夹路径，没提填空字符串\n\n"
+            "超出工具能力且能用简单只读 Python 实现时，可附加 dynamic_tool：\n"
             '{"name":"...","description":"...","tags":["read-only"],'
             '"timeout":60,"args_schema_code":"class Args(BaseModel):\\n    ...",'
             '"run_func_code":"def run(self, args):\\n    ...","safety_note":"..."}\n'
-            "动态工具禁止硬编码具体路径，路径从参数传入并用 sandbox_check_path 校验。\n\n"
-            "只输出 JSON：\n"
-            '{"tasks":[{"id":1,"core_query":"猫","must":["白色"],'
+            "动态工具只能读，不得写文件、删文件；路径从参数传入并用 sandbox_check_path 校验。\n\n"
+            "输出规则（违反则无效）：\n"
+            "① 只返回纯 JSON，不要解释、不要 markdown、不要 ``` 代码块\n"
+            "② 严格按样例字段，不新增字段\n"
+            '③ 结构固定为 {"tasks":[...]}\n\n'
+            "样例：\n"
+            "用户输入：找两张白色的猫，不要黑色的，最好是躺着的\n"
+            '输出：{"tasks":[{"id":1,"core_query":"猫","must":["白色"],'
             '"must_not":["黑色"],"should":["躺着"],"retrieve_count":2,'
-            '"diversity":true,"description":"找两张白色的猫","path":""}]}'
+            '"diversity":true,"description":"查找两张白色猫咪图片","path":""}]}'
         )
 
         if extra_context.strip():
-            prompt += "\n\n【背景信息（仅供参考，不是本轮指令）】\n" + extra_context.strip()
+            prompt += (
+                "\n\n【背景信息：仅作上下文参考，不参与任务拆解】\n"
+                "下列内容不得转化为额外约束，也不得据此新增任务。\n" + extra_context.strip()
+            )
         messages: list[dict[str, str]] = [
             {"role": "system", "content": self.prompts.get("system", "")},
         ]
@@ -197,14 +224,34 @@ class Planner:
             messages.append(item)
         messages.append({"role": "user", "content": prompt})
 
-        try:
-            raw = self.client.chat(messages, json_mode=True, max_tokens=384)
-        except Exception as e:
-            logger.warning("任务拆解调用失败: %s", e)
-            return [TaskSpec(id=1, description=query, query=query)]
+        # JSON 偶尔带 markdown 围栏或残缺，重试一次；仍失败就降级为正则兜底
+        data = None
+        for attempt in range(2):
+            try:
+                raw = self.client.chat(messages, json_mode=True, max_tokens=800)
+            except Exception as e:
+                logger.warning("任务拆解调用失败（第 %d 次）: %s", attempt + 1, e)
+                continue
 
-        data = self._parse(raw)
-        tasks = data.get("tasks") if isinstance(data, dict) else None
+            parsed = self._parse(raw)
+            if isinstance(parsed, dict) and isinstance(parsed.get("tasks"), list):
+                data = parsed
+                break
+            logger.warning("任务 JSON 解析失败（第 %d 次），raw=%s", attempt + 1, str(raw)[:160])
+
+        if data is None:
+            logger.info("两次解析均失败，降级为正则拆解")
+            fallback = parse_from_text(query)
+            return [
+                TaskSpec(
+                    id=1,
+                    description=query,
+                    query=fallback.core_query or query,
+                    constraints=fallback.to_dict(),
+                )
+            ]
+
+        tasks = data.get("tasks")
         if not isinstance(tasks, list) or not tasks:
             return [TaskSpec(id=1, description=query, query=query)]
 
@@ -215,6 +262,14 @@ class Planner:
 
             # 新结构：core_query + 三类约束；旧字段 query 兼容回退
             core = str(item.get("core_query") or item.get("query") or clean_query)
+
+            # 代码层强制清洗：LLM 把数量词/否定词写进 core_query 时拉到正确字段
+            from .constraints import clean_core_query
+
+            cleaned, extra_neg, extra_pref = clean_core_query(core)
+            if cleaned:
+                core = cleaned
+
             # LLM 偶尔返回空字符串，兜底用原句，否则检索直接空转
             if not core.strip():
                 core = clean_query or query
@@ -251,6 +306,14 @@ class Planner:
                 constraints.must_not = fallback.must_not
                 constraints.should = fallback.should
 
+            # 把清洗出来的词补回对应字段，去重
+            for term in extra_neg:
+                if term not in constraints.must_not:
+                    constraints.must_not.append(term)
+            for term in extra_pref:
+                if term not in constraints.should:
+                    constraints.should.append(term)
+
             task_path = str(item.get("path") or "").strip()
             all_results = bool(item.get("all_results", False))
 
@@ -280,6 +343,7 @@ class Planner:
             )
         risk = assess_risk(query)
         reuse = detect_reuse(query)
+        index_mode = has_index_intent(query)
         for task in result:
             if task.constraints:
                 logger.info(
@@ -292,6 +356,14 @@ class Planner:
                 )
             task.risk = "high" if task.is_dynamic else risk
             task.reuse_last = reuse
+
+            # 建库是独立动作：只有用户明确要求，且有大目录时才转成 index
+            if index_mode and task.path and not task.is_dynamic:
+                task.action = "index"
+            elif task.action == "index" and not index_mode:
+                # LLM 自己编出来的建库任务，一律降回检索
+                logger.info("用户未要求建库，已忽略模型生成的 index 任务")
+                task.action = "retrieve"
 
         if not result:
             return [TaskSpec(id=1, description=query, query=query, risk=risk)]

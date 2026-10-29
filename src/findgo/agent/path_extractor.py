@@ -25,6 +25,21 @@ class PathExtractor:
     _exists_cache: dict[str, tuple[float, bool]] = {}
     _cache_ttl: float = 30.0
 
+    def __init__(self, sandbox=None):
+        # 沙箱只做前置拦截：不在白名单里的路径直接丢弃，不送 LLM 判断
+        self.sandbox = sandbox
+
+    def _allowed(self, path: str) -> bool:
+        """路径是否在沙箱允许范围内。没配沙箱时放行。"""
+        if self.sandbox is None or not path:
+            return True
+        try:
+            self.sandbox.check(path, "read")
+            return True
+        except Exception as e:
+            logger.info("路径不在允许范围，已丢弃: %s（%s）", path, e)
+            return False
+
     def _exists_dir(self, path: Path) -> bool:
         key = str(path).lower()
         now = time.time()
@@ -113,6 +128,13 @@ class PathExtractor:
         """正则 + 存在性校验都没定论时，让 LLM 在候选里挑一个。"""
         if not candidates:
             return ""
+
+        # 0. 沙箱前置：不在白名单里的候选直接踢掉，不浪费一次 LLM 调用
+        allowed = [c for c in candidates if self._allowed(c)]
+        if not allowed:
+            logger.info("所有路径候选都被沙箱拒绝: %s", candidates)
+            return ""
+        candidates = allowed
 
         # 1. 存在性校验（最可靠）
         resolved = self.resolve(candidates)

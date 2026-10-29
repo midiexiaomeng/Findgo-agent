@@ -22,8 +22,11 @@ logger = logging.getLogger(__name__)
 TERM_MAP: dict[str, tuple[str, ...]] = {
     # 颜色
     "白色": ("white", "snow"),
+    "白": ("white", "snow"),
     "黑色": ("black", "dark"),
+    "黑": ("black", "dark"),
     "灰色": ("gray", "grey"),
+    "灰": ("gray", "grey"),
     "红色": ("red", "crimson"),
     "蓝色": ("blue", "navy"),
     "绿色": ("green",),
@@ -229,9 +232,77 @@ def parse_from_text(text: str) -> Constraints:
     return Constraints(core_query=core, must_not=must_not, should=should)
 
 
+# ── core_query 清洗 ─────────────────────────────────────────────────────
+
+#: 数量表述：两张、三张、十个、5 张……
+COUNT_PATTERN = re.compile(
+    r"[\d一二两三四五六七八九十百千]+\s*(?:张|幅|个|条|只|种|张图|张照片|张图片)"
+)
+
+#: 否定前缀，命中后把它后面的词提到 must_not
+NEG_PATTERN = re.compile(
+    r"(?:不要|不想要|排除|别要|别|去掉|不是|非)\s*([^\s，。；、,.;]{1,8}?)(?=[，。；、,.;\s]|$)"
+)
+
+#: 偏好前缀，命中后把它后面的词提到 should
+PREF_PATTERN = re.compile(
+    r"(?:最好|尽量|优先|偏向|希望|喜欢|要是能)\s*([^\s，。；、,.;]{1,8}?)(?=[，。；、,.;\s]|$)"
+)
+
+#: 检索动词与尾缀，不构成画面内容
+VERB_PATTERN = re.compile(
+    r"^(?:帮我|给我|麻烦)?\s*(?:找|搜|查找|搜索|看看|来|要|列|弄)(?:一下|几张|一些)?\s*"
+)
+TAIL_PATTERN = re.compile(r"\s*(?:的)?(?:图片|照片|图|图像)\s*$")
+
+
+def clean_core_query(text: str) -> tuple[str, list[str], list[str]]:
+    """把 core_query 里的数量词、否定词、偏好词剥出去。
+
+    即使 LLM 把它们写进 core_query，这一步也会拉到正确字段。
+    返回 (干净的主体词, 剥离出的否定词, 剥离出的偏好词)。
+    """
+    raw = (text or "").strip()
+    if not raw:
+        return "", [], []
+
+    must_not: list[str] = []
+    should: list[str] = []
+
+    for m in NEG_PATTERN.finditer(raw):
+        term = m.group(1).strip(" 的")
+        if term and term not in must_not:
+            must_not.append(term)
+
+    for m in PREF_PATTERN.finditer(raw):
+        term = m.group(1).strip(" 的")
+        if term and term not in should:
+            should.append(term)
+
+    cleaned = NEG_PATTERN.sub(" ", raw)
+    cleaned = PREF_PATTERN.sub(" ", cleaned)
+    cleaned = COUNT_PATTERN.sub(" ", cleaned)
+
+    # 去掉残留的连接词与标点
+    cleaned = re.sub(r"[，。；、,.;]+", " ", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip(" 的")
+
+    # 检索动词与「的图片」这类尾缀不属于画面内容
+    cleaned = VERB_PATTERN.sub("", cleaned)
+    cleaned = TAIL_PATTERN.sub("", cleaned)
+    cleaned = cleaned.strip(" 的")
+
+    # 只剩虚词时当作没洗出东西，交给上层兜底
+    if not cleaned or cleaned in {"图片", "照片", "图", "找到", "找"}:
+        cleaned = ""
+
+    return cleaned, must_not, should
+
+
 __all__ = [
     "Constraints",
     "TERM_MAP",
+    "clean_core_query",
     "english_terms",
     "filter_by_constraints",
     "matches_term",

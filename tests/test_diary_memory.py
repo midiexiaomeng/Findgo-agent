@@ -109,9 +109,9 @@ def test_planner_query_instruction_excludes_count():
     src = inspect.getsource(
         __import__("findgo.agent.planner", fromlist=["Planner"]).Planner.plan_tasks
     )
-    assert "约束优先于关键词" in src
+    assert "硬性铁则" in src
     assert "must_not" in src
-    assert "不带数量词" in src
+    assert "严禁把数字、否定词、数量词写进 core_query" in src
 
 
 def test_memory_context_includes_diary(tmp_path, monkeypatch):

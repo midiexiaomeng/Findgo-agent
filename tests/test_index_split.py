@@ -279,5 +279,5 @@ def test_planner_prompt_separates_index_and_search():
     from findgo.agent.planner import Planner
 
     src = inspect.getsource(Planner.plan_tasks)
-    assert "建库与检索是两件事" in src
-    assert "不要同时带检索" in src
+    assert "检索任务永远不生成 index 任务" in src
+    assert "一条指令只能生成一类任务" in src
