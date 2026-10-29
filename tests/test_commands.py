@@ -115,6 +115,24 @@ def test_diary_writes_file(tmp_path, monkeypatch):
     assert "日记" in result
 
 
+def test_diary_prompt_forbids_fabrication(tmp_path, monkeypatch):
+    """日记提示词必须明确禁止编造记录里没有的内容。"""
+    history = [
+        {"role": "user", "content": "找 5 张猫的图片"},
+        {"role": "assistant", "content": "找到 5 张"},
+    ]
+    agent = _FakeAgent(history=history)
+    monkeypatch.setattr("findgo.agent.commands._data_dir", lambda _a: tmp_path)
+    monkeypatch.setattr("findgo.agent.commands._project_root", lambda _a: tmp_path)
+
+    run_diary(agent, "")
+
+    prompt = agent.client.calls[0][1]["content"]
+    assert "不能写" in prompt
+    assert "不允许虚构" in prompt
+    assert "找 5 张猫的图片" in prompt
+
+
 def test_diary_appends_same_day(tmp_path, monkeypatch):
     history = [{"role": "user", "content": "找图"}]
     agent = _FakeAgent(history=history, reply="第一次")
