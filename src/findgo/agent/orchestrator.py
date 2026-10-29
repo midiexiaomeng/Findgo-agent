@@ -199,7 +199,36 @@ class FindgoAgent:
     def plan_tasks(self, user_input: str) -> list[TaskSpec]:
         """让 Planner 拆解任务，供界面展示与人工干预。"""
         tools_desc = "\n".join(t.signature() for t in self.tools.values())
-        return self.planner.plan_tasks(user_input, tools_desc, history=self.memory.recent(n=20))
+        return self.planner.plan_tasks(
+            user_input,
+            tools_desc,
+            history=self.memory.recent(n=20),
+            extra_context=self._memory_context(),
+        )
+
+    def _memory_context(self) -> str:
+        """把结构化事实与最近日记拼成 Planner 的背景信息。"""
+        parts: list[str] = []
+
+        try:
+            facts = self.memory.get_facts()
+            if facts:
+                import json
+
+                parts.append("【当前会话事实】\n" + json.dumps(facts, ensure_ascii=False, indent=2))
+        except Exception:
+            pass
+
+        try:
+            from .diary import recent_diary_text
+
+            diary = recent_diary_text(days=3)
+            if diary:
+                parts.append("【最近几天的日记（用户写过的，可在需要时引用）】\n" + diary)
+        except Exception:
+            pass
+
+        return "\n\n".join(parts)
 
     def run_tasks(
         self,

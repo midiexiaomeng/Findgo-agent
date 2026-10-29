@@ -111,6 +111,7 @@ class Planner:
         query: str,
         tools_desc: str,
         history: Sequence[dict[str, str]] = (),
+        extra_context: str = "",
     ) -> list[TaskSpec]:
         """把复杂需求拆成 1-3 个检索任务。"""
         # 正则优先提取路径，LLM 只做确认与语义拆解
@@ -146,16 +147,22 @@ class Planner:
             "能用现有工具完成时不要生成 dynamic_tool。\n"
             "每个任务包含：\n"
             "- description：一句话说明这次找什么\n"
-            "- query：用户想找的图片的完整描述，保留数量词和修饰语"
-            "（如「两张猫的图片」），不要只留关键词\n"
-            "- top_k：用户明确要求的图片数量。用户说“两张”就填 2，"
-            "说“几张”或没提数量就填 0（表示用系统默认值）\n"
+            "- query：图片内容的描述，只写画面里有什么，**不要带数量词**。\n"
+            "  用户说「找两张猫的图片」，query 应该是「猫」而不是「两张猫的图片」；\n"
+            "  说「五张夕阳下的海边」，query 是「夕阳下的海边」。\n"
+            "- top_k：要返回的图片张数。这里的数量指「给用户看几张图」，\n"
+            "  与图片内容里有几个对象无关。用户说“两张”就填 2，\n"
+            "  说“几张”或没提数量就填 0（表示用系统默认值）。\n"
+            "  用户明确说“一张图里有两只猫”这类才是内容约束，写进 query。\n"
             "- path：用户提到的文件夹路径，原样保留（如 D:\\Photos）。"
             "用户没提路径就填空字符串\n"
             "- all_results：用户说“所有”“全部”“都要”“都找出来”时填 true，"
             "表示返回全部匹配结果；否则填 false\n\n"
             '只输出 JSON：{"tasks":[{"id":1,"description":"...","query":"...","top_k":2}]}'
         )
+
+        if extra_context.strip():
+            prompt += "\n\n【背景信息（仅供参考，不是本轮指令）】\n" + extra_context.strip()
         messages: list[dict[str, str]] = [
             {"role": "system", "content": self.prompts.get("system", "")},
         ]
