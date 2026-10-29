@@ -60,7 +60,7 @@ rerank:
   model: deepseek-flash
   max_candidates: 16
   batch_size: 4
-  max_tokens: 256
+  max_tokens: 800
   temperature: 0.5
   retries: 1
   ollama:

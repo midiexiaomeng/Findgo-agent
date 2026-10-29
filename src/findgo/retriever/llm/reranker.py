@@ -214,6 +214,16 @@ class LLMReranker:
                     cand.reason = str(entry.get("reason", ""))
                     cand.final_score = self._fuse(cand.vec_norm, value)
 
+            # 部分候选没拿到 LLM 分（批次失败或解析不全），
+            # 它们的重要性未经验证，不能和已打分的同权排序，否则
+            # 一个没检查过的黑猫会靠向量分挤掉已确认的白猫。
+            unscored = sum(1 for c in scored if c.llm_score is None)
+            if 0 < unscored < len(scored):
+                for cand in scored:
+                    if cand.llm_score is None:
+                        cand.final_score *= 0.55
+                logger.info("有 %d 条候选未拿到 LLM 分，已降权处理", unscored)
+
         report.elapsed = time.time() - started
         if report.used:
             logger.info(report.summary())
@@ -367,8 +377,8 @@ class LLMReranker:
             "  30-59  只有部分元素相关\n"
             "  0-29   基本无关，或违反了必须排除的条件\n"
             "  0      违反了必须满足的条件\n\n"
-            "同时用 10 个字以内说明理由，指出是否命中约束。\n"
-            '只输出这个格式的 JSON：{"scores":[{"index":1,"score":85,"reason":"白色猫躺着"}]}，'
+            "同时用 6 个字以内说明理由，指出是否命中约束（越短越好，避免超长）。\n"
+            '只输出这个格式的 JSON：{"scores":[{"index":1,"score":85,"reason":"白色躺姿"}]}，'
             f"必须覆盖全部 {len(batch)} 张图，index 从 1 开始。"
         )
         return [{"role": "system", "content": system}, {"role": "user", "content": user}]
@@ -412,12 +422,30 @@ class LLMReranker:
                 except json.JSONDecodeError:
                     continue
         if data is None:
-            # 退路：直接抓 "index": n, "score": s 这种片段
-            pairs = re.findall(r'"index"\s*:\s*(\d+)\s*,\s*"score"\s*:\s*(\d+(?:\.\d+)?)', cleaned)
-            if not pairs:
+            # 退路：从可能被截断的 JSON 里逐个抓完整对象。
+            # 模型输出超 max_tokens 时尾部会被切断，整体解析必然失败，
+            # 但前面已完整的条目仍然可用。
+            items = []
+            for m in re.finditer(r"\{[^{}]*\}", cleaned):
+                chunk = m.group(0)
+                idx_m = re.search(r'"index"\s*:\s*(\d+)', chunk)
+                score_m = re.search(r'"score"\s*:\s*(\d+(?:\.\d+)?)', chunk)
+                if not idx_m or not score_m:
+                    continue
+                reason_m = re.search(r'"reason"\s*:\s*"([^"]*)"', chunk)
+                items.append(
+                    {
+                        "index": int(idx_m.group(1)),
+                        "score": float(score_m.group(1)),
+                        "reason": reason_m.group(1) if reason_m else "",
+                    }
+                )
+
+            if not items:
                 logger.warning("无法解析 LLM 打分结果: %s", cleaned[:200])
                 return {}
-            data = [{"index": int(i), "score": float(s)} for i, s in pairs]
+            logger.info("JSON 不完整，已从碎片中提取 %d 条打分", len(items))
+            data = items
 
         out: dict[int, dict] = {}
 
