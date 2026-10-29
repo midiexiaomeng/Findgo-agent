@@ -31,6 +31,10 @@ class ImageRetrievalArgs(BaseModel):
     dedupe: bool = Field(True, description="过滤掉彼此高度相似的重复图")
     dedupe_threshold: float = Field(0.95, ge=0.5, le=1.0, description="相似度阈值，超过视为重复")
     path: str = Field("", description="（兼容）同 folder_path")
+    constraints: dict[str, Any] = Field(
+        default_factory=dict,
+        description="结构化约束：core_query / must / must_not / should / retrieve_count",
+    )
 
 
 class ImageRetrievalTool(BaseTool):

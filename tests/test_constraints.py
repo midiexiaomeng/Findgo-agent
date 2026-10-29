@@ -181,6 +181,32 @@ def test_rerank_range_not_fixed():
 # ── 任务结构 ──────────────────────────────────────────────────────────────
 
 
+def test_retrieval_args_accept_constraints():
+    """工具参数 schema 必须收 constraints，否则 extra=forbid 会直接拒掉。"""
+    from findgo.tools.image_retrieval import ImageRetrievalArgs
+
+    args = ImageRetrievalArgs(
+        query="猫",
+        constraints={
+            "core_query": "猫",
+            "must": ["白色"],
+            "must_not": ["黑色"],
+            "should": [],
+            "diversity": True,
+            "retrieve_count": 2,
+        },
+    )
+    assert args.constraints["must_not"] == ["黑色"]
+    assert args.constraints["retrieve_count"] == 2
+
+
+def test_retrieval_args_constraints_optional():
+    from findgo.tools.image_retrieval import ImageRetrievalArgs
+
+    args = ImageRetrievalArgs(query="猫")
+    assert args.constraints == {}
+
+
 def test_task_spec_carries_constraints():
     from findgo.utils.schemas import TaskSpec
 
