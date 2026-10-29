@@ -314,6 +314,22 @@ class FindgoAgent:
                 if tool is None or not task.path:
                     continue
                 args = {"folder_path": task.path}
+            elif task.action == "count":
+                # 只统计数量，不返回图片
+                if not task.query.strip():
+                    continue
+                tool = self.tools.get("image_retrieval")
+                if tool is None:
+                    break
+                args = {
+                    "query": task.query,
+                    "top_k": task.top_k if task.top_k > 0 else self.config.top_k,
+                    "folder_path": task.path or "",
+                    "all_results": True,
+                    "exclude_paths": list(excluded_paths),
+                    "constraints": dict(task.constraints or {}),
+                    "count_only": True,
+                }
             elif task.input_source == "last_results":
                 # 在上一轮候选里再筛，不重新召回
                 if not previous_images:
@@ -410,6 +426,9 @@ class FindgoAgent:
                 images = []
             elif task.action == "index":
                 reply = str(result.get("summary") or "索引已更新。")
+                images = []
+            elif task.action == "count":
+                reply = str(result.get("summary") or "0 张")
                 images = []
             else:
                 reply = self.responder.compose(task.query, result)

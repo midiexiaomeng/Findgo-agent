@@ -41,6 +41,10 @@ class ImageRetrievalArgs(BaseModel):
         False,
         description="目录未索引时是否先建库。默认关闭，建库应该单独触发",
     )
+    count_only: bool = Field(
+        False,
+        description="只统计匹配数量，不返回图片列表",
+    )
 
 
 class ImageRetrievalTool(BaseTool):
@@ -336,6 +340,7 @@ class ImageRetrievalTool(BaseTool):
         exclude_paths: list[str] | None = None,
         constraints: dict | None = None,
         auto_index: bool = False,
+        count_only: bool = False,
     ) -> dict[str, Any]:
         # 查询为空时用约束里的核心词兜底，全空则直接返回
         if not (query or "").strip() and constraints:
@@ -425,6 +430,16 @@ class ImageRetrievalTool(BaseTool):
 
         for i, image in enumerate(images, start=1):
             image.rank = i
+
+        # 只计数：返回数量，不带图片列表
+        if count_only:
+            return {
+                "count": len(images),
+                "query": query,
+                "images": [],
+                "confidence": 0.0,
+                "summary": f"「{query}」共匹配 {len(images)} 张",
+            }
 
         confidence = sum(i.score for i in images) / len(images) if images else 0.0
         result = RetrievalResult(

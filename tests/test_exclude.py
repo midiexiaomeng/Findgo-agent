@@ -15,7 +15,7 @@ class _Store:
     def __init__(self, paths):
         self.paths = paths
 
-    def query(self, vector, top_k=10):
+    def query(self, vector, top_k=10, where=None):
         return [_Hit(p) for p in self.paths]
 
 

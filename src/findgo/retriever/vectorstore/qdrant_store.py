@@ -231,13 +231,19 @@ class QdrantVectorStore(VectorStore):
             return None
         qm = self._models
         must = []
+        must_not = []
+
         for key, value in where.items():
             if isinstance(value, dict):
-                # 支持 {"$in": [...]} / {"$gte": ...} 这类简单算子
+                # 支持 {"$in": [...]} / {"$ne": ...} / {"$gte": ...} 这类简单算子
                 for op, operand in value.items():
                     if op in ("$in", "in"):
                         must.append(
                             qm.FieldCondition(key=str(key), match=qm.MatchAny(any=list(operand)))
+                        )
+                    elif op in ("$ne", "ne", "!="):
+                        must_not.append(
+                            qm.FieldCondition(key=str(key), match=qm.MatchValue(value=operand))
                         )
                     elif op in ("$gte", ">="):
                         must.append(qm.FieldCondition(key=str(key), range=qm.Range(gte=operand)))
@@ -249,7 +255,10 @@ class QdrantVectorStore(VectorStore):
                         )
             else:
                 must.append(qm.FieldCondition(key=str(key), match=qm.MatchValue(value=value)))
-        return qm.Filter(must=must) if must else None
+
+        if not must and not must_not:
+            return None
+        return qm.Filter(must=must or None, must_not=must_not or None)
 
     def get(
         self,

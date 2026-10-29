@@ -261,7 +261,15 @@ class Searcher:
         cap = int(getattr(search_cfg, "max_recall_limit", 800))
         limit = min(limit, max(cap, recall_k))
 
-        hits = self.store.query(query_vec, top_k=max(1, limit))
+        hits = self.store.query(
+            query_vec,
+            top_k=max(1, limit),
+            where={"is_staged": {"$ne": True}},
+        )
+
+        # 向量库不支持该字段的过滤时，退回内存过滤
+        if hits:
+            hits = [h for h in hits if not h.metadata.get("is_staged")]
         logger.info(
             "召回: query_top=%d 实际返回=%d 排除=%d limit=%d",
             limit,
@@ -270,7 +278,7 @@ class Searcher:
             limit,
         )
 
-        # 已暂存待删的图片不再参与检索
+        # 已暂存待删的图片不再参与检索（向量库已前置过滤，这里只做兜底）
         hits = [h for h in hits if not h.metadata.get("is_staged")]
 
         # 上一轮已经返回过的图片，本轮排除

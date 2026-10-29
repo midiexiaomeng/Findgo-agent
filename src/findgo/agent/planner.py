@@ -259,7 +259,12 @@ class Planner:
             "- should：加分但非必需\n"
             "- retrieve_count：返回几张图，没提填 0\n"
             "- diversity：需要多样化填 true，用户说「就要差不多的」填 false\n"
-            "- path：文件夹路径，没提填空字符串\n\n"
+            "- path：文件夹路径，没提填空字符串\n"
+            "- 用户问「有多少」「几张」「统计」「一共几个」时，\n"
+            "  把 action 设为 count，这样只统计数量不返回图片列表。\n"
+            "  需要同时知道目录总图数和匹配数时，拆成两个任务：\n"
+            "  一个 action=scan 统计总数，一个 action=count 统计匹配数。\n"
+            "- 其余情况不需要写 action。\n\n"
             "超出工具能力且能用简单只读 Python 实现时，可附加 dynamic_tool：\n"
             '{"name":"...","description":"...","tags":["read-only"],'
             '"timeout":60,"args_schema_code":"class Args(BaseModel):\\n    ...",'

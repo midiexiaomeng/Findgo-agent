@@ -24,7 +24,7 @@ class _Store:
         self.paths = list(paths)
         self.calls = []
 
-    def query(self, vec, top_k=10):
+    def query(self, vec, top_k=10, where=None):
         self.calls.append(top_k)
         return [_Hit(p, 0.9 - i * 0.01) for i, p in enumerate(self.paths[:top_k])]
 
