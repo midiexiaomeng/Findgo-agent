@@ -16,7 +16,9 @@ from PIL import Image
 class FakeIndexStats:
     total = 3
     indexed = 3
+    skipped = 0
     failed = 0
+    cancelled = False
 
     def summary(self) -> str:
         return "扫描 3 张，索引 3 张，跳过 0 张"

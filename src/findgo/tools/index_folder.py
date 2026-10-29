@@ -72,7 +72,13 @@ class IndexFolderTool(BaseTool):
             self._pipeline = build_pipeline()
         return self._pipeline
 
-    def run(self, folder_path: str, rebuild: bool = False) -> dict[str, Any]:
+    def run(
+        self,
+        folder_path: str,
+        rebuild: bool = False,
+        should_stop=None,
+        progress=None,
+    ) -> dict[str, Any]:
         try:
             folder = self.guard.check(folder_path, "read")
         except PathSecurityError as e:
@@ -113,15 +119,21 @@ class IndexFolderTool(BaseTool):
             recursive=True,
             reset=rebuild,
             skip_existing=not rebuild,
+            should_stop=should_stop,
+            progress=progress,
         )
 
-        self._mtime[key] = mtime
-        self._save_cache()
+        # 中断时不记录 mtime，下次还能继续增量
+        if not stats.cancelled:
+            self._mtime[key] = mtime
+            self._save_cache()
 
         return {
             "count": stats.indexed,
             "total": stats.total,
+            "skipped": stats.skipped,
             "failed": stats.failed,
+            "cancelled": stats.cancelled,
             "cached": False,
             "summary": stats.summary(),
         }

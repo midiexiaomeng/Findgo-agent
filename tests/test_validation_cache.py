@@ -11,7 +11,9 @@ from findgo.utils.path_guard import PathGuard
 class _FakeIndexStats:
     total = 1
     indexed = 1
+    skipped = 0
     failed = 0
+    cancelled = False
 
     def summary(self) -> str:
         return "扫描 1 张，索引 1 张"

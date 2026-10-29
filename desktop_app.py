@@ -47,6 +47,7 @@ from findgo.ui.command_panel import (
 from findgo.ui.components import LogBridge, QtLogHandler, Worker
 from findgo.ui.dynamic_dialog import DynamicToolDialog
 from findgo.ui.file_tree import FileTreeMixin
+from findgo.ui.index_progress import IndexProgressPanel
 from findgo.ui.input_panel import ChatInput, ResizeHandle
 from findgo.ui.session_panel import SessionMixin
 from findgo.ui.skills_panel import SkillDropZone, SkillsPopup
@@ -132,6 +133,7 @@ class MainWindow(AgentRunnerMixin, SessionMixin, FileTreeMixin, QMainWindow):
 
         self.worker: Worker | None = None
         self._cancel = False
+        self._index_cancel = False
         self.agent = None
         self.conversation: list[tuple[str, str]] = []
         self.last_results: list[dict] = []
@@ -238,6 +240,11 @@ class MainWindow(AgentRunnerMixin, SessionMixin, FileTreeMixin, QMainWindow):
         attach_layout.addWidget(remove_btn)
         self.attach_bar.setVisible(False)
         layout.addWidget(self.attach_bar)
+
+        # 建库进度条（默认隐藏）
+        self.index_panel = IndexProgressPanel()
+        self.index_panel.cancel_requested.connect(self._cancel_index)
+        layout.addWidget(self.index_panel)
 
         container = QWidget()
         grid = QGridLayout(container)
@@ -479,6 +486,107 @@ class MainWindow(AgentRunnerMixin, SessionMixin, FileTreeMixin, QMainWindow):
             path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
         except Exception:
             pass
+
+    # ── 建库 ──────────────────────────────────────────────────────────────
+
+    def _on_tree_menu(self, pos) -> None:
+        item = self.tree.itemAt(pos)
+        path = item.data(0, Qt.UserRole) if item is not None else str(self.tree_root)
+        if not path:
+            return
+
+        target = Path(path)
+        if not target.is_dir():
+            target = target.parent
+
+        menu = QMenu(self)
+        act_index = menu.addAction("建立索引（增量）")
+        act_index.triggered.connect(lambda: self._start_index(target, rebuild=False))
+        act_rebuild = menu.addAction("全量重建索引")
+        act_rebuild.triggered.connect(lambda: self._start_index(target, rebuild=True))
+        menu.addSeparator()
+        act_open = menu.addAction("在资源管理器中打开")
+        act_open.triggered.connect(lambda: self._open_in_explorer(target))
+
+        menu.exec_(self.tree.mapToGlobal(pos))
+
+    @staticmethod
+    def _open_in_explorer(path: Path) -> None:
+        try:
+            from PyQt5.QtCore import QUrl
+            from PyQt5.QtGui import QDesktopServices
+
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
+        except Exception:
+            pass
+
+    def _cancel_index(self) -> None:
+        self._index_cancel = True
+        self.append_log(">>> 已请求停止建索引，当前批次完成后退出")
+
+    def _start_index(self, folder: Path, rebuild: bool = False) -> None:
+        if self.worker is not None:
+            self.state_label.setText("还有任务在跑，等它完成再建索引。")
+            return
+
+        self._index_cancel = False
+        self.index_panel.start(f"正在建索引：{folder.name}")
+        self.append_log(f">>> 开始建索引：{folder}（{'全量' if rebuild else '增量'}）")
+
+        self.worker = Worker(self._run_index, folder, rebuild)
+        self.worker.progress.connect(self._on_index_progress)
+        self.worker.done.connect(self._on_index_done)
+        self.worker.failed.connect(self._on_index_failed)
+        self.worker.finished.connect(self._finish_worker)
+        self._set_busy(True)
+        self.worker.start()
+
+    def _run_index(self, folder: Path, rebuild: bool):
+        agent = self._get_agent()
+        tool = agent.tools.get("index_folder")
+        if tool is None:
+            raise RuntimeError("index_folder 工具未注册")
+
+        def report(done: int, total: int, name: str) -> None:
+            worker = self.worker
+            if worker is not None:
+                try:
+                    worker.progress.emit((done, total, name))
+                except Exception:
+                    pass
+
+        return tool.run(
+            folder_path=str(folder),
+            rebuild=rebuild,
+            should_stop=lambda: self._index_cancel,
+            progress=report,
+        )
+
+    def _on_index_progress(self, payload) -> None:
+        try:
+            done, total, name = payload
+        except Exception:
+            return
+        self.index_panel.update_progress(int(done), int(total), str(name))
+
+    def _on_index_done(self, result) -> None:
+        if not isinstance(result, dict):
+            self.index_panel.fail("索引返回格式异常")
+            return
+
+        summary = str(result.get("summary", ""))
+        if result.get("cancelled"):
+            self.index_panel.fail("已取消")
+        else:
+            self.index_panel.finish(summary)
+
+        self.append_log(f">>> {summary}")
+        self.state_label.setText(summary or "索引完成")
+        self._refresh_results()
+
+    def _on_index_failed(self, error: str) -> None:
+        self.index_panel.fail(error)
+        self.append_log("!!! 建索引失败：" + error)
 
     def _layout_handles(self) -> None:
         if not hasattr(self, "_resize_handles"):
@@ -762,6 +870,8 @@ class MainWindow(AgentRunnerMixin, SessionMixin, FileTreeMixin, QMainWindow):
         )
         self.tree.itemClicked.connect(self.on_file_clicked)
         self.tree.itemDoubleClicked.connect(self._on_tree_double_click)
+        self.tree.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.tree.customContextMenuRequested.connect(self._on_tree_menu)
 
         self.preview = QLabel("点击图片预览")
         self.preview.setAlignment(Qt.AlignCenter)

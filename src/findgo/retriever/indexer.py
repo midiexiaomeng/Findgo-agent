@@ -52,13 +52,15 @@ class IndexStats:
     pruned: int = 0
     elapsed: float = 0.0
     locked: bool = False  # 同一目录已有索引任务在跑，本次被跳过
+    cancelled: bool = False  # 用户中途停止
     errors: list[str] = field(default_factory=list)
 
     def summary(self) -> str:
-        return (
+        base = (
             f"扫描 {self.total} 张，索引 {self.indexed} 张，跳过 {self.skipped} 张，"
             f"失败 {self.failed} 张，描述 {self.captioned} 条，耗时 {human_time(self.elapsed)}"
         )
+        return f"{base}（已中断）" if self.cancelled else base
 
     def as_dict(self) -> dict:
         return {
@@ -69,6 +71,7 @@ class IndexStats:
             "captioned": self.captioned,
             "pruned": self.pruned,
             "elapsed": round(self.elapsed, 2),
+            "cancelled": self.cancelled,
             "errors": self.errors[:20],
         }
 
@@ -110,6 +113,7 @@ class Indexer:
         with_caption: bool | None = None,
         progress: ProgressFn | None = None,
         prune_missing: bool = False,
+        should_stop: Callable[[], bool] | None = None,
     ) -> IndexStats:
         folder = Path(folder).expanduser()
         lock = self._folder_lock(folder)
@@ -127,6 +131,7 @@ class Indexer:
                 with_caption=with_caption,
                 progress=progress,
                 prune_missing=prune_missing,
+                should_stop=should_stop,
             )
         finally:
             lock.release()
@@ -140,6 +145,7 @@ class Indexer:
         with_caption: bool | None = None,
         progress: ProgressFn | None = None,
         prune_missing: bool = False,
+        should_stop: Callable[[], bool] | None = None,
     ) -> IndexStats:
         if not folder.exists() or not folder.is_dir():
             raise FileNotFoundError(f"文件夹不存在: {folder}")
@@ -175,6 +181,11 @@ class Indexer:
         done = 0
 
         for start in range(0, len(pending), bs):
+            if should_stop is not None and should_stop():
+                stats.cancelled = True
+                logger.info("索引进度 %d/%d，收到停止信号", done, len(pending))
+                break
+
             batch = pending[start : start + bs]
             batch_stats = self._index_batch(batch, with_caption=with_caption)
             stats.indexed += batch_stats["indexed"]
