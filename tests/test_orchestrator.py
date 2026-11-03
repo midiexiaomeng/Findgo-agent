@@ -139,3 +139,19 @@ def test_run_tasks_skips_skipped():
     results = agent.run_tasks(tasks)
     assert len(results) == 1
     assert results[0].tool == "image_retrieval"
+
+
+def test_last_results_without_history_falls_back_to_library():
+    """上一轮没有结果时，链式筛选要退回全库检索，不能因为缺参数而崩溃。"""
+    from findgo.utils.schemas import TaskSpec
+
+    pipeline = FakePipeline()
+    agent = make_agent(FakeClient(), pipeline)
+    task = TaskSpec(id=1, query="猫", input_source="last_results")
+
+    results = agent.run_tasks([task], write_memory=False)
+
+    assert len(results) == 1
+    assert results[0].tool == "image_retrieval"
+    assert pipeline.calls == 1
+    assert task.input_source == "library"

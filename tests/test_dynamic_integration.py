@@ -84,3 +84,49 @@ def test_task_spec_dynamic_fields():
     task = TaskSpec(is_dynamic=True, dynamic_spec=SPEC, dynamic_args={"folder": "D:/x"})
     assert task.is_dynamic is True
     assert task.dynamic_args["folder"] == "D:/x"
+
+
+def test_run_tasks_executes_approved_dynamic_tool():
+    """批准后的动态工具要真的跑起来：参数走 dynamic_args，结果进 reply。"""
+    agent = make_agent()
+    spec = dict(SPEC)
+    spec["name"] = "count_width_ok"
+    spec["run_func_code"] = (
+        "def run(self, args):\n"
+        '    folder = str(args.get("folder", ""))\n'
+        '    return {"count": len(folder), "summary": f"统计完成：{folder}"}\n'
+    )
+    agent.register_dynamic_tool(spec)
+    task = TaskSpec(
+        id=1,
+        description="统计宽度",
+        is_dynamic=True,
+        dynamic_spec=spec,
+        dynamic_args={"folder": "abc"},
+        status="pending",
+    )
+
+    results = agent.run_tasks([task], write_memory=False)
+
+    assert len(results) == 1
+    assert results[0].tool == "count_width_ok"
+    assert results[0].reply == "统计完成：abc"
+
+
+def test_run_tasks_reports_invalid_dynamic_args():
+    """dynamic_args 不完整时应返回可读参数错误，而不是崩在编排层。"""
+    agent = make_agent()
+    agent.register_dynamic_tool(SPEC)
+    task = TaskSpec(
+        id=1,
+        description="统计宽度",
+        is_dynamic=True,
+        dynamic_spec=SPEC,
+        dynamic_args={},
+        status="pending",
+    )
+
+    results = agent.run_tasks([task], write_memory=False)
+
+    assert len(results) == 1
+    assert "参数不合法" in results[0].reply

@@ -50,12 +50,13 @@
 
 CLIP 编码、向量库读写、重排这些逻辑一律不写在工具里。
 
-新增工具只需：
+新增工具要同步两处：
 
 1. 继承 `BaseTool`，定义 `name / description / args_schema / run`
-2. 在 `tools/__init__.py` 导出
-3. 在 `orchestrator.py` 的 `self.tools` 注册
-4. 在 `configs/tools.yaml` 登记
+2. 在 `findgo/tools/registry.py` 的 `TOOL_BUILDERS` 登记构造函数
+3. 在 `configs/tools.yaml` 登记名字、启用开关与给 Planner 看的描述
+
+两份清单由 `tests/test_tool_registry.py` 校验。漏改会在启动时报错，不会静默少一个工具。
 
 ---
 
@@ -163,12 +164,19 @@ sandbox:
 ## Agent 层内部
 
 ```
+TurnService（应用服务，不依赖 Qt）
+├─ 判断命令 / 探索型任务 / 任务链
+├─ 注入默认目录、执行、联网补足、写记忆
+└─ 返回 TurnOutcome(tasks, results, reply, images)
+
 Orchestrator
 ├─ Planner   任务拆解与路径提取，输出 TaskSpec 列表
-├─ Memory    对话记忆 + SQLite 轨迹
+├─ Memory    对话记忆 + 会话级检索状态 + SQLite 轨迹
 ├─ Critic    置信校验 + 查询改写
 └─ Responder 结果合成
 ```
+
+界面层只收集输入、渲染输出，不再写「走 ReAct 还是任务链」这类分支。
 
 `TaskSpec` 带 `action` 字段区分步骤类型：`scan` 扫描目录，`retrieve` 检索图片。
 
@@ -179,7 +187,8 @@ Orchestrator
 ```mermaid
 graph TD
     U[用户输入] --> UI[桌面界面]
-    UI --> O[Orchestrator]
+    UI --> TS[TurnService]
+    TS --> O[Orchestrator]
     O --> P[Planner]
     P -->|TaskSpec 列表| T[工具注册表]
     T --> IF[index_folder]
@@ -227,5 +236,9 @@ graph TD
 **降级优先于失败。** LLM 不可用时退回纯向量排序；描述缺失时跳过重排；工具异常时返回空结果而不是抛穿到界面。
 
 **分数融合。** 向量相似度先做 min-max 归一化，再与 LLM 分数加权（默认 0.35 / 0.65）。
+
+**单一工具注册来源。** `tools.yaml` 决定启用哪些工具，`tools/registry.py` 决定怎么构造。两边不一致直接报错，避免「配置里有、实际调不到」。
+
+**业务不落在界面里。** 一轮对话的分支、默认目录、联网补足与记忆写入都在 `TurnService`，界面只做事件绑定与渲染，因此整轮行为可以用纯 Python 测试。
 
 **配置与代码分离。** `configs/agent.yaml` 管 Agent 行为与提示词，`configs/tools.yaml` 管工具注册，`config.yaml` 管检索模型与向量库。带 Key 的 `agent.yaml` 不进 git、不进发布包。

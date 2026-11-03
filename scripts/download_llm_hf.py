@@ -164,7 +164,7 @@ def main() -> int:
     print("下一步：把 config.yaml 改成")
     print("  rerank:")
     print("    backend: transformers")
-    print(f"    transformers:")
+    print("    transformers:")
     print(f"      model_path: {target}")
     print()
     print("然后重启程序。首次搜索会加载模型，约 30-60 秒。")

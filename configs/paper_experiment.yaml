@@ -1,0 +1,98 @@
+# 论文 6.3 / 6.4 取数专用配置（11-01 16:00 建）
+#
+# 为什么单独一份：仓库默认 config.yaml 的 rerank.backend 是 openai + 空 api_key，
+# 探测必然 401，重排静默降级为纯向量，测出来的「重排耗时 / 重排增益」都是假口径。
+# 直接改默认 config.yaml 会动产品默认行为（app.py 与评测脚本共用它）。
+# 这份只改三处，其余与 config.yaml 完全一致，靠 FINDGO_CONFIG 环境变量临时指向：
+#
+#   $env:FINDGO_CONFIG = "D:\计算机组成原理文件\multimodal-rag-search\configs\paper_experiment.yaml"
+#
+# 用完那条 PowerShell 会话关掉即恢复默认，不影响仓库。
+#
+# 与 config.yaml 的差异只有三处，逐条在下面标了【论文实验】。
+device: auto
+offline: false
+warmup_on_start: true
+app:
+  title: 多模态图像检索
+  host: 127.0.0.1
+  port: 7860
+  open_browser: true
+  share: false
+  log_level: INFO
+paths:
+  models_dir: ./models
+  data_dir: ./data
+  export_dir: ./data/exports
+embedding:
+  model: chinese-clip-vit-base-patch16
+  fallback: OFA-Sys/chinese-clip-vit-base-patch16
+  embedding_dim: 512
+  normalize: true
+  batch_size: 32
+  max_text_length: 52
+  max_image_side: 1024
+  use_fp16: true
+  device: cpu          # 【论文实验】auto → cpu：3B 独占 8GB 显存，避免显存交换把耗时测飘
+  backend: local
+  api_base_url: ''
+  api_key: ''
+  api_model: ''
+  api_timeout: 30
+vector_store:
+  backend: qdrant      # 不动：沿用 data/qdrant 里已建好的 1867 张索引
+  collection: images
+  chromadb:
+    path: ./data/chromadb
+  qdrant:
+    mode: local
+    path: ./data/qdrant
+    url: http://localhost:6333
+    api_key: ''
+    timeout: 30
+caption:
+  enabled: true
+  model: blip-image-captioning-base
+  fallback: Salesforce/blip-image-captioning-base
+  batch_size: 8
+  max_new_tokens: 40
+  beam_size: 3
+  cache_db: ./data/captions.sqlite
+  max_cache_rows: 50000
+  use_fp16: false
+  unload_after_index: true   # 重排阶段 BLIP 已卸载，显存留给 3B
+  backend: local
+  api_base_url: ''
+  api_key: ''
+  api_model: ''
+  api_timeout: 60
+rerank:
+  enabled: true
+  backend: transformers       # 【论文实验】openai → transformers：本地 Qwen2.5-3B，不再 401 降级
+  model: Qwen2.5-3B-Instruct  # 【论文实验】与 6.1 写的本地权重口径一致
+  max_candidates: 16          # 与论文 4.2 的「不超过 32 条全精排、超过取前 16」一致，勿改
+  batch_size: 4               # 8GB 显存下 3B fp16 + 4 条候选约 6GB，若 OOM 先降到 2 再重跑
+  max_tokens: 800
+  temperature: 0.5
+  retries: 1
+  ollama:
+    base_url: http://localhost:11434
+    timeout: 120
+  openai:
+    base_url: https://api.deepseek.com/v1
+    api_key: ''
+    timeout: 120
+  transformers:
+    model_path: ./models/Qwen2.5-3B-Instruct
+    device: auto              # 此时 embedding 在 CPU，auto 会落到 cuda
+    dtype: float16
+    max_input_tokens: 1536
+search:
+  recall_k: 50
+  top_k: 12
+  max_all: 1000
+  max_recall_limit: 800
+  min_score: 0.0
+  fusion:
+    vector_weight: 0.35
+    llm_weight: 0.65

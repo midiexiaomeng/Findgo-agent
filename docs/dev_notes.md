@@ -2,7 +2,8 @@
 
 ## 当前状态
 
-- 测试：63 个，覆盖向量库契约、LLM 解析与降级、Planner、Memory、Critic、Responder、Orchestrator
+- 测试：504 个（1 个按环境跳过），覆盖向量库契约、LLM 解析与降级、Planner、Memory、Critic、Responder、Orchestrator、Searcher 的过滤与降级链路、以图搜图工具封装、TurnService 的六条执行分支
+- 架构：工具注册单一来源（tools.yaml 声明 + tools/registry.py 构造），一轮对话的业务全在 TurnService，界面只负责渲染
 - 端到端：已用 DeepSeek `deepseek-flash` + 1867 张 COCO 图片验证通过
 - 桌面端：PyQt5，已通过启动测试
 
@@ -56,7 +57,7 @@ python scripts\evaluate.py --captions data\captions_val2017.json --n 100
 
 ## 待办
 
-- [ ] 以图搜图工具（`search_by_image` 注册到工具层）
+- [x] 以图搜图工具（`search_by_image` 注册到工具层）
 - [ ] 混合检索：BM25 + 向量，RRF 融合
 - [ ] 中文图像描述：用 Qwen2.5-VL 替代 BLIP
 - [ ] Recall@K 实测与对比实验
@@ -66,6 +67,7 @@ python scripts\evaluate.py --captions data\captions_val2017.json --n 100
 ## 开发约定
 
 - 配置改动只提交 `*.example.yaml`，本地 `agent.yaml` 不入库
-- 新增工具只需继承 `BaseTool` 并在 `configs/tools.yaml` 注册
+- 新增工具：继承 `BaseTool`，在 `tools/registry.py` 登记构造函数，在 `configs/tools.yaml` 登记名字与描述；两处由 `tests/test_tool_registry.py` 校验
+- 新的一轮对话逻辑放 `TurnService`，不要写回 `ui/agent_runner.py`
 - 每次提交前跑 `pytest tests -q`
 - 代码风格：black + ruff，行宽 100

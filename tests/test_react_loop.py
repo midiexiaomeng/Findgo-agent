@@ -285,14 +285,19 @@ def test_compress_empty():
 
 
 def test_agent_runner_routes_to_react():
+    """路由已经收进 TurnService，界面只负责委托。"""
     pytest.importorskip("PyQt5")
     import inspect
 
+    from findgo.agent.turn_service import TurnService
     from findgo.ui.agent_runner import AgentRunnerMixin
 
-    src = inspect.getsource(AgentRunnerMixin._run_turn)
-    assert "needs_exploration" in src
-    assert "run_react" in src
+    runner_src = inspect.getsource(AgentRunnerMixin._run_turn)
+    assert "_service" in runner_src
+
+    service_src = inspect.getsource(TurnService.run)
+    assert "needs_exploration" in service_src
+    assert "run_react" in service_src
 
 
 def test_planner_accepts_steps():

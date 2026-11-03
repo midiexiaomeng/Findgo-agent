@@ -2,10 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
-from PyQt5.QtCore import Qt
-
 from ..model_store import ModelStore
 from .components import Worker
 from .dynamic_dialog import DynamicToolDialog
@@ -151,116 +147,71 @@ class AgentRunnerMixin:
 
     def _run_command(self, text: str):
         """直接执行斜杠命令，不走任务规划。"""
-        from findgo.agent.commands import CommandError, dispatch
-
-        agent = self._get_agent()
-        agent.memory.add("user", text)
-
         self.state_label.setText("正在执行命令…")
-        try:
-            reply = dispatch(text, agent)
-        except CommandError as e:
-            reply = str(e)
-        except Exception as e:
-            reply = f"命令执行失败：{e}"
-
-        reply = reply or "命令没有返回内容。"
-        agent.memory.add("assistant", reply)
-        return [], [], reply, []
+        return self._service().run_command(text).as_payload()
 
     # ── 一轮完整执行 ──────────────────────────────────────────────────────
 
     def _run_turn(self, text: str):
-        agent = self._get_agent()
-        agent.memory.add("user", text)
-
-        default_scope = ""
-        try:
-            if self.tree_root and self.tree_root.resolve() != self._root().resolve():
-                default_scope = str(self.tree_root)
-        except Exception:
-            default_scope = ""
-
-        # 用户说「从头找」「重新搜」时，把累积的排除记录清掉
-        try:
-            from findgo.agent.planner import detect_reset
-
-            if detect_reset(text):
-                agent.reset_recall_memory()
-                self.append_log(">>> 已清空排除记录，本次从全库重新检索")
-        except Exception:
-            pass
-
-        # 需要多轮探索的任务走 ReAct，其余走一次拆解的快路径
-        try:
-            from findgo.agent.planner import needs_exploration
-
-            explore = needs_exploration(text)
-        except Exception:
-            explore = False
-
-        if explore:
-            self.append_log(">>> 检测到探索型任务，使用 ReAct 循环")
-            self.state_label.setText("正在分步探索…")
-
-            def report_step(step: dict) -> None:
-                worker = self.worker
-                if worker is not None:
-                    try:
-                        worker.progress.emit({"kind": "react_step", **step})
-                    except Exception:
-                        pass
-
-            result = agent.run_react(
+        return (
+            self._service()
+            .run(
                 text,
-                should_stop=lambda: self._cancel,
+                default_scope=self._default_scope(),
+                search_mode=self._search_mode,
                 access_level=self._access_level(),
-                on_step=report_step,
+                should_stop=lambda: self._cancel,
             )
-            return [], [], result.reply, result.results
-
-        tasks = agent.plan_tasks(text)
-        if default_scope:
-            for task in tasks:
-                if task.action == "retrieve" and not task.path:
-                    task.path = default_scope
-
-        try:
-            worker = self.worker
-            if worker is not None:
-                worker.progress.emit(tasks)
-        except Exception:
-            pass
-        agent.memory.save_tasks(list(tasks))
-
-        pending_dynamic = [t for t in tasks if t.is_dynamic]
-        if pending_dynamic:
-            return (
-                tasks,
-                [],
-                "检测到自定义临时工具，请审核后点「重跑」执行。",
-                [],
-            )
-
-        results = agent.run_tasks(
-            tasks,
-            write_memory=False,
-            should_stop=lambda: self._cancel,
-            access_level=self._access_level(),
+            .as_payload()
         )
-        self._maybe_web_fill(agent, tasks, results)
-        return self._pack_results(agent, tasks, results)
 
     def _run_existing_tasks(self, tasks):
-        agent = self._get_agent()
-        results = agent.run_tasks(
-            tasks,
-            write_memory=False,
-            should_stop=lambda: self._cancel,
-            access_level=self._access_level(),
+        return (
+            self._service()
+            .run_existing(
+                tasks,
+                search_mode=self._search_mode,
+                access_level=self._access_level(),
+                should_stop=lambda: self._cancel,
+            )
+            .as_payload()
         )
-        self._maybe_web_fill(agent, tasks, results)
-        return self._pack_results(agent, tasks, results)
+
+    def _default_scope(self) -> str:
+        """目录树选在子目录时，默认只在该目录内检索。"""
+        try:
+            if self.tree_root and self.tree_root.resolve() != self._root().resolve():
+                return str(self.tree_root)
+        except Exception:
+            pass
+        return ""
+
+    def _service(self):
+        from findgo.agent.turn_service import TurnService
+
+        return TurnService(
+            self._get_agent(),
+            on_log=self.append_log,
+            on_progress=self._emit_progress,
+            on_step=self._emit_step,
+            on_phase=self._on_phase,
+        )
+
+    def _on_phase(self, phase: str) -> None:
+        if phase == "react":
+            self.state_label.setText("正在分步探索…")
+
+    def _emit_progress(self, payload) -> None:
+        worker = self.worker
+        if worker is None:
+            return
+        try:
+            worker.progress.emit(payload)
+        except Exception:
+            pass
+
+    def _emit_step(self, step: dict) -> None:
+        self._emit_progress({"kind": "react_step", **step})
 
     def _access_level(self) -> str:
         """当前权限等级，供执行器判断写操作能不能过。"""
@@ -271,36 +222,6 @@ class AgentRunnerMixin:
             return btn.key()
         except Exception:
             return "auto"
-
-    def _maybe_web_fill(self, agent, tasks, results) -> None:
-        """本地不够时按所选模式联网补充。"""
-        if self._search_mode not in ("hybrid", "online") or self._cancel:
-            return
-
-        found = sum(len(r.results) for r in results)
-        need = sum(t.top_k for t in tasks if t.top_k > 0) or 0
-        short = need - found
-
-        if self._search_mode == "online" or (need > 0 and short > 0):
-            tool = agent.tools.get("web_image_search")
-            if tool is None:
-                return
-            query = tasks[0].query if tasks and tasks[0].query else ""
-            count = max(short, 10) if self._search_mode == "hybrid" else max(need, 20)
-            web = tool.run(query=query, top_k=min(count, 100))
-            self.append_log(f">>> 联网补充：{web.get('summary', '')}")
-
-    def _pack_results(self, agent, tasks, results):
-        replies = [r.reply for r in results if r.reply]
-        combined = "\n".join(replies) or "没有找到相关图片。"
-        images = [img for result in results for img in result.results]
-        image_paths = [
-            (img.get("path", "") if isinstance(img, dict) else getattr(img, "path", ""))
-            for img in images
-        ]
-        image_paths = [p for p in image_paths if p]
-        agent.memory.add("assistant", combined, images=image_paths)
-        return tasks, results, combined, images
 
     # ── 结束 ──────────────────────────────────────────────────────────────
 

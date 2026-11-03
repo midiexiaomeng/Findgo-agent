@@ -56,40 +56,40 @@ def test_recall_excludes_given_paths():
     assert "D:/a/1.jpg" not in got
 
 
-def test_seen_paths_accumulate(tmp_path):
+def test_seen_paths_accumulate():
     """模拟三轮检索：第三轮要排除前两轮的全部结果。"""
-    paths = [f"D:/a/{i}.jpg" for i in range(20)]
+    from findgo.agent.memory import RecallState
 
-    from findgo.agent.orchestrator import FindgoAgent
-
-    agent = FindgoAgent.__new__(FindgoAgent)
-    agent._seen_paths = set()
-    agent._last_paths = set()
-    agent._last_images = []
+    state = RecallState()
 
     # 第一轮
     round1 = {"D:/a/0.jpg", "D:/a/1.jpg"}
-    agent._seen_paths |= round1
-    agent._last_paths = round1
+    state.seen_paths |= round1
+    state.last_paths = round1
 
     # 第二轮排除第一轮
-    assert agent._seen_paths == round1
+    assert state.seen_paths == round1
 
     round2 = {"D:/a/2.jpg", "D:/a/3.jpg"}
-    agent._seen_paths |= round2
-    agent._last_paths = round2
+    state.seen_paths |= round2
+    state.last_paths = round2
 
     # 第三轮应排除前两轮共 4 张
-    excluded = agent._seen_paths | agent._last_paths
+    excluded = state.seen_paths | state.last_paths
     assert len(excluded) == 4
     assert "D:/a/0.jpg" in excluded
     assert "D:/a/3.jpg" in excluded
 
 
 def test_reset_recall_memory_clears_all():
-    from findgo.agent.orchestrator import FindgoAgent
+    from types import SimpleNamespace
 
-    agent = FindgoAgent.__new__(FindgoAgent)
+    from findgo.agent import FindgoAgent
+    from findgo.config import AgentConfig
+
+    cfg = AgentConfig()
+    cfg.memory_persist = False
+    agent = FindgoAgent(config=cfg, pipeline=SimpleNamespace(searcher=None))
     agent._seen_paths = {"a.jpg", "b.jpg"}
     agent._last_paths = {"b.jpg"}
     agent._last_images = [{"path": "b.jpg"}]
@@ -98,6 +98,25 @@ def test_reset_recall_memory_clears_all():
 
     assert agent._seen_paths == set()
     assert agent._last_paths == set()
+    assert agent._last_images == []
+
+
+def test_new_session_drops_recall_state():
+    """切会话时检索状态要跟着清，不能把上一个会话的排除记录带过去。"""
+    from types import SimpleNamespace
+
+    from findgo.agent import FindgoAgent
+    from findgo.config import AgentConfig
+
+    cfg = AgentConfig()
+    cfg.memory_persist = False
+    agent = FindgoAgent(config=cfg, pipeline=SimpleNamespace(searcher=None))
+    agent._seen_paths = {"a.jpg"}
+    agent._last_images = [{"path": "a.jpg"}]
+
+    agent.memory.new_session()
+
+    assert agent._seen_paths == set()
     assert agent._last_images == []
 
 

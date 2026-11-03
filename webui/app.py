@@ -8,19 +8,16 @@
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-
 import html
 import logging
+import sys
 import threading
 from pathlib import Path
 from typing import Any
 
-import gradio as gr
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+import gradio as gr
 from findgo.retriever import __version__
 from findgo.retriever.config import Config
 from findgo.retriever.pipeline import Pipeline
@@ -292,9 +289,11 @@ def do_index(
             ("耗时", human_time(stats.elapsed)),
             ("库内总数", f"{total_in_db} 张"),
         ]
-        table = "<table class='kv'>" + "".join(
-            f"<tr><td>{k}</td><td>{html.escape(str(v))}</td></tr>" for k, v in rows
-        ) + "</table>"
+        table = (
+            "<table class='kv'>"
+            + "".join(f"<tr><td>{k}</td><td>{html.escape(str(v))}</td></tr>" for k, v in rows)
+            + "</table>"
+        )
         return msg, table, _header()
     except Exception as e:
         logger.exception("索引失败")
@@ -341,15 +340,29 @@ def _settings_html() -> str:
         ("向量库", f"{stats['backend']} · {where}"),
         ("collection", stats["collection"]),
         ("库内图片", f"{stats['images']} 张"),
-        ("LLM 重排", f"{html.escape(p.reranker.client.describe_backend())} · {'在线' if health['llm_ok'] else '未连接'}"),
+        (
+            "LLM 重排",
+            f"{html.escape(p.reranker.client.describe_backend())} · {'在线' if health['llm_ok'] else '未连接'}",
+        ),
         ("LLM 状态", html.escape(health["llm_message"])),
-        ("BLIP 描述", f"{'启用' if cfg.caption.enabled else '关闭'} · 缓存 {p.captioner.cache_size()} 条"),
-        ("召回 / 精排 / 展示", f"{cfg.search.recall_k} / {cfg.rerank.max_candidates} / {cfg.search.top_k}"),
-        ("融合权重", f"向量 {cfg.search.fusion.vector_weight} · LLM {cfg.search.fusion.llm_weight}"),
+        (
+            "BLIP 描述",
+            f"{'启用' if cfg.caption.enabled else '关闭'} · 缓存 {p.captioner.cache_size()} 条",
+        ),
+        (
+            "召回 / 精排 / 展示",
+            f"{cfg.search.recall_k} / {cfg.rerank.max_candidates} / {cfg.search.top_k}",
+        ),
+        (
+            "融合权重",
+            f"向量 {cfg.search.fusion.vector_weight} · LLM {cfg.search.fusion.llm_weight}",
+        ),
     ]
-    table = "<table class='kv'>" + "".join(
-        f"<tr><td>{k}</td><td><code>{v}</code></td></tr>" for k, v in rows
-    ) + "</table>"
+    table = (
+        "<table class='kv'>"
+        + "".join(f"<tr><td>{k}</td><td><code>{v}</code></td></tr>" for k, v in rows)
+        + "</table>"
+    )
     return table
 
 
@@ -398,9 +411,7 @@ def build_app() -> gr.Blocks:
             text_details = gr.HTML('<div class="empty">输入描述开始检索</div>')
 
             outputs = [text_status, text_gallery, text_details, header]
-            text_btn.click(
-                do_text_search, [query, t_topk, t_recall, t_llm], outputs
-            )
+            text_btn.click(do_text_search, [query, t_topk, t_recall, t_llm], outputs)
             query.submit(do_text_search, [query, t_topk, t_recall, t_llm], outputs)
 
         # ── 以图搜图 ──
@@ -436,9 +447,7 @@ def build_app() -> gr.Blocks:
 
             image_details = gr.HTML('<div class="empty">上传参考图开始搜索</div>')
             image_outputs = [image_status, image_gallery, image_details, header]
-            image_btn.click(
-                do_image_search, [query_image, i_topk, i_recall, i_llm], image_outputs
-            )
+            image_btn.click(do_image_search, [query_image, i_topk, i_recall, i_llm], image_outputs)
 
         # ── 索引 ──
         with gr.Tab("建立索引"):

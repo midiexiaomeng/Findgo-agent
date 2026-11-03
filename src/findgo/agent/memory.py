@@ -16,6 +16,7 @@ import logging
 import sqlite3
 import time
 import uuid
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -100,6 +101,24 @@ def _deep_merge(base: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
     return base
 
 
+@dataclass
+class RecallState:
+    """会话级检索状态：上一轮返回了什么、本会话给过什么。
+
+    它随会话走，不随 Agent 实例走。放在 Memory 里，切会话时
+    可以跟对话历史、任务、事实一起清，不用调用方记得重置。
+    """
+
+    last_paths: set[str] = field(default_factory=set)
+    last_images: list[dict] = field(default_factory=list)
+    seen_paths: set[str] = field(default_factory=set)
+
+    def clear(self) -> None:
+        self.last_paths = set()
+        self.last_images = []
+        self.seen_paths = set()
+
+
 class Memory:
     def __init__(
         self,
@@ -109,6 +128,8 @@ class Memory:
     ):
         self.session_id = session_id or uuid.uuid4().hex[:12]
         self._messages: list[dict[str, str]] = []
+        #: 会话级检索状态（上一轮结果与本会话累计排除），切会话时一起清
+        self.recall = RecallState()
         self._db: sqlite3.Connection | None = None
         if persist_path:
             self._db = self._connect(Path(persist_path))
@@ -186,12 +207,15 @@ class Memory:
     def new_session(self) -> str:
         self.session_id = uuid.uuid4().hex[:12]
         self._messages = []
+        # 检索状态跟着会话走：新会话不该继承上一个会话的排除记录
+        self.recall.clear()
         self._ensure_session_record()
         return self.session_id
 
     def switch_session(self, session_id: str) -> None:
         self.session_id = session_id
         self._messages = []
+        self.recall.clear()
         self._ensure_session_record()
 
     def rename_session(self, title: str, session_id: str | None = None) -> None:

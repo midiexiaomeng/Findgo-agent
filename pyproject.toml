@@ -64,3 +64,4 @@ ignore = [
 "app.py" = ["E402"]
 "desktop.py" = ["E402"]
 "setup.py" = ["E402"]
+"webui/app.py" = ["E402"]

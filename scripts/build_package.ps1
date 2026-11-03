@@ -26,7 +26,12 @@ $ExcludeDirs = @(
     "models", "data", "datasets", "ollama", ".venv", ".venv-local", ".venv-api", "venv",
     "__pycache__", ".git", "legacy", "dist", ".pytest_cache", ".idea", ".vscode", "logs"
 )
-$ExcludeFiles = @("*.pyc", "*.pyo", "*.log", "*.sqlite", "*.zip", "config.local.yaml", "config.api.yaml", "agent.yaml")
+$ExcludeFiles = @(
+    "*.pyc", "*.pyo", "*.log", "*.sqlite", "*.zip",
+    "config.local.yaml", "config.api.yaml", "agent.yaml",
+    # 含 API Key，打进去等于把密钥发出去
+    "models.json", "custom_tools.yaml"
+)
 
 Write-Host "copying ..."
 $null = robocopy $Root $Stage /E /XD $ExcludeDirs /XF $ExcludeFiles /NFL /NDL /NJH /NJS /NP

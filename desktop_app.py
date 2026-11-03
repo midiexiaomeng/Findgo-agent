@@ -1578,24 +1578,7 @@ class MainWindow(AgentRunnerMixin, SessionMixin, FileTreeMixin, QMainWindow):
         )
 
     def _run_image_turn(self, image_path: str, text: str):
-        agent = self._get_agent()
-        agent.memory.add("user", text or "找相似的图片")
-
-        tool = agent.tools.get("image_search_by_image")
-        if tool is None:
-            return [], [], "没有注册以图搜图工具", []
-
-        result, _ = agent.executor.execute(tool, {"image_path": image_path, "top_k": 12})
-        reply = agent.responder.compose(text or "找相似的图片", result)
-        images = result.get("images", [])
-
-        image_paths = [
-            (img.get("path", "") if isinstance(img, dict) else getattr(img, "path", ""))
-            for img in images
-        ]
-        image_paths = [p for p in image_paths if p]
-        agent.memory.add("assistant", reply, images=image_paths)
-        return [], [], reply, images
+        return self._service().run_image(image_path, text).as_payload()
 
     # ── 联网模式 ──────────────────────────────────────────────────────────
 

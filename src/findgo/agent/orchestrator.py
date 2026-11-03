@@ -16,27 +16,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from ..config import AgentConfig
+from ..config import AgentConfig, load_tools_config
 from ..llm import ChatClient
-from ..tools import (
-    CountIndexedImagesTool,
-    DescribeImageTool,
-    ExportResultsTool,
-    FilterResultsTool,
-    FindDuplicatesTool,
-    FolderScanTool,
-    GetIndexStatsTool,
-    ImageRetrievalTool,
-    ImageSearchByImageTool,
-    IndexFolderTool,
-    ListIndexedFoldersTool,
-    PreviewStagedTool,
-    RemoveIndexTool,
-    SwitchVectorBackendTool,
-    TrashManageTool,
-    WebImageSearchTool,
-)
 from ..tools.base_tool import BaseTool
+from ..tools.registry import build_tools
 from ..utils.exceptions import ValidationError
 from ..utils.logger import TraceLogger
 from ..utils.schemas import AgentAction, TaskSpec
@@ -92,11 +75,6 @@ class FindgoAgent:
         persist = self.config.resolve_db_path() if self.config.memory_persist else None
         self.memory = Memory(persist_path=persist, resume=True)
         self.executor = ToolExecutor()
-        # 上一轮返回过的图片，用于「再发一次」
-        self._last_paths: set[str] = set()
-        self._last_images: list[dict] = []
-        # 本会话累计出现过的图片，连续「再找」时全部排除
-        self._seen_paths: set[str] = set()
 
         if tools is not None:
             self.tools = tools
@@ -116,30 +94,46 @@ class FindgoAgent:
             self.sandbox = guard
             # 路径校验前置：Planner 抽出的路径先用沙箱拦一道
             self.planner.sandbox = guard
-            self.tools = {
-                "image_retrieval": ImageRetrievalTool(pipeline, guard=guard),
-                "image_search_by_image": ImageSearchByImageTool(pipeline, guard=guard),
-                "index_folder": IndexFolderTool(pipeline, guard=guard),
-                "get_index_stats": GetIndexStatsTool(pipeline),
-                "switch_vector_backend": SwitchVectorBackendTool(pipeline),
-                "list_indexed_folders": ListIndexedFoldersTool(pipeline),
-                "count_indexed_images": CountIndexedImagesTool(pipeline, guard=guard),
-                "filter_results": FilterResultsTool(pipeline),
-                "preview_staged": PreviewStagedTool(),
-                "describe_image": DescribeImageTool(pipeline, guard=guard),
-                "export_results": ExportResultsTool(pipeline, guard=guard),
-                "find_duplicates": FindDuplicatesTool(pipeline, guard=guard),
-                "remove_index": RemoveIndexTool(pipeline, guard=guard),
-                "trash_manage": TrashManageTool(pipeline, guard=guard),
-                "web_image_search": WebImageSearchTool(pipeline),
-                "folder_scan": FolderScanTool(guard=guard),
-            }
+            # 启用哪些工具由 tools.yaml 决定，怎么构造由 registry 决定
+            enabled = [
+                str(spec["name"]) for spec in load_tools_config() if spec.get("enabled", True)
+            ]
+            self.tools = build_tools(pipeline, guard, enabled)
 
             # 自定义全局工具加载在内置之后，同名不覆盖内置
             for name, tool in load_custom_tools(guard).items():
                 self.tools.setdefault(name, tool)
 
         self.trace = TraceLogger()
+
+    # ── 会话级检索状态 ────────────────────────────────────────────────
+
+    # 真实数据存在 Memory.recall 里，随会话一起清。这里保留同名属性，
+    # 让「上一轮结果」「本会话已给过」这类读写只有一个归属。
+
+    @property
+    def _last_paths(self) -> set[str]:
+        return self.memory.recall.last_paths
+
+    @_last_paths.setter
+    def _last_paths(self, value: set[str]) -> None:
+        self.memory.recall.last_paths = value
+
+    @property
+    def _last_images(self) -> list[dict]:
+        return self.memory.recall.last_images
+
+    @_last_images.setter
+    def _last_images(self, value: list[dict]) -> None:
+        self.memory.recall.last_images = value
+
+    @property
+    def _seen_paths(self) -> set[str]:
+        return self.memory.recall.seen_paths
+
+    @_seen_paths.setter
+    def _seen_paths(self, value: set[str]) -> None:
+        self.memory.recall.seen_paths = value
 
     # ── 对外 ──────────────────────────────────────────────────────────────
 
@@ -214,9 +208,7 @@ class FindgoAgent:
 
     def reset_recall_memory(self) -> None:
         """切会话或用户要求从头找时清空累计排除。"""
-        self._last_paths = set()
-        self._last_images = []
-        self._seen_paths = set()
+        self.memory.recall.clear()
         logger.info("已清空本轮会话的排除记录")
 
     def _memory_context(self) -> str:
@@ -274,6 +266,14 @@ class FindgoAgent:
                 logger.info("收到停止信号，剩余任务跳过")
                 break
 
+            # 链式筛选需要上一轮结果和筛选工具，缺任一条就退回全库检索，
+            # 否则后面既拿不到 filter_results 也拿不到 args
+            if task.input_source == "last_results" and (
+                not previous_images or "filter_results" not in self.tools
+            ):
+                logger.info("没有可用的上一轮结果，退回全库检索")
+                task.input_source = "library"
+
             if task.reuse_last:
                 if previous_images:
                     results.append(
@@ -304,6 +304,9 @@ class FindgoAgent:
                         )
                     )
                     continue
+                # 动态工具的参数由 Planner 抽好放在 dynamic_args 里，
+                # 形状与内置工具的 query/top_k 不同，不能套用下面的分支
+                args = dict(task.dynamic_args or {})
             elif task.action == "scan":
                 tool = self.tools.get("folder_scan")
                 if tool is None or not task.path:
@@ -331,25 +334,18 @@ class FindgoAgent:
                     "count_only": True,
                 }
             elif task.input_source == "last_results":
-                # 在上一轮候选里再筛，不重新召回
-                if not previous_images:
-                    logger.info("没有上一轮结果可供筛选，退回全库检索")
-                    task.input_source = "library"
-                else:
-                    tool = self.tools.get("filter_results")
-                    if tool is None:
-                        task.input_source = "library"
-                    else:
-                        args = {
-                            "paths": [
-                                str(img.get("path", ""))
-                                for img in previous_images
-                                if isinstance(img, dict) and img.get("path")
-                            ],
-                            "constraints": dict(task.constraints or {}),
-                            "top_k": task.top_k if task.top_k > 0 else self.config.top_k,
-                        }
-                        logger.info("链式筛选：在上一轮 %d 张里再筛", len(previous_images))
+                # 可用性已在循环开头确认，这里直接拿工具和参数
+                tool = self.tools["filter_results"]
+                args = {
+                    "paths": [
+                        str(img.get("path", ""))
+                        for img in previous_images
+                        if isinstance(img, dict) and img.get("path")
+                    ],
+                    "constraints": dict(task.constraints or {}),
+                    "top_k": task.top_k if task.top_k > 0 else self.config.top_k,
+                }
+                logger.info("链式筛选：在上一轮 %d 张里再筛", len(previous_images))
             else:
                 if not task.query.strip():
                     continue
@@ -408,19 +404,9 @@ class FindgoAgent:
                 logger.info("用户要求重发但上一轮没有结果，改为重新检索")
 
             if task.is_dynamic:
-                name = str((task.dynamic_spec or {}).get("name", ""))
-                tool = self.tools.get(name)
-                if tool is None:
-                    results.append(
-                        AgentResult(
-                            reply=f"动态工具「{name}」尚未批准，已跳过",
-                            results=[],
-                            tool="",
-                            confidence=0.0,
-                            trace_id=uuid.uuid4().hex[:8],
-                        )
-                    )
-                    continue
+                # 能走到这里说明工具已批准并执行完毕，直接取它的产出
+                reply = str(result.get("summary") or "动态工具执行完成。")
+                images = result.get("images", [])
             elif task.action == "scan":
                 reply = str(result.get("summary") or "")
                 images = []

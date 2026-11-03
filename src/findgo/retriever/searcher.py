@@ -267,19 +267,17 @@ class Searcher:
             where={"is_staged": {"$ne": True}},
         )
 
-        # 向量库不支持该字段的过滤时，退回内存过滤
-        if hits:
-            hits = [h for h in hits if not h.metadata.get("is_staged")]
+        # 已暂存待删的图片不再参与检索。向量库已按 where 前置过滤，
+        # 这里兜底一次：有的后端会忽略不认识的字段，过滤不掉就只能靠内存判断。
+        raw_count = len(hits)
+        hits = [h for h in hits if not h.metadata.get("is_staged")]
         logger.info(
-            "召回: query_top=%d 实际返回=%d 排除=%d limit=%d",
+            "召回: query_top=%d 实际返回=%d 暂存剔除=%d limit=%d",
             limit,
             len(hits),
-            len(exclude_paths or ()),
+            raw_count - len(hits),
             limit,
         )
-
-        # 已暂存待删的图片不再参与检索（向量库已前置过滤，这里只做兜底）
-        hits = [h for h in hits if not h.metadata.get("is_staged")]
 
         # 上一轮已经返回过的图片，本轮排除
         if exclude_paths:
@@ -328,10 +326,11 @@ class Searcher:
     def stats(self) -> dict:
         store_stats = self.store.stats()
         return {
-            "images": store_stats["count"],
-            "backend": store_stats["backend"],
-            "collection": store_stats["collection"],
-            "dim": store_stats["embedding_dim"],
+            # 后端可能只实现最小契约，缺字段时用实例属性兜底，不让统计页整页失败
+            "images": store_stats.get("count", self.store.count()),
+            "backend": store_stats.get("backend", getattr(self.store, "backend_name", "")),
+            "collection": store_stats.get("collection", getattr(self.store, "collection", "")),
+            "dim": store_stats.get("embedding_dim", getattr(self.store, "embedding_dim", 0)),
             "device": self.encoder.device,
             "encoder_loaded": self.encoder.loaded,
             "llm": self.reranker.client.describe_backend(),
